@@ -1,0 +1,179 @@
+OPEN-SOURCE BACKGROUND EXECUTION — AEGRA CANDIDATE
+Research recorded: 2026-09-21 UTC
+Status: research and proposed local evaluation; no installed or running stack
+Parent decision index: background-agents-research.txt, D02
+Related: langchain-engineering-study.txt
+Data contracts: model-to-relational-data-design.txt
+
+1. USER DIRECTION AND AUTHORITY
+
+The user wants an open-source Agent Server alternative, with local execution
+before cloud deployment, and asked that these infrastructure findings be recorded.
+That direction is confirmed. Aegra is the leading candidate, not a validated or
+irrevocably selected dependency. No prototype, provider usage, database migration,
+dataset download, cloud provisioning, or deployment has been performed.
+
+This note records source-backed capabilities and proposed evidence requirements.
+It does not treat documentation, license availability, or a release number as
+proof of operational correctness. The Twitter research gap in the engineering
+study remains blocked; Aegra findings are not Twitter-derived recommendations.
+
+2. WHY AEGRA IS A CLOSE FIT
+
+Repository: https://github.com/aegra/aegra
+License inspected: Apache License 2.0.
+The inspected aegra-api package declares Beta status. GitHub's latest-release
+endpoint returned v0.10.5, published 2026-09-13. The repository was not archived.
+README and architecture observations below were read from main, not verified
+against every file in that release; pin and inspect a candidate before testing.
+
+The direct dependency manifest includes FastAPI, Uvicorn, LangGraph,
+langgraph-sdk, langgraph-checkpoint-postgres, PostgreSQL clients, Redis clients,
+OpenTelemetry, and croniter. It does not list the commercial langgraph-api runtime.
+A full transitive-dependency and container-license audit has not been completed.
+
+Aegra describes itself as a self-hosted alternative to LangSmith Deployments,
+with compatible LangGraph SDK APIs. Documented capabilities include assistants,
+threads, runs, human interrupts/resume, scheduled runs, SSE streaming and replay,
+authentication hooks, custom routes, PostgreSQL checkpoints, and OTLP tracing.
+Full API parity, tenant isolation, security, and production reliability are claims
+to evaluate, not findings established by this source study.
+
+3. LOCAL TOPOLOGY AND FUNCTIONAL RESPONSIBILITIES
+
+Candidate local Docker Compose topology:
+- Aegra application: API endpoints, worker loops, cron scheduling and lease reaper.
+- PostgreSQL: persistent run records, execution parameters, leases, checkpoints.
+- Redis: job-ID dispatch, live events, replay buffers and cancellation signaling.
+- Local mounted files: immutable input partitions and large output/artifact files.
+- Application analytical database: separate logical database/role on the same
+  local PostgreSQL instance initially; not Aegra's internal tables.
+
+This is not one microservice per graph node. A single application container can
+host the API and worker loops. CPU-heavy processing and inference may require
+separate processes/services later; that boundary should follow measurement.
+
+Aegra's documented production dispatch differs from the previously studied
+LangSmith Agent Server: Aegra actively dispatches run IDs through a Redis list;
+PostgreSQL retains persistent run records and recovery state. Do not transfer
+all queue guarantees from one implementation to the other because both use the
+same two databases.
+
+Documented lifecycle:
+1. API validates and persists the run and serialized execution parameters in PG.
+2. API enqueues the run ID in Redis.
+3. A worker pops a job and claims it with a PostgreSQL lease.
+4. Worker executes the graph and extends its lease via heartbeats.
+5. Checkpoints persist; events are published through Redis to connected clients.
+6. Worker finalizes the run or pauses for human input.
+7. A lease reaper identifies abandoned runs and requeues them within retry limits.
+
+Current worker documentation also describes recovery of stuck pending runs,
+PostgreSQL polling fallback during Redis outages, cross-instance cancellation,
+and graceful shutdown that returns unfinished work to the queue. Each is a
+specific behavior to test under failure, not an exactly-once guarantee.
+
+Development versus worker-backed mode:
+- aegra dev: PostgreSQL plus in-process asyncio tasks; no production lease recovery.
+- Redis-enabled aegra up / serve configuration: worker executor and recovery tasks.
+For infrastructure proof, use the worker-backed configuration locally. Dev mode
+is useful for editing but insufficient evidence of restart-durable background work.
+
+4. INFRASTRUCTURE CONTRACTS WE STILL OWN
+
+A. Application idempotency
+A worker can repeat a node after a crash or interrupt. An expired worker may be
+slow rather than dead. Leases do not make external effects transactional.
+Use stable logical operation IDs and guarded writes; reconcile uncertain effects.
+
+B. Admission and dispatch
+Test the boundary between committing a PG run and enqueueing its Redis ID. Losing
+an HTTP response must not cause duplicate logical publication. Record the source
+partition and recipe version independently of a transient request or connection.
+
+C. Work granularity and concurrency
+A partition is bounded by records/bytes and processing time, not just by a timer.
+Limit active runs AND provider calls/tokens within each run. Shared provider
+quotas need shared accounting after scaling; per-process limits are not global.
+Do not let CPU work block worker heartbeats or the serving event loop.
+
+D. Result acceptance
+Aegra run success means computation completed. Our validation/publication records
+must establish whether evidence and artifacts are accepted, partial, quarantined,
+failed, or blocked. Never show a half-built dataset as fully refreshed.
+
+E. Retention and upgrade safety
+Business evidence and published artifacts outlive disposable execution state.
+Pin graph code, state schema, Aegra, SDK, model clients and database migrations.
+Do not resume old checkpoints under incompatible graph code without a policy.
+
+F. Security and open-source dependencies
+Use loopback-only published ports locally; avoid exposing PostgreSQL/Redis to the
+LAN. Separate DB roles and credentials. Treat source text as untrusted data, not
+instructions that grant tools or permissions. Disable unapproved external tracing.
+
+The inspected upstream Compose example includes floating pgvector and redis:7
+images, published DB ports, source mounts and a hot-reloading server. It is not a
+hardened production configuration. Pin image versions/digests, verify licenses
+of exact builds (Redis server licensing varies by version), and assess a compatible
+open-source alternative if needed. Valkey compatibility is not verified here.
+
+5. PROPOSED LOCAL PROOF, BEFORE REAL MODELS
+
+A deterministic fixture graph:
+read partition -> mocked observations -> validate -> write results -> artifact.
+Mocks must be visibly labeled and never presented as Jev or TabFM predictions.
+No provider credentials or paid calls are required to establish this plumbing.
+
+Required observable tests for a pinned candidate:
+- Submit, disconnect, then retrieve the completed output.
+- Re-submit the same logical partition concurrently and after a lost HTTP response.
+- Kill the application before first checkpoint and after a domain output write.
+- Recover acknowledged work without duplicate accepted domain rows/artifacts.
+- Test stalled heartbeats, expired leases and delayed-worker output protection.
+- Interrupt/resume a review case and verify prior effects do not repeat.
+- Cancel a run, including while an external operation may still be executing.
+- Restart Redis and verify pending/active work is recovered or visibly fails.
+- Restart the full stack without deleting volumes; verify persisted records.
+- Apply a source correction and regenerate only the affected published versions.
+- Test exact SDK endpoints, streaming, and state/resume behaviors we actually use.
+
+Record candidate commit, dependency lock, image digests, fixture manifest, run IDs,
+observed outcomes, resource usage and durable evidence. Required outcomes end
+passed/failed/blocked. No such validation has run yet.
+
+A later bounded provider experiment can replace mocks with Jev. Local server
+hosting does not make Jev inference local. TabFM weight-use permission must be
+resolved independently; a local product prototype is not automatically permitted
+by a non-commercial/non-production license.
+
+6. CLOUD TRANSITION, ONLY AFTER LOCAL PROOF
+
+Preserve application contracts while moving services: containers onto a chosen
+compute platform, PostgreSQL and broker onto suitable persistent services, and
+files into object storage. Add secrets management, network policy, backups and
+restore tests, access control, monitoring, resource limits and deployment draining.
+More app replicas share PG/Redis; separate heavy inference if measurements require.
+Kubernetes, an extra workflow engine, a vector database and a distributed data
+engine are not prerequisites for the Olist prototype.
+
+Prefer adopting Aegra as a pinned dependency first, not maintaining a fork without
+a specific gap. If required invariants fail, contribute focused fixes or compare
+another execution backend. Keep our processing identities and data model portable.
+
+7. SOURCES AND EVIDENCE LIMITS
+
+Source-backed findings carried forward from the immediately preceding research:
+https://github.com/aegra/aegra/blob/main/LICENSE
+https://github.com/aegra/aegra/blob/main/README.md
+https://github.com/aegra/aegra/blob/main/libs/aegra-api/pyproject.toml
+https://github.com/aegra/aegra/blob/main/docker-compose.yml
+https://github.com/aegra/aegra/blob/main/docs/guides/worker-architecture.mdx
+https://github.com/aegra/aegra/releases/tag/v0.10.5
+https://docs.aegra.dev/guides/deployment
+Context7 library: /aegra/aegra.
+
+No Aegra files were imported or executed. No image was built or installed.
+Source review: completed for the listed scope, not a security/code audit.
+Behavior, throughput, recovery, SDK compatibility and license-chain validation:
+NOT RUN / not established.

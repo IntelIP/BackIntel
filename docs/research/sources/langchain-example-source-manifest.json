@@ -1,0 +1,98 @@
+[
+  {
+    "repository": "langchain-ai/ambient-agent-101",
+    "commit": "5fd65b372bccaab23980fab86340c237a87f53a1",
+    "path": "src/email_assistant/tools/gmail/run_ingest.py",
+    "url": "https://raw.githubusercontent.com/langchain-ai/ambient-agent-101/5fd65b372bccaab23980fab86340c237a87f53a1/src/email_assistant/tools/gmail/run_ingest.py",
+    "sha256": "c6ed9ab13006962814ec67934fe666bdafcdaf5a8b6746391a3206172291b87b",
+    "bytes": 11638
+  },
+  {
+    "repository": "langchain-ai/ambient-agent-101",
+    "commit": "5fd65b372bccaab23980fab86340c237a87f53a1",
+    "path": "src/email_assistant/cron.py",
+    "url": "https://raw.githubusercontent.com/langchain-ai/ambient-agent-101/5fd65b372bccaab23980fab86340c237a87f53a1/src/email_assistant/cron.py",
+    "sha256": "51da98d957869d6fc82a4ab8698ee5fe886c88e3670b16e893e65fb12dae3493",
+    "bytes": 2356
+  },
+  {
+    "repository": "langchain-ai/ambient-agent-101",
+    "commit": "5fd65b372bccaab23980fab86340c237a87f53a1",
+    "path": "src/email_assistant/tools/gmail/setup_cron.py",
+    "url": "https://raw.githubusercontent.com/langchain-ai/ambient-agent-101/5fd65b372bccaab23980fab86340c237a87f53a1/src/email_assistant/tools/gmail/setup_cron.py",
+    "sha256": "5740543d3ba8c5789cdacc16eb2c4a7fed2e45ff1776ebad160724a7841f137d",
+    "bytes": 2985
+  },
+  {
+    "repository": "langchain-ai/ambient-agent-101",
+    "commit": "5fd65b372bccaab23980fab86340c237a87f53a1",
+    "path": "src/email_assistant/email_assistant_hitl_memory_gmail.py",
+    "url": "https://raw.githubusercontent.com/langchain-ai/ambient-agent-101/5fd65b372bccaab23980fab86340c237a87f53a1/src/email_assistant/email_assistant_hitl_memory_gmail.py",
+    "sha256": "6d4e8ac606c64b5915e5a8986a6407ad23a85635c08a7176d905bae111a4348a",
+    "bytes": 22647
+  },
+  {
+    "repository": "langchain-ai/ambient-agent-101",
+    "commit": "5fd65b372bccaab23980fab86340c237a87f53a1",
+    "path": "langgraph.json",
+    "url": "https://raw.githubusercontent.com/langchain-ai/ambient-agent-101/5fd65b372bccaab23980fab86340c237a87f53a1/langgraph.json",
+    "sha256": "27561d769a6ebc99302b65094dfa1cbb02717e5b9638f77b2bcfcebf5ead23a7",
+    "bytes": 605
+  },
+  {
+    "repository": "langchain-ai/ambient-agent-101",
+    "commit": "5fd65b372bccaab23980fab86340c237a87f53a1",
+    "path": "pyproject.toml",
+    "url": "https://raw.githubusercontent.com/langchain-ai/ambient-agent-101/5fd65b372bccaab23980fab86340c237a87f53a1/pyproject.toml",
+    "sha256": "4efa1eaff819356f7cfb8a026f1feceb707289c5af6111535aa463b66420bc17",
+    "bytes": 1331
+  },
+  {
+    "repository": "langchain-ai/data-enrichment",
+    "commit": "f7d1610190145e02ad74f84ef6a3818836cf75e8",
+    "path": "src/enrichment_agent/graph.py",
+    "url": "https://raw.githubusercontent.com/langchain-ai/data-enrichment/f7d1610190145e02ad74f84ef6a3818836cf75e8/src/enrichment_agent/graph.py",
+    "sha256": "a8b503522a7961cccca3c815639ae2cf3b5b4aebe7b3762775a572b679f1cbed",
+    "bytes": 9611
+  },
+  {
+    "repository": "langchain-ai/data-enrichment",
+    "commit": "f7d1610190145e02ad74f84ef6a3818836cf75e8",
+    "path": "src/enrichment_agent/configuration.py",
+    "url": "https://raw.githubusercontent.com/langchain-ai/data-enrichment/f7d1610190145e02ad74f84ef6a3818836cf75e8/src/enrichment_agent/configuration.py",
+    "sha256": "2298c0586e954c32bb1f8bf237db1bc03ef044a086306e5910de05f757f7a4f7",
+    "bytes": 1964
+  },
+  {
+    "repository": "langchain-ai/data-enrichment",
+    "commit": "f7d1610190145e02ad74f84ef6a3818836cf75e8",
+    "path": "src/enrichment_agent/tools.py",
+    "url": "https://raw.githubusercontent.com/langchain-ai/data-enrichment/f7d1610190145e02ad74f84ef6a3818836cf75e8/src/enrichment_agent/tools.py",
+    "sha256": "1c65ff7bb290d9d89de30f3ddec40c47e594b503e3ba8e4c5f0fdd432fd04684",
+    "bytes": 2332
+  },
+  {
+    "repository": "langchain-ai/data-enrichment",
+    "commit": "f7d1610190145e02ad74f84ef6a3818836cf75e8",
+    "path": "src/enrichment_agent/state.py",
+    "url": "https://raw.githubusercontent.com/langchain-ai/data-enrichment/f7d1610190145e02ad74f84ef6a3818836cf75e8/src/enrichment_agent/state.py",
+    "sha256": "436695f2889accbc880b9a06ab4c44bb4e6ba7bc221dcd67248c136c7af469bf",
+    "bytes": 3179
+  },
+  {
+    "repository": "langchain-ai/data-enrichment",
+    "commit": "f7d1610190145e02ad74f84ef6a3818836cf75e8",
+    "path": "langgraph.json",
+    "url": "https://raw.githubusercontent.com/langchain-ai/data-enrichment/f7d1610190145e02ad74f84ef6a3818836cf75e8/langgraph.json",
+    "sha256": "7a626e1a78a62c1a3fcce4f983d15e0a13ffcdbb5a1f2bcd50b808597d647175",
+    "bytes": 164
+  },
+  {
+    "repository": "langchain-ai/data-enrichment",
+    "commit": "f7d1610190145e02ad74f84ef6a3818836cf75e8",
+    "path": "pyproject.toml",
+    "url": "https://raw.githubusercontent.com/langchain-ai/data-enrichment/f7d1610190145e02ad74f84ef6a3818836cf75e8/pyproject.toml",
+    "sha256": "02fa297907d55c59b44eee16bc556f781ef7aa046404b2e6c53d6e5667b0b1ce",
+    "bytes": 1531
+  }
+]

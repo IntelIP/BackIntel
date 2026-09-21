@@ -1,0 +1,561 @@
+BACKGROUND DATA REFINERY — INITIAL RESEARCH AND DESIGN MAP
+Research date: 2026-09-21 UTC
+Status: research draft; not an approved build specification
+Format: plain text, following workspace restrictions on new Markdown files.
+Engineering follow-up: langchain-engineering-study.txt (pinned example code,
+community issue reports, infrastructure contracts, and Twitter research gap).
+Open-source runtime follow-up: open-source-runtime-study.txt (Aegra candidate,
+local worker-backed topology, license caveats and recovery tests).
+Model/data follow-up: model-to-relational-data-design.txt (Jev/TabFM roles,
+proposed relational grains, evidence, feature snapshots and outcome contracts).
+
+0. DESTINATION, AUTHORITY, AND CURRENT STATE
+
+Destination: a background system that gathers approved heterogeneous data,
+extracts traceable structured evidence, produces prediction-ready tables, and
+creates useful artifacts for different stakeholders without requiring a chat
+prompt for every batch.
+
+User-confirmed scope: Olist for the initial MVP; Amazon Reviews for subsequent
+scale testing. Adding Olist's marketing funnel is a proposed extension, not a
+separately confirmed requirement. The prediction target, stakeholder priorities,
+budget, and autonomy boundaries remain open.
+Runtime direction subsequently confirmed: an open-source Agent Server alternative,
+local first before cloud. Aegra is the leading evaluation candidate, not yet a
+validated selection; see open-source-runtime-study.txt for source findings and
+the proposed prototype. The user has requested documentation/design discussion,
+not cloud deployment or paid inference.
+
+Current project directory contains research documentation only. It is not a Git
+repository. There are no existing
+services, runtime contracts, validators, or dependencies to reuse or preserve.
+No implementation, dataset download, model inference, account provisioning,
+deployment, or external publication was performed for this research.
+
+Authority for this task: source research and documentation only. Future paid
+experiments, provisioning, publication, deployment, and production writes need
+separate authorization. Before product implementation in a new Git repository,
+complete the workspace-required validation bootstrap; this research is not proof
+that any hooks or validators are installed.
+
+How to read this document:
+- Sections 1–3: source-backed framework definitions and example observations.
+- Sections 4–6: proposed architecture and unresolved decisions, not vendor promises.
+- Sections 7–8: proposed acceptance evidence and bounded next investigations.
+- Section 9: source register. Source IDs are the citation index.
+
+1. WHAT IS A BACKGROUND AGENT?
+
+Three independent concepts need to be kept separate.
+
+BACKGROUND EXECUTION
+Work executes independently of a foreground request or an open user interface.
+An application can submit a job, disconnect, and inspect its outcome later. This
+requires a running service/worker, job ownership, persistence, and recovery design.
+A local async invocation alone does not survive process termination. [S4, S5]
+
+AMBIENT INTERACTION
+LangChain describes ambient agents as systems that listen to event streams and
+act on them, potentially processing multiple events simultaneously. They are not
+solely initiated by human messages. Ambient does not imply complete autonomy.
+The official January 2025 article identifies three human interaction patterns:
+notify, question, and review. [S1]
+
+AGENTIC CONTROL
+LangGraph distinguishes workflows with predetermined code paths from agents that
+dynamically determine processes and tool usage. A model-based classifier inside
+a fixed pipeline is not automatically an unrestricted agent. [S2]
+
+Working definition for this product (our synthesis):
+An event- or schedule-triggered, durable processing workflow with bounded model
+judgment, selective investigative agents, explicit human escalation, and
+versioned analytical outputs.
+
+Examples:
+- Scheduled CSV parsing: background workflow, no agentic behavior required.
+- New review -> Jev classification -> validated row: ambient processing with
+  bounded model judgment, but mostly predefined control flow.
+- An ambiguous review triggers a tool-using investigation: agentic subworkflow.
+- A proposed stakeholder report waits for approval: background work with a human
+  checkpoint, not a failed job or necessarily a continuously occupied worker.
+
+2. WHAT LANGCHAIN / LANGGRAPH ACTUALLY PROVIDE
+
+LANGCHAIN
+Provides model/tool integrations and create_agent, a customizable agent harness
+of model, tools, prompt, and middleware. LangChain agents are built on LangGraph.
+Use it for selected investigative or explanatory agent loops, not as a substitute
+for a data processing backend. [S3]
+
+LANGCHAIN-TYPESAFE
+TypeSafeClassifier exposes Jev as a Runnable. It accepts text, JSON, and LangChain
+messages; supports composition and batching; and preserves typed Noul, Choice,
+and Score answers plus response metadata. The current integration documentation
+passes both state and questions to invoke; earlier examples used constructor-bound
+questions. Pin and test a compatible package version before implementation. [S10]
+
+Jev evaluates bounded judgments. Parsers, OCR/transcription, ordinary arithmetic,
+and generative extraction remain separate capabilities. Independent questions in
+one request do not consume one another's answers. Semantic correctness is not
+guaranteed by output typing. [S10, S11]
+
+LANGGRAPH OPEN-SOURCE ORCHESTRATION
+Provides nodes, shared state, edges/routing, subgraphs, dynamic fan-out, checkpoint
+integration, interrupts, and resumable execution. Nodes can be ordinary code,
+model calls, or tool-using agents. It does not itself constitute a deployed,
+always-running worker service. [S2, S7, S8]
+
+AGENT SERVER / LANGSMITH DEPLOYMENT
+Current official terminology places Agent Server under LangSmith Deployment;
+older examples often call the offering LangGraph Platform or LangGraph Cloud.
+Agent Server exposes assistants, threads, runs, and cron jobs, with task queuing
+and persistence. Managed and self-hosted operational responsibilities differ.
+Using Agent Server is a design option, not a requirement for using LangGraph.
+Licensing, deployment availability, infrastructure cost, and authentication need
+separate assessment before selecting a runtime. [S4]
+
+Agent Server vocabulary, mapped to this product:
+- Graph: executable workflow definition, e.g. process a source partition.
+- Assistant: configuration of a deployed graph, not necessarily another process
+  or independent AI personality. It could select a domain/rubric configuration.
+- Thread: persisted execution-state identity; not limited to chat conversations.
+- Run: one execution using an assistant/configuration, optionally on a thread.
+- Checkpoint: saved graph state used for inspection and recovery.
+- Store: cross-thread application memory; not automatically the analytical warehouse.
+- Cron: scheduled run creation; does not itself track which source rows are new.
+
+A background run is created and inspected later; the SDK supports getting run
+status, joining completion, and reading final thread state. [S5]
+Cron jobs support existing-thread and new-thread-per-execution patterns. Schedules
+are UTC. Retention must be deliberate: the documented stateless-cron mode can
+delete its newly created thread after completion by default. Durable business
+artifacts should not depend on retaining every execution checkpoint. [S6]
+
+Agent Server's current runtime documentation describes durable run records in
+PostgreSQL, Redis signaling/pubsub, and configurable execution tiers. Its queue
+serializes active runs on a given thread. Consequently, one thread for the entire
+Amazon dataset would be a poor concurrency boundary. [S4]
+
+LANGSMITH OBSERVABILITY
+Traces help inspect model calls, decisions, token usage, and execution. Traces
+are not a substitute for dataset lineage, access control, analytical validation,
+or durable artifact manifests. [S3, S10]
+
+CRITICAL RECOVERY LIMIT
+Checkpointing is not an exactly-once transaction across external services. A task
+that started but did not finish can run again. Database writes, model-call result
+storage, alerts, and artifact publication need idempotency and explicit commit
+boundaries. [S8]
+
+3. ONLINE EXAMPLES AND WHAT TO BORROW
+
+E1 — Introducing ambient agents (LangChain, January 14, 2025). [S1]
+Demonstrates the event-driven interaction model and notify/question/review.
+Borrow: an exception inbox rather than requiring chat for every record.
+Do not infer: ambient agents must be fully autonomous or all their claims are
+current deployment API guarantees.
+
+E2 — Ambient Agent 101, official educational repository. [S9]
+Combines email triage, a response agent, human review, persistent preferences,
+and evaluations. The core teaching examples use mock email/calendar tools;
+a separate Gmail implementation demonstrates real API integration.
+Borrow: separate triage from heavier response work; interrupt for missing input;
+evaluate both decisions and tool behavior.
+Adaptation: incoming review -> relevance/theme triage -> structured observations
+or exception investigation.
+Limit: it is an educational email example, not a high-volume ETL benchmark.
+Its README has dated setup details; do not copy dependency/API instructions
+without reconciling them with current documentation.
+
+E3 — LangGraph Data Enrichment Template. [S12, S13]
+Accepts a topic and extraction_schema; searches and reads web sources; submits
+structured information and uses a model-based reflection/checking loop.
+The graph exposes max_loops, but the pinned follow-up study found that its check
+runs only after reflection, not on every research cycle. See Section 3 of
+langchain-engineering-study.txt for the source-backed execution-limit analysis.
+Borrow: schema-directed acquisition and selective investigation for incomplete
+records. Potential Jev role: field-specific plausibility/relevance checks and
+routing to deeper extraction.
+Limit: the checker is a model judgment, not proof of factual accuracy. Reaching a
+loop limit must not be treated as passing our quality gate. The example's
+open-web research scope is not a proposed permission for our MVP.
+
+E4 — Agent Inbox. [S14]
+A UI reference for human interrupts, including accept, edit, respond, and ignore.
+Borrow: reviewers inspect evidence and correct an interpretation without owning
+the whole workflow. A correction must create a new observation version and
+invalidate affected downstream artifacts.
+Limit: this is an interaction pattern/reference, not a ready-made tenant-secure
+enterprise authorization system.
+
+E5 — Official background-run and cron guides. [S5, S6]
+Demonstrate submitting work separately from waiting for results and scheduling
+recurring runs.
+Borrow: return a run identity immediately, expose progress/status, recover after
+failure, and retain artifacts independently of execution-state cleanup.
+
+E6 — Official TypeSafe integration and experimental middleware. [S10]
+ModelRouterMiddleware selects the model for a run. AutoModeMiddleware screens
+listed tool calls and refuses calls deemed risky; it does not ask for approval.
+Borrow: Jev as both a feature-producing component and a routing component.
+Limit: probabilistic tool screening cannot replace deterministic permissions.
+
+Research quality: documentation and example code were inspected, not executed.
+The examples establish design patterns, not proven throughput, latency, business
+accuracy, or compatibility of a specific installed dependency set.
+
+4. PROPOSED LOGICAL ARCHITECTURE (NOT YET APPROVED)
+
+CONTROL PLANE
+Approved source registry / replay clock / trigger
+  -> job admission and budget checks
+  -> durable run scheduling
+  -> LangGraph coordination
+  -> progress, cancellation, retries, human exceptions
+
+DATA PLANE
+Immutable source objects
+  -> parse and normalize
+  -> Jev semantic judgments / selective extraction
+  -> validation, provenance, and entity association
+  -> versioned evidence records
+  -> point-in-time analytical feature tables
+  -> descriptive analysis / TabFM predictions / triage
+  -> verified result bundles
+  -> rendered stakeholder artifacts
+
+Graph state should hold bounded metadata and references: source version,
+partition ID, schema/rubric version, stage status, counters, and output locations.
+Bulk text, dataframes, and full result tables belong outside checkpoints.
+
+Proposed logical roles, not automatically separate agents or services:
+1. Source adapter: reads authorized inputs and advances source cursors.
+2. Interpreter: uses parsers, Jev, and selective generative extraction.
+3. Evidence validator: deterministic types/joins/arithmetic plus reviewed semantic
+   checks; uncertain material becomes an exception, not a fabricated fact.
+4. Analyst: builds approved datasets, invokes analytical tools and predictors.
+5. Presenter: chooses layouts and writes explanations from verified result bundles.
+6. Review coordinator: requests corrections/approval and resumes affected work.
+
+Parallelize independent partitions and artifact branches. Preserve ordering or
+locking for conflicting updates to shared entities. An aggregate should read a
+consistent input manifest, not whichever partitions happen to finish first.
+
+Proposed internal contracts to specify later:
+- SourceRecord: stable source ID, source version, content reference/hash,
+  event time, observed/available time, access scope.
+- Observation: entity/reference IDs, field, value/distribution, evidence pointer,
+  extraction method, model and rubric version, validation status.
+- FeatureSnapshot: entity grain, as-of time, feature schema/version, evidence
+  manifest, coverage/missingness; historical targets stored separately.
+- AnalysisResult: metric definitions, filters, time window, dataset version,
+  predictions/evaluation, source references, limitations.
+- ArtifactManifest: stakeholder/view, renderer version, result reference,
+  created time, freshness, access scope, publication status.
+- JobRecord: idempotency identity, attempts, progress, cost, cancellation,
+  checkpoint/output references, final disposition.
+
+Do not blur three kinds of state: execution checkpoints, analytical records,
+and optional user preferences/corrections. They have different retention,
+versioning, query, and permission needs.
+
+5. ARCHITECTURE DECISION REGISTER
+
+D-items remain OPEN except the open-source/local-first direction within D02,
+recorded with dataset sequencing in Section 0. Suggested implementations are
+recommendations, not user-approved or validated technical selections.
+
+D01 — Autonomy and external authority
+Options: fixed approved transformations; adaptive selection among approved tools;
+open-ended source/schema discovery.
+Recommendation: autonomous execution of approved recipes, with proposals for new
+sources, fields, or consequential actions sent to human review. This determines
+the core safety, evaluation, and product scope.
+
+D02 — Runtime and scheduling owner (direction partially resolved; Section 0)
+Leading candidate: Aegra, an Apache-2.0 alternative with LangGraph SDK APIs,
+PostgreSQL persistence and Redis-backed workers. Source findings, deployment-mode
+distinctions, caveats and proposed local evidence are recorded in
+open-source-runtime-study.txt. No runtime is installed or behavior validated.
+Fallback: LangGraph in an application-owned durable worker/scheduler if Aegra
+fails required contracts. Licensed Agent Server remains a comparison reference,
+not the current implementation direction. A bulk engine may own partitions later
+if measurements justify it. Assign one run-scheduling owner; avoid duplicate queues.
+
+D03 — Trigger, run, and thread granularity
+Options: manual backfill, timed replay, polling, source events; per-record versus
+bounded partition jobs; persistent per-entity versus per-job threads.
+Recommendation: deterministic Olist replay and bounded partition work, with a
+separate durable case identity for human exceptions. Decide overlap policy and
+high-water marks; a scheduled tick is not the source of truth for ingestion.
+
+D04 — Storage and data processing
+Choose source/object storage, curated analytical storage, metadata storage, and
+query engine separately. MVP candidates include files/Parquet with a local SQL
+engine, versus a service database plus object storage. Measure before selecting.
+Avoid unnecessary vector databases: retrieval is optional until a use case needs
+it. Never make graph checkpoints the primary warehouse.
+
+D05 — Domain contracts and entity grain
+Define order, review, product, seller, and customer identities; distinguish
+customer_id from customer_unique_id; explicitly handle one-to-many items,
+payments, and reviews. Preserve ambiguous seller attribution on multi-seller
+orders. Keep domain recipes separate from processing infrastructure. [S15]
+
+D06 — Jev and extraction strategy
+Choose rubric, missing/unknown handling, question batching, confidence escalation,
+language strategy, and generative fallback model. Compare Portuguese-native
+processing with a reviewed translation path before making an accuracy claim.
+Store original text regardless of translation. Cache only under source/access
+scope, content, model, prompt/rubric, and preprocessing version identities.
+
+D07 — Event time, availability, revisions, and lineage
+Define source timestamps, when evidence becomes available, late arrivals,
+corrections, schema changes, and downstream invalidation. A historical Kaggle
+snapshot does not prove every field's historical value. Document replay
+assumptions and exclude unsupported as-of features.
+
+D08 — Prediction contract and TabFM deployment route
+Choose first outcome and prediction timestamp, target eligibility/censoring,
+context selection, baseline, holdout, calibration, and prediction retention.
+Candidate: order lateness predicted at approval from available operational fields
+and earlier review observations. Own-order future reviews are forbidden inputs.
+TabFM is a replaceable prediction component; commercial/production permission
+for the selected model/service route must be resolved separately. [S17]
+
+D09 — Stakeholders and artifacts
+Choose first roles, questions, granularity, refresh cadence, and presentation.
+Recommendation: one operator queue, one analyst table/chart, one executive brief
+from a shared result bundle. Native Excel/Word/Teams/Slack adapters are not yet
+specified, not silently included in the first build.
+
+D10 — Reliability, publication, and failure behavior
+Define idempotent writes, transactional boundaries, retry budgets, quarantine,
+provider outages, worker crashes, stale leases, cancellation, and replay.
+Recommendation: at-least-once attempts with idempotent publication. A successful
+run is not proof that every required artifact passed. Retain per-output status;
+never promote partial output as a complete refreshed dataset.
+
+D11 — Human oversight and access
+Define notify/question/review thresholds, reviewers, ownership, and timeouts.
+Specify source permissions and derived-result visibility. Treat ingested text as
+untrusted data; it cannot grant tools, alter budgets, or authorize new sources.
+Reviewers need provenance, not only a confidence number. Do not copy demo
+credential storage or access patterns into a production design uncritically.
+
+D12 — Cost and scale controls
+Set record/token/time/cost caps before paid experiments. Limit concurrency at the
+provider boundary, use backpressure, stop unbounded retries, and record actual
+usage. Model pricing alone excludes ingestion, translation, storage, prediction,
+rendering, and review costs. Amazon category/partition selection remains open.
+
+D13 — Evaluation and reproducibility
+Version input manifest, code commit, schemas, models, questions, feature recipes,
+and output manifests. Separate semantic extraction evidence, data engineering
+correctness, prediction validity, and stakeholder usefulness. Required evidence
+must end passed/failed/blocked; missing proof or required unknown cost is blocked.
+
+D14 — Packaging and source onboarding
+Decide whether users author mappings/rubrics or an agent proposes them. File type
+handling is not the same as semantic schema discovery. New source permissions,
+schema changes, and extraction policies need review before scheduled execution.
+
+6. OLIST NOW, AMAZON LATER
+
+Olist supports an initial business-workflow demonstration using linked
+transactions and review narratives. It is not a genuine large-scale processing
+benchmark. Original data primarily comes as CSV; exposing portions via a database
+or API demonstrates our adapters, not native enterprise provenance. [S15]
+
+An optional marketing funnel adds acquisition context via seller_id. Coverage,
+selection, and availability must be checked before comparing downstream cohorts;
+missing closed-deal rows must not automatically become definitive negative
+conversion labels. [S16]
+
+Amazon Reviews 2023 supports large-scale text/metadata processing across product
+categories. It does not preserve Olist's order/delivery outcome contract. Reuse
+the engine, not an assumed identical predictive task. Choose an observable Amazon
+outcome with temporal boundaries in a separate design decision; avoid reading a
+review and calling prediction of its own rating a future business forecast. [S18]
+
+What should carry over: partitioned ingestion, schema-directed interpretation,
+versioned observations, bounded orchestration, provenance, evaluation, and
+stakeholder-specific result rendering.
+
+What must be revalidated: taxonomy, languages, entity mappings, target, sampling,
+missingness, provider throughput, cost, and stakeholder usefulness.
+
+7. PROPOSED REQUIRED EVIDENCE BEFORE CLAIMING MVP SUCCESS
+
+Not measured yet; acceptance thresholds require user agreement.
+
+- Extraction: independently reviewed examples, including Portuguese/translation
+  cases, ambiguity, empty reviews, mixed complaints, and adversarial instructions.
+- Data integrity: source counts reconcile, joins do not inflate metrics, missing
+  records are explicit, and a displayed result traces to its input manifest.
+- Recovery: terminate a worker mid-partition and resume without duplicate curated
+  rows or duplicate artifact publication; test provider timeout and partial write.
+- Incrementality: unchanged source/version replays reuse accepted work; a changed
+  rubric or source correction invalidates the correct downstream outputs.
+- Prediction: chronological held-out evaluation against a conventional baseline;
+  compare structured-only and text-enriched features without target leakage.
+- Presentation: artifact numbers match authoritative result bundles, permissions
+  apply to evidence and aggregates, and actuals are distinct from predictions.
+- Human review: ambiguous cases pause appropriately, corrections are versioned,
+  and the corrected result can propagate without changing unrelated records.
+- Economics: measured per-stage records, latency, token usage, retry count, and
+  total cost for the tested input manifest; no extrapolated scale claim presented
+  as measured throughput.
+- Exact candidate binding: before product review, evidence must identify the
+  candidate commit and input/configuration versions; no candidate exists yet.
+
+8. NEXT INVESTIGATIONS — WAYFINDING INDEX
+
+These are proposed, bounded tasks, not started or assigned implementation tickets.
+Each is intended to fit one focused session. No paid execution is authorized by
+listing it here. Human decision D01 should precede a build specification.
+
+R01: Open-source runtime evaluation (research; source study partially complete)
+Depends on: D01 requirements and D02 direction.
+Outcome: assess Aegra against required SDK, admission/recovery, cancellation,
+review, license and operational contracts before building a custom server.
+Source results and proposed tests: open-source-runtime-study.txt.
+Evidence: exact candidate/dependency audit, then separately scoped local prototype
+with observed recovery/output reconciliation. Forbidden: provision cloud services,
+claim documentation is validation, or select a production stack silently.
+
+R02: Olist data-contract audit (research; download permission required before data acquisition)
+Depends on: dataset acquisition scope.
+Outcome: confirm table grain, timestamp availability, review language/coverage,
+join cardinalities, and feasibility of the proposed outcome.
+Evidence: reproducible profile and candidate point-in-time contract.
+Forbidden: manufacture source fields, targets, or historical availability.
+
+R03: Jev interpretation experiment (prototype; separately authorize provider usage)
+Depends on: R02, approved rubric and budget, exact package/model versions.
+Outcome: compare bounded Jev methods and language strategies on a reviewed sample.
+Evidence: per-field quality, abstention, errors, measured cost, response schemas.
+Forbidden: bulk unbounded classification or self-labeled ground truth.
+
+R04: Durable partition lifecycle (prototype; not yet authorized)
+Depends on: R01 runtime selection, D03/D10 contracts.
+Outcome: prove submission, progress, failure/recovery, deduplication, cancellation,
+and stable artifact publication using synthetic fixtures first.
+Evidence: fault-injection trace plus state/output reconciliation.
+Forbidden: treat an in-memory demonstration as restart-durable execution.
+
+R05: Stakeholder artifact contract (design)
+Depends on: chosen first stakeholder questions; uses R02 contract where needed.
+Outcome: define three bounded views and their evidence requirements.
+Evidence: sample result-bundle shape and view specifications using clearly marked
+illustrative data. Forbidden: invent business findings or imply rendered UI testing.
+
+R06: Amazon scale envelope (research, then separately authorized benchmark)
+Depends on: R03 measured unit economics and R04 lifecycle evidence.
+Outcome: choose one category/partition and identify bottlenecks before expanding.
+Evidence: source schema/terms review, bounded load plan, then actual throughput,
+resource utilization, and total-cost evidence once execution is approved.
+Forbidden: download or process the entire corpus as the first experiment.
+
+Exit gate to implementation:
+Confirm shared understanding and resolve material decisions; select a runtime,
+autonomy boundary, data/prediction contract, first stakeholder artifacts, budget,
+and required evidence. Then produce dependency-aware build tasks. Research,
+prototype, implementation, validation, publication, and deployment stay separate.
+
+9. SOURCE REGISTER
+
+Primary documentation/examples accessed during this research unless marked as
+carried forward from the preceding dataset/integration research. These are live
+URLs, not immutable snapshots or pinned runnable dependency sets. Record exact
+versions/commits before reusing example code. No example was executed locally.
+
+[S1] LangChain — Introducing ambient agents; January 14, 2025.
+https://www.langchain.com/blog/introducing-ambient-agents
+Definition, event stream behavior, notify/question/review, Agent Inbox rationale.
+
+[S2] LangGraph — Workflows and agents.
+https://docs.langchain.com/oss/python/langgraph/workflows-agents
+Predetermined workflows versus dynamic agents; routing and orchestrator-worker patterns.
+
+[S3] LangChain — Overview.
+https://docs.langchain.com/oss/python/langchain/overview
+Model plus harness; create_agent; LangChain/LangGraph/LangSmith roles.
+
+[S4] LangSmith Deployment — Agent Server.
+https://docs.langchain.com/langsmith/agent-server
+Assistants, threads, runs, persistence, queue, runtime tiers, per-thread concurrency.
+
+[S5] LangSmith Deployment — How to kick off background runs.
+https://docs.langchain.com/langsmith/background-run
+Create a run, inspect status, join, read final thread state.
+
+[S6] LangSmith Deployment — Use cron jobs.
+https://docs.langchain.com/langsmith/cron-jobs
+Schedules, existing/new threads, UTC, retention and cleanup.
+
+[S7] LangGraph — Persistence (current content returned at durable-execution URL).
+https://docs.langchain.com/oss/python/langgraph/durable-execution
+Checkpointer vs store; in-memory state does not survive restart.
+
+[S8] LangGraph — Functional API, including idempotency guidance.
+https://docs.langchain.com/oss/python/langgraph/functional-api
+Retrieved via Context7. Incomplete tasks may run again after resume.
+
+[S9] LangChain — Ambient Agent 101.
+https://github.com/langchain-ai/ambient-agent-101
+Code entrypoints: src/email_assistant/email_assistant.py,
+src/email_assistant/email_assistant_hitl.py,
+src/email_assistant/email_assistant_hitl_memory.py,
+src/email_assistant/email_assistant_hitl_memory_gmail.py.
+README inspected; this task did not execute those examples.
+
+[S10] LangChain — TypeSafe integrations.
+https://docs.langchain.com/oss/python/integrations/providers/typesafe
+Carried forward from the preceding integration research in this conversation.
+TypeSafeClassifier, input/answer shapes, tracing, experimental middleware limits.
+
+[S11] TypeSafe — Models and Jev 1.13 limitations.
+https://docs.typesafe.ai/models.md
+https://docs.typesafe.ai/model-jaggedness/jev-1.13.md
+Carried forward from earlier research in this conversation. Text input, language
+limitations, aliases, customer-specific tuning limits, and semantic failure modes.
+
+[S12] LangChain — Data Enrichment Template.
+https://github.com/langchain-ai/data-enrichment
+Schema-directed research and extraction example.
+
+[S13] Data Enrichment Template — graph source inspected.
+https://raw.githubusercontent.com/langchain-ai/data-enrichment/main/src/enrichment_agent/graph.py
+Model-based reflection/checker and configurable max_loops; no execution performed.
+
+[S14] LangChain — Agent Inbox.
+https://github.com/langchain-ai/agent-inbox
+Interrupt action/response schemas and human review UX reference.
+
+[S15] Olist — Brazilian E-Commerce Public Dataset.
+https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce
+Carried forward from preceding dataset research. Approximately 100k orders,
+nine CSV tables, reviews, customer identity and multi-seller caveats.
+
+[S16] Olist — Marketing Funnel.
+https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist
+Carried forward. Approximately 8k sampled MQLs; links via seller_id.
+
+[S17] Google Research — TabFM.
+https://github.com/google-research/tabfm
+Carried forward; Context7 library /google-research/tabfm. Classification/regression,
+labeled in-context examples, bounded context, separate non-production/non-commercial
+pretrained-weight license. Documentation snapshots showed differing constructor
+and README context defaults; do not hard-code limits without version verification.
+
+[S18] McAuley Lab — Amazon Reviews 2023.
+https://amazon-reviews-2023.github.io/
+https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023
+Carried forward. Published scale: 571.54M reviews, 48.19M items, 33 domains.
+
+Context7 libraries consulted for this research:
+/websites/langchain_oss_python_langgraph
+/websites/langchain
+Context7 results were supplemented with direct official-page and repository reads
+when searches did not return the specific operational detail.

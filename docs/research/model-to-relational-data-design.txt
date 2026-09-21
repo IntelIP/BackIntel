@@ -1,0 +1,485 @@
+JEV + TABFM — FROM SOURCE MATERIAL TO RELATIONAL DATA PRODUCTS
+Research date: 2026-09-21 UTC
+Status: discussion draft; logical data design, not approved SQL migrations
+Parent index: background-agents-research.txt (D04–D09, D12–D14)
+Runtime candidate: open-source-runtime-study.txt
+
+0. INTENT AND BOUNDARY
+
+User direction: Olist first, Amazon Reviews later; open-source background server
+with local execution before cloud deployment. This document explains model roles
+and proposes relational data contracts for discussion. Aegra is a runtime
+candidate, not an installed dependency. PostgreSQL is the proposed application
+relational database, not a separately confirmed production infrastructure choice.
+The first prediction target, stakeholder priority, rubric, model route and budget
+remain open. No data, model weights or runtime dependencies were installed.
+
+Core principle:
+Preserve source facts, probabilistic observations, point-in-time features, actual
+outcomes, predictions and published findings as distinguishable records.
+Normalized evidence is the durable foundation. Flat feature tables are products
+built from that foundation, not substitutes for it.
+
+1. WHAT THE MODELS ACTUALLY DO
+
+JEV — BOUNDED SEMANTIC MEASUREMENT [J1, J2, J3]
+Input: text or text-containing JSON state plus named typed questions.
+Output: Noul p(yes); Choice selected option and distribution; Score rubric position
+and distribution. Choice/Score confidence is distribution-derived, not the
+winning option's probability. Noul has no separate confidence field.
+Questions sharing state are evaluated independently, not as a reasoning chain.
+
+Current model documentation lists jev-1.13.0, aliases and hosted API access. Pin
+an explicit version and retain the responding version and provider request ID.
+The published token/request limits can change dynamically; do not treat them as
+a capacity reservation. Pricing/limits should be rechecked before any paid run.
+English is the strongest documented language; Olist's Portuguese content requires
+a reviewed direct-versus-translation experiment. Preserve originals and record
+translation provider/model/version and text references if translation is used.
+No local Jev weights were identified in the sources reviewed. A configurable API
+base URL is not evidence of an available self-hosted model distribution.
+
+Appropriate tasks:
+- Is a delivery complaint expressed? Noul.
+- Which complaint is primary? Choice, including explicit none/other options.
+- How severe is the explicitly described product impact? Score with fixed levels.
+- Which supplied candidate passage/value supports the requested field? Choice.
+- Does an ambiguous case need more evidence? Bounded routing plus code policy.
+
+Other tools remain responsible for CSV parsing, exact IDs, amounts and timestamps,
+OCR, arbitrary-value extraction, deterministic arithmetic and referential checks.
+Jev does not discover foreign keys or write schema migrations by itself.
+An unmentioned real-world condition is unknown; it is not automatically false.
+By contrast, a carefully defined text-presence question can legitimately be false
+when the condition is not mentioned. Store which proposition was asked.
+
+TABFM — PREDICTIVE RELATIONSHIPS BETWEEN COLUMNS AND OUTCOMES [T1, T2]
+Google Research TabFM offers TabFMClassifier and TabFMRegressor with mixed-type
+DataFrame inputs. fit prepares context/preprocessing; predict and predict_proba
+use labeled examples as in-context evidence. It does not require gradient training
+of pretrained weights on our dataset. Some configurations may fit additional
+calibration/ensemble components; log the actual configuration and preprocessing.
+Zero-shot parameter adaptation does NOT mean no historical labels are required.
+
+Conceptual interface:
+  historical feature rows X_context + known outcomes y_context
+  new feature rows X_query, with exactly the approved columns and types
+  -> predictions, and class probabilities for classification.
+
+JAX and PyTorch backends and CPU/GPU paths are documented. No local throughput,
+RAM requirement or Apple GPU compatibility was tested. Keep heavy inference off
+the API/heartbeat event loop; load a model in a bounded inference process rather
+than once for every record if experiments justify that packaging.
+TabFM consumes bounded contexts; the whole Olist/Amazon corpus is not one prompt.
+Persist context membership/selection, model and preprocessing settings. Verify
+actual version defaults rather than using README defaults as hard limits.
+
+Licensing gate: repository code is Apache-2.0, but default downloaded weights are
+under tabfm-non-commercial-v1.0 and prohibit commercial and production use. A local
+prototype for a commercial product is not automatically permitted. Establish the
+intended-use permission before downloading/running those weights, or substitute
+an appropriately licensed baseline/predictor. The inference interface should stay
+replaceable. Jev service terms and source-dataset rights are separate checks.
+
+NEW RELEVANT REFERENCE — TYPESAFE FEATURE DISCOVERY [J4]
+TypeSafe's autoresearch cookbook uses an LLM to propose questions, Jev to answer
+those questions over text, and CatBoost to predict labels from the resulting
+features. Model errors inform subsequent proposed question revisions.
+This is a concrete example of semantic features feeding a downstream predictor;
+it is NOT a TabFM integration or proof that Jev improves Olist predictions.
+The retrieved cookbook uses an older Jev identifier and development-set CV. Our
+time-dependent use case needs chronological development folds and untouched
+future holdouts, not copied random/label-stratified folds. Freeze proposed questions
+before evaluating the final holdout. Feature discovery must not silently change
+the production schema, consume unbounded budget or use future outcomes.
+
+2. THE INFORMATION REFINERY
+
+Collection: approved source adapters preserve source objects and record versions.
+Separation: parsers split structured facts from text needing interpretation.
+Interpretation: Jev measures defined concepts; selective extractors find values.
+Quality control: validate schema, provenance, relationships, coverage and ambiguity.
+Blending: deterministic SQL joins/aggregations produce purpose-specific tables.
+Prediction: an approved predictor relates feature snapshots to observed outcomes.
+Delivery: SQL results, triage queues, charts and reports use published data versions.
+
+Not every output passes through TabFM. Review themes and actual lateness dashboards
+are descriptive products; exception queues may use rules without prediction.
+LangGraph/Aegra coordinates stages and retries. It is not the bulk storage engine.
+Graph checkpoints should hold IDs, manifests, cursors and counters, not full tables.
+
+Example, entirely illustrative (not an actual Olist record or model result):
+Review R17 of order O42: 'The parcel arrived late; the packaging was damaged,
+but the item works.'
+- Parser links R17 to O42 using the source ID, not a guessed semantic join.
+- Jev emits p(delivery complaint expressed)=0.96, p(packaging damage mentioned)=0.91,
+  p(item described as functional)=0.88, and a primary complaint Choice.
+- Arithmetic independently computes actual lateness from delivery/estimate dates.
+- The review supports retrospective product/experience analysis immediately.
+- It can inform a later order's features only once that review is available.
+- It cannot predict O42's own earlier delivery using O42's post-delivery review.
+
+3. PROPOSED DATABASE BOUNDARIES
+
+One local PostgreSQL instance can initially host separate logical databases/roles:
+- Aegra's internal database: framework-owned jobs/checkpoints/migrations.
+- Our application database: source ledger, domain tables, observations and products.
+Do not write business rows into Aegra-owned tables or depend on their internal IDs
+as our sole durable business identity. Store execution run IDs as trace references.
+
+Within the application DB, raw/core/evidence/analytics are conceptual namespaces;
+actual schema names and physical separation are not yet selected. Large originals,
+Parquet partitions and rendered files can live on local disk now, object storage
+later, with content hashes and manifest references in PostgreSQL.
+
+Use relational columns for IDs, relationships, values, status, versions and times.
+Use constrained JSONB for varying answer distributions, question definitions and
+configuration, not as a replacement for all relational structure. Do not build an
+all-purpose entity-attribute-value database for orders, customers and payments.
+
+The tables below describe logical responsibilities. They need not become separate
+services, and only the approved vertical slice should be implemented initially.
+
+4. SOURCE AND CORE BUSINESS RECORDS
+
+SOURCE LAYER
+source_batches
+  PK batch_id; dataset_id, source_uri, content_hash, format, acquired_at,
+  source_license_ref, row_count, schema_fingerprint, validation_status.
+  Grain: one immutable acquired source object/partition version.
+
+source_records
+  PK source_record_id; FK batch_id; source_row_locator, source_business_key,
+  payload_hash, payload_jsonb or content_ref, event_time, source_available_at,
+  ingested_at, availability_basis, access_scope.
+  Grain: one source row/document occurrence in an immutable source version.
+  Unique(batch_id, source_row_locator). Row locator preserves duplicates; business
+  identity/deduplication must be determined separately. An unchanged text hash
+  must not collapse distinct legitimate reviews by different people.
+
+CORE OLIST TABLES
+orders
+  PK order_id; FK customer_id; status, purchased_at, approved_at,
+  estimated_delivery_at, carrier_handoff_at, delivered_at, FK source_record_id.
+  Grain: one order in the selected canonical dataset version.
+
+order_items
+  PK(order_id, order_item_id); FK order_id, product_id, seller_id;
+  price_amount, freight_amount, currency_code, shipping_limit_at,
+  FK source_record_id.
+  Grain: one line item. Use fixed-precision monetary values, not binary floats.
+  Currency from dataset documentation belongs in recorded metadata, not a guess.
+
+customers
+  PK customer_id; customer_unique_id, location attributes, FK source_record_id.
+  customer_unique_id can link repeat customer identities; do not assume customer_id
+  itself means a globally persistent person. Keep postcodes/identifiers as text.
+
+sellers / products
+  PK seller_id or product_id; source attributes, FK source_record_id.
+  Preserve original category values and versioned translations where used.
+
+payments
+  PK(order_id, payment_sequential); FK order_id; method, installments, amount,
+  FK source_record_id. Grain: one payment record, not one order.
+
+reviews
+  PK review_record_id (internal); source_review_id, FK order_id,
+  rating, title, body, language, review_created_at, review_answered_at,
+  source_available_at, FK source_record_id.
+  Grain: one canonical review record/version. Preserve the source ID but do not
+  impose uniqueness on it or order_id until the dataset is profiled. Olist may
+  have multiple review records per order and duplicate identifiers/occurrences.
+
+Relationships:
+  customers 1 -> many orders
+  orders 1 -> many order_items; items -> product and seller
+  orders 1 -> many payments
+  orders 1 -> many reviews
+
+Source revisions must remain auditable. For the first fixed dataset, immutable
+source_records plus a selected canonical projection are sufficient. When ingesting
+changed datasets, create new versions/manifests rather than silently destroying
+old values. Full bitemporal core tables are a later option, not an MVP prerequisite.
+Snapshot lineage must point to exact source versions even if current projections
+later change.
+
+5. SEMANTIC EVIDENCE: THE JEV OUTPUT LAYER
+
+question_definitions
+  PK question_version_id; stable_question_key, primitive, instructions,
+  criteria_jsonb, interpretation, version, definition_hash, approved_at.
+  Grain: one immutable question/rubric version. Meaning includes whether the
+  proposition concerns text presence, customer-reported facts, or verified facts.
+
+extraction_runs
+  PK extraction_run_id; logical_operation_key, attempt_number, aegra_run_id,
+  input_manifest_ref, question_set_hash, preprocessing_version, adapter_version,
+  requested_model, resolved_model, provider_request_id, status, started_at,
+  completed_at, latency_ms, input_tokens, output_tokens, cost_amount,
+  cost_currency, cost_status, raw_response_ref.
+  Grain: one extraction attempt. Retries are separate attempts; successful
+  logical publication is deduplicated. A request can answer several questions.
+  Unknown cost stays unknown; do not silently encode it as zero.
+
+review_observations
+  PK observation_id; FK review_record_id, question_version_id, extraction_run_id;
+  noul_value OR choice_value OR score_value; probabilities_jsonb,
+  confidence, legend_jsonb, computed_at, supersedes_observation_id nullable.
+  Grain: one answer to one question about one review version in one attempt.
+  Unique(extraction_run_id, review_record_id, question_version_id).
+  Store the original answer immutably; separate acceptance and corrections below.
+
+observation_evidence
+  FK observation_id, source_record_id; evidence_id PK, field_path/span offsets,
+  text_version_hash, evidence_role, selector_method, support_status.
+  Grain: one supporting/contradicting passage or source association.
+  Jev does not automatically return citation spans. Preserve the whole reviewed
+  field if exact span selection is not implemented; do not fabricate offsets.
+  Translation references must link back to original text. Automatic selection is
+  not independent human verification of factual truth.
+
+observation_resolutions
+  PK resolution_id; FK observation_id; disposition, reviewer_or_policy_version,
+  corrected_value_jsonb nullable, reason, resolved_at, supersedes_resolution_id.
+  Grain: one append-only acceptance/review/correction decision. A canonical view
+  selects one applicable accepted resolution per logical observation/question.
+  Human corrections do not overwrite the model's raw answer or invent a new
+  calibrated model distribution. Feature recipes specify whether to use raw
+  probabilities, reviewed labels or explicit correction/missingness indicators.
+
+Constraints to enforce when implemented:
+- Exactly the typed scalar appropriate to the question primitive is populated.
+- Noul/probability values finite and in [0,1]. No Noul confidence field invented.
+- Choice belongs to the versioned option set; Score lies within rubric bounds.
+- Distribution keys match the options/levels and sum to one within tolerance.
+- Missing input, failed parsing, disagreement and uncertainty are distinguishable.
+- A low-confidence answer is not automatically false; null does not mean zero.
+- Foreign keys, uniqueness, immutable versions and scoped access hold on all writes.
+
+For a compact MVP, evidence/resolution history can use tightly validated structured
+records attached to observations, provided cardinality, lineage and immutability
+contracts survive. Do not prematurely implement a general ontology platform.
+
+6. WIDE ANALYTICAL VIEWS AND SNAPSHOTS
+
+review_signals (view or versioned materialized projection)
+  review_record_id, order_id, question_set_version,
+  delivery_complaint_probability, packaging_damage_probability,
+  functionality_mentioned_probability, primary_issue, impact_score,
+  text_present, interpretation_status, source_available_at,
+  observation_manifest_ref.
+  Grain: one review version for a selected approved question set.
+
+This pivots accepted long-form observations into columns convenient for SQL and
+analysts. Underlying distributions remain available even if this view shows a
+single scalar. Multiple independent themes use separate Nouls; one Choice alone
+cannot represent multi-label complaints.
+
+feature_snapshots
+  PK snapshot_id; recipe_version, target_definition_id, as_of_at/cutoff_policy,
+  input_manifest_ref, observation_resolution_manifest_ref, schema_hash,
+  created_at, availability_mode, completeness_status, row_count.
+  Grain: one immutable feature-table build using a fixed recipe and input manifest.
+  A manifest lists exact source, observation and resolution IDs/versions (or
+  immutable partition manifests) rather than only a mutable table name.
+
+order_prediction_features
+  PK(snapshot_id, order_id, prediction_at); FK snapshot_id, order_id;
+  promised_window_days, item_value_total, freight_total, item_count, seller_count,
+  customer_state, cross_state_item_share,
+  prior_seller_delivery_late_rate, prior_seller_delivered_count,
+  prior_seller_delivery_complaint_mean, prior_seller_review_count,
+  prior_seller_review_coverage, history_missing, ...approved columns only.
+  Grain: one order at a defined prediction time within a feature snapshot.
+  Initial candidate time: approval. Do not use order age at approval as a
+  substantive feature if it is always zero under its definition.
+
+These names are proposals, not fields promised by the raw dataset. Every derived
+field needs formula, source fields, missingness policy, grain and time cutoff.
+
+Multi-seller policy must be explicit:
+- An order review does not prove which seller caused the complaint.
+- Initially derive seller review history only from single-seller orders, retaining
+  eligibility and coverage counts; use order-level review evidence for the rest.
+- When scoring a multi-seller new order, aggregate historical seller features by
+  a documented rule (e.g. item-value weights). Do not count repeated items from
+  the same seller as independent historical samples. Compare alternative rules
+  on development data before freezing a recipe.
+
+A mean of Jev probabilities is a mean model judgment over the eligible reviews;
+it is not a measured complaint rate or a calibrated probability for the new order.
+Record denominators, missing history, language coverage and attribution eligibility.
+
+Join safety:
+Aggregate items, payments and reviews separately to the intended grain before
+joining their aggregates. Joining all raw child tables multiplies money/counts.
+Never sum order-level payment values once per item. Count distinct eligible
+historical orders where the metric's denominator is orders, not line items.
+
+Core tables support many queries. Feature tables are deliberately narrow model
+inputs. IDs, source URLs, future timestamps, free text and target labels are not
+passed to TabFM by default; keep an explicit ordered feature-column allowlist.
+Categorical encoding/scalers/imputation are fitted using allowed context/development
+rows only. Preserve semantic missingness indicators even if the estimator imputes.
+
+7. ACTUAL OUTCOMES ARE STORED SEPARATELY
+
+target_definitions
+  PK target_definition_id; name/version, prediction_time_policy, outcome_rule,
+  eligibility_rule, censoring_policy, outcome_horizon, definition_hash.
+
+order_outcomes
+  PK(order_id, target_definition_id, outcome_version); FK order_id, definition;
+  value_boolean OR value_numeric, eligibility_status, outcome_observed_at,
+  label_available_at, computed_at, source_manifest_ref.
+  Grain: one versioned actual outcome for an order under a defined target.
+
+Candidate: delivered_late = delivered_at > estimated_delivery_at, for eligible
+completed deliveries with valid timestamps. Missing deliveries are not on-time.
+Cancelled/unavailable/unresolved orders require separate status and policy.
+A delivered-only evaluation is conditional on eventual delivery and can introduce
+selection bias if used to claim performance over all newly approved orders. Before
+shipping an operational risk queue, decide whether the true target is delivery
+lateness among delivered orders, failure to deliver by a deadline, or another
+outcome that covers cancellations and unresolved cases. These are different tasks.
+
+Label availability matters: an earlier order cannot be context with a label that
+became known only after the query order's prediction time. Outcome corrections
+append versions; they do not retroactively rewrite prior prediction artifacts.
+
+8. TABFM INPUTS, OUTPUTS AND EVALUATION RECORDS
+
+prediction_runs
+  PK prediction_run_id; predictor_name, model_version/weights_hash,
+  code_and_dependency_manifest_ref, FK feature_snapshot_id, target_definition_id,
+  context_manifest_ref, context_selection_recipe, feature_columns_and_types,
+  preprocessing_config_ref, random_seed, inference_settings,
+  evaluation_ref nullable, started_at, status, runtime_resource_usage, cost_status.
+
+Context manifest includes exact feature-row keys and outcome versions used as
+labeled examples, cutoffs, sampling/ensemble configuration and seed. Retain a
+recoverable content-addressed manifest, not only a seed or mutable SQL query.
+
+predictions
+  PK prediction_id; FK prediction_run_id;
+  FK feature row (snapshot_id, order_id, prediction_at);
+  predicted_label OR predicted_value; probabilities_jsonb,
+  generated_at, status, supersedes_prediction_id nullable.
+  Grain: one prediction for one feature row within one prediction run.
+  Unique(prediction_run_id, snapshot_id, order_id, prediction_at).
+
+Store the full class-to-probability mapping (not an array without class labels).
+Do not invent probability calibration, confidence intervals, explanations or causal
+effects that the selected predictor/evaluation has not produced. A presentation
+agent cannot independently recalculate or embellish model outputs.
+
+Evaluation recipe:
+- Historical X_context and y_context have matching row IDs and eligible dates.
+- X_query has the same approved feature definitions and column types, without y.
+- Forward chronological holdouts; no future labels in context or feature history.
+- Question/rubric discovery, preprocessing, thresholds and calibration use only
+  development data; final held-out cases do not guide revisions.
+- Compare conventional baseline with/without Jev features and TabFM with/without
+  those same features, using the same time cutoffs and eligible cases.
+- Measure discrimination, calibration where applicable, precision/recall at the
+  chosen review capacity, useful lead time, segment coverage, and full cost.
+- Report missing or biased labels and uncertainty about historical availability.
+No empirical improvement is claimed in this document.
+
+9. TIME CONTRACT: FOUR CLOCKS, NOT JUST created_at
+
+1. event_time: when the source says the business event happened.
+2. source_available_at: when its content could actually be known to the system.
+3. ingested_at/computed_at: when our system obtained or transformed it.
+4. prediction_at: the business cutoff represented by a feature row.
+
+For a live system, inputs must actually be received and accepted before use.
+For retrospective Olist replay, processing necessarily happens today: explicitly
+mark availability_mode=historical_simulation and use justified source availability
+assumptions, not today's processing timestamp masquerading as historical evidence.
+A review's creation timestamp need not be when its answer text existed; audit the
+answer timestamp as a candidate availability proxy. Document unresolved timing.
+
+Every source used in a replayed feature must have been available by prediction_at;
+context labels must also have been available. Corrections and late arrivals need
+an as-of policy. Full-dataset averages, final order status, future reviews and
+future seller outcomes cannot leak into earlier rows. Unknown historical field
+versions are excluded or explicitly qualified, not reconstructed with invented data.
+
+10. STAKEHOLDER PRODUCTS
+
+analysis_results
+  PK result_id; immutable input manifest/prediction_run refs, metric_definitions,
+  filters, time_window, query_or_analysis_version, values_or_table_ref,
+  coverage, limitations, validation_status, created_at, access_scope.
+
+artifacts
+  PK artifact_id; FK result_id; stakeholder_role, artifact_type, renderer_version,
+  artifact_uri, content_hash, generated_at, publication_status, supersedes_id,
+  access_scope. Numbers originate in accepted result bundles, not free prose.
+
+Candidate outputs from shared evidence:
+- Operations: predicted-risk queue with freshness, known signals and review state.
+- Category/product team: complaint themes, coverage and original passages.
+- Seller manager: historical delivery facts and carefully attributed feedback.
+- Analyst: feature/outcome extracts and model comparison/calibration views.
+- Executive: aggregate actual performance, forecasts separately labeled, top
+  changes and links to supporting result bundles.
+
+Metric semantics travel with the output. 'Delivery complaint mentioned', 'measured
+late delivery' and 'predicted late-delivery probability' are distinct quantities.
+Source restrictions apply to derived tables, evidence excerpts and aggregates.
+A generated report is a versioned artifact, not a new authoritative fact source.
+
+11. FIRST VERTICAL SLICE AND OPEN HUMAN DECISION
+
+Proposed smallest useful slice:
+source batches/records -> core orders/items/sellers/reviews -> fixed Jev questions
+-> versioned review observations -> review_signals -> a descriptive theme table.
+Then add a candidate order feature snapshot, separately observed labels and a
+replaceable predictor. A deterministic mock can exercise that boundary before any
+restricted weights or paid service is used. A review/correction trace should be
+visible before adding automatic feature discovery or native office integrations.
+
+What remains reusable at Amazon scale: source manifests, question versions,
+observation/provenance contracts, partition lifecycle and prediction interface.
+What changes: domain core entities, attribution rules, feature recipes and targets.
+Do not generalize every table into one universal entity model in advance.
+
+First material decision for the next discussion:
+Is the first predictive product an order-delivery-risk review queue, or should the
+initial outcome emphasize retrospective product/customer-experience intelligence?
+The latter can produce real value without a predictor. This choice determines the
+first table grain, outcome rule and stakeholder acceptance criteria; it is not yet
+confirmed simply because delivery risk appears as an example here.
+
+12. SOURCES AND VALIDATION STATUS
+
+[J1] TypeSafe models; directly read in this task:
+https://docs.typesafe.ai/models.md
+[J2] TypeSafe primitives; Context7 /websites/typesafe_ai:
+https://docs.typesafe.ai/primitives
+[J3] LangChain TypeSafe integration; directly read in this task:
+https://docs.langchain.com/oss/python/integrations/providers/typesafe
+[J4] TypeSafe autoresearch feature discovery; Context7 /websites/typesafe_ai:
+https://docs.typesafe.ai/cookbooks/autoresearch_feature_discovery
+
+[T1] Google Research TabFM README; directly read in this task:
+https://github.com/google-research/tabfm/blob/main/README.md
+A subsequent head lookup returned fbb665569425fd2f490c6576b3af967876fe11ff.
+This is a retrieval-time reference, not a tested/pinned local installation.
+[T2] TabFM model loading/preprocessing/estimator references; Context7
+/google-research/tabfm. Follow repository source for exact version behavior.
+https://github.com/google-research/tabfm
+
+[D1] Olist data documentation, carried forward from prior research:
+https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce
+No Olist CSV was downloaded/profiled in this task. Proposed keys, timestamp
+policies, coverage and joins must be verified against the acquired manifest.
+
+Source review and documentation: performed.
+Database migrations, model execution, accuracy, cost, performance, product/UI and
+exact-head behavioral validation: NOT RUN. There is no implementation commit.
+All schemas, field lists and numeric examples above are proposals/illustrations,
+not measured data or approved production contracts.

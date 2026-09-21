@@ -1,0 +1,450 @@
+LANGCHAIN BACKGROUND DATA REFINERY — ENGINEERING STUDY
+Research date: 2026-09-21 UTC
+Status: source study and proposed engineering requirements; no implementation
+Parent / decision register: background-agents-research.txt
+Pinned source index: sources/langchain-example-source-manifest.json
+
+1. SCOPE AND EVIDENCE LIMITS
+
+Purpose: study the actual LangChain examples and practitioner experience before
+choosing infrastructure for Olist ingestion, Jev interpretation, structured
+analysis/prediction, and stakeholder artifacts; preserve a path to Amazon scale.
+This document deepens, rather than approves, the parent's open D01–D14 decisions.
+
+Evidence classes used below:
+CODE — observed in source pinned to a commit, not executed.
+DOC — official documentation, accessed through Context7 or earlier direct reads.
+REPORT — attributable community account, not independently reproduced here.
+PROPOSAL — our engineering recommendation or test requirement.
+
+Sources inspected:
+- langchain-ai/ambient-agent-101 at
+  5fd65b372bccaab23980fab86340c237a87f53a1
+- langchain-ai/data-enrichment at
+  f7d1610190145e02ad74f84ef6a3818836cf75e8
+- Twelve files across those repositories: graph logic, ingestion, cron setup,
+  state/configuration, tool execution, graph deployment manifests, dependencies.
+- Official LangGraph interruption, idempotency, fault-tolerance and Agent Server
+  configuration guidance.
+- Community LangGraph issues #7417, #8039, #8764, their opening reports and a
+  selected set of recent comments. Comment selection checked GitHub author
+  association for MEMBER/OWNER/COLLABORATOR; none matched in the returned sets,
+  so the last three comments per issue were read instead. This is not a complete
+  semantic review of every comment or proof that no maintainer ever participated.
+
+X/TWITTER STATUS: BLOCKED.
+Searches for original X/Twitter engineering posts returned no relevant direct
+posts; a broader query returned unrelated posting-agent examples. The search
+provider then reported exhausted free-MCP quota. No Twitter consensus, quoted
+practitioner tweet, or Twitter-derived best practice is claimed in this study.
+GitHub issue discussions were used as a clearly labeled alternative source.
+Future Twitter review needs available search capacity or specific post URLs.
+
+No downloaded example, issue reproducer, model call, or external-action tool was
+executed. No dependencies were installed. Example source hashes and commit URLs
+are retained; temporary source downloads were removed after documentation.
+Local urllib's certificate configuration failed initially; downloads used curl
+with normal HTTPS certificate verification instead. Verification was not disabled.
+
+2. AMBIENT EMAIL EXAMPLE: HOW IT REALLY RUNS
+
+Repository prefix for source citations below:
+https://github.com/langchain-ai/ambient-agent-101/blob/5fd65b372bccaab23980fab86340c237a87f53a1/
+
+2.1 Execution topology [CODE]
+
+setup_cron.py registers a scheduled run of the graph named "cron".
+cron.py calls fetch_and_process_emails.
+run_ingest.py queries Gmail and creates per-thread agent runs through the SDK.
+The Gmail agent graph triages -> ignores/notifies/responds -> may interrupt for
+review -> executes tools -> can mark the message read.
+langgraph.json registers cron and processing graphs separately in one deployment.
+
+Relevant files:
+- src/email_assistant/tools/gmail/setup_cron.py
+- src/email_assistant/cron.py
+- src/email_assistant/tools/gmail/run_ingest.py
+- src/email_assistant/email_assistant_hitl_memory_gmail.py
+- langgraph.json
+
+Lesson [PROPOSAL]: distinguish source discovery, durable work admission, record
+processing, and result publication. A timer does not need to perform the entire
+analytical workload. For Olist, source discovery becomes a historical replay
+adapter, not Gmail polling.
+
+2.2 Ingestion gaps that matter for a data pipeline [CODE -> PROPOSAL]
+
+A. Deduplication is incomplete.
+run_ingest.py:252–255 checks args.rerun but its already-processed check is a TODO.
+A deterministic LangGraph thread ID does not prove a source record was processed.
+Requirement: durable source-event ledger plus uniqueness constraints on the
+logical processing identity, including dataset/source version and recipe version.
+
+B. Pagination is not implemented in the inspected function.
+run_ingest.py:236 makes one list call and takes results['messages']; it does not
+follow nextPageToken. A production connector must exhaust pages or persist its
+cursor and explicitly report incomplete discovery.
+
+C. Submission is counted as success.
+run_ingest.py:266–276 increments processed_count after creating a run, without
+waiting for a business output. cron.py translates the function's return code into
+its status. A successful dispatcher therefore does not establish successful
+record processing, validation, or artifact generation.
+Requirement: separate discovered, accepted, running, validated, published,
+quarantined, failed, and cancelled states/counters in our domain job records.
+
+D. Previous runs are deliberately deleted on an existing thread.
+run_ingest.py:160–176 attempts to delete earlier runs, then :194 selects rollback
+as the multitask strategy. That is a tutorial-specific conversation policy, not
+an acceptable default audit/ingestion retention policy. SDK return-shape behavior
+was not executed; the observed fact is the code's intended deletion path.
+Requirement: retain source and accepted-output evidence; choose enqueue,
+coalescing, supersession, or rejection explicitly. Graph rollback cannot undo an
+already completed external side effect.
+
+E. Synchronous network I/O appears inside async ingestion.
+run_ingest.py:236 and :258 call Google client's synchronous execute() methods
+inside async def fetch_and_process_emails. This can block its event-loop thread.
+Requirement: use async I/O where available; isolate unavoidable blocking calls.
+Heavy parsing or TabFM CPU/GPU inference must not stall API health checks or
+worker heartbeats. This is not a claim that every sync LangGraph node blocks:
+plain synchronous nodes and blocking calls embedded in async nodes differ.
+
+F. A thread lookup exception is treated as a missing thread.
+run_ingest.py:151–159 catches Exception and attempts creation. An outage or auth
+failure should not be confused with not-found.
+Requirement: typed error handling and explicit retry/quarantine categories.
+
+G. Polling time windows are not durable source watermarks.
+The ingester selects a recent interval from the local clock, without a persisted
+completed cursor in the inspected path. Crashes, overlap, and prolonged downtime
+need catch-up semantics. Olist replay should use explicit event and availability
+times, an input manifest, and a resumable cursor rather than "the last N minutes".
+
+The README retrieved earlier describes some richer filtering/thread retrieval
+behavior than this pinned run_ingest.py implements. This study follows the code,
+not the README's larger capability description. Version mismatch is itself a
+reason to pin source and test selected behavior.
+
+2.3 Human review and persistent preferences [CODE -> PROPOSAL]
+
+The graph separates triage_router, triage_interrupt_handler, and response_agent.
+That is a useful shape for routing cheap Jev decisions to selective investigation.
+
+However, interrupt_handler iterates over multiple tool calls and both interrupts
+and executes tools inside the same node (:247–454). Official docs say an
+interrupted node starts again from its beginning on resume. Consequently, an
+earlier executed tool in that node may be reached again when a later interruption
+is resumed, unless the tool or application supplies replay protection. No such
+protection is visible at this graph layer; underlying tools were not fully audited.
+
+Requirement: separate approval records from execution, use stable action IDs,
+and guard externally observable effects with idempotency and reconciliation.
+One approval must bind exact proposed arguments, scope, and version. A corrected
+artifact or changed tool payload must not silently reuse stale approval.
+
+Memory namespaces such as ('email_assistant', 'triage_preferences') are shared
+constants (:95). update_memory reads a preference, calls an LLM, and overwrites
+it (:65–73). This makes sense as a personal assistant example but is not a tenant
+isolation or concurrent-update design.
+
+Requirement: scope preferences by tenant/user/domain and define update conflict
+handling. User preference learning should not silently rewrite a validated
+extraction rubric or historical feature definition.
+
+3. DATA ENRICHMENT EXAMPLE: ADAPTIVE RESEARCH, NOT BULK ETL
+
+Repository prefix:
+https://github.com/langchain-ai/data-enrichment/blob/f7d1610190145e02ad74f84ef6a3818836cf75e8/
+
+3.1 Useful mechanics [CODE]
+
+src/enrichment_agent/graph.py builds an Info tool from the supplied JSON schema.
+The model chooses search/scrape actions or submits an Info result. A reflection
+node evaluates the candidate and can request more research. state.py uses
+add_messages and an additive reducer for loop_step, so each returned increment
+accumulates rather than replacing the prior count.
+
+Use for us [PROPOSAL]: a bounded exception investigator that searches approved
+source material to resolve missing fields. Do not route every review through an
+open-ended search loop. Ordinary record interpretation should use parsers plus
+Jev questions directly.
+
+3.2 The loop limit is not a universal budget [CODE]
+
+configuration.py exposes max_loops=6. graph.py increments loop_step on model calls,
+but checks max_loops only in route_after_checker (:189–213). The route
+call_agent_model -> tools -> call_agent_model does not encounter that check until
+an Info submission reaches reflect. LangGraph's recursion limit can still stop
+execution, but the template's advertised loop budget is not a hard cap on all
+research cycles. max_info_tool_calls is declared in configuration.py but is not
+referenced by the inspected graph/tools/state files.
+
+Requirement [PROPOSAL]: check an authoritative remaining budget before every
+model/tool dispatch: calls, tokens, elapsed time, record count, and estimated
+spend; update actual spend afterward. Recursion limits are a final protection,
+not the business budget or a successful exit condition. Parallel workers need
+coordinated quota reservations, not independent identical full budgets.
+
+3.3 Graph completion is not quality acceptance [CODE]
+
+route_after_checker returns END when max_loops is reached, even when the checker
+was unsatisfied. OutputState exposes info, not an explicit acceptance disposition.
+Reflection is a model opinion, not verified source truth.
+
+Requirement [PROPOSAL]: distinguish completed computation from accepted data.
+Return a disposition and evidence: accepted, needs_review, insufficient_evidence,
+budget_exhausted, or failed. Do not publish budget-exhausted extraction as a
+validated row merely because the graph ended normally.
+
+3.4 Input size is bounded too late [CODE]
+
+tools.py:63–70 creates an aiohttp session, requests the URL, reads the response as
+text, and only then slices it to 40,000 characters for the prompt. This limits the
+prompt input but not download size or peak memory. The function does not visibly
+set application-specific timeout, HTTP status validation, content-type checking,
+or an allowed-destination policy; library defaults may still apply.
+
+Requirement [PROPOSAL]: stream and cap bytes before full materialization; validate
+status/content type; set explicit request and overall deadlines; enforce approved
+origins and redirect/private-network rules. Preserve source/version and evidence
+spans rather than relying only on a lossy model-produced summary.
+
+4. WHAT CURRENT DOCUMENTATION REQUIRES US TO UNDERSTAND
+
+4.1 Interrupts replay node code [DOC]
+https://docs.langchain.com/oss/python/langgraph/interrupts
+A resumed interrupted node starts from the beginning, and resume values are
+matched by interrupt order. Code before an interrupt can run again. Persisted
+state and durable human review are useful, but not magical continuation of a
+Python stack at an arbitrary instruction.
+
+4.2 Completed task results and incomplete tasks differ [DOC]
+https://docs.langchain.com/oss/python/langgraph/functional-api
+Checkpointed completed results can be replayed; a started but unfinished task
+may execute again. Wrapping a call in a task does not remove the external-effect
+success/local-receipt-loss window. Business side effects still need idempotency
+or authoritative reconciliation.
+
+4.3 Failure cleanup does not reverse external effects [DOC + PROPOSAL]
+https://docs.langchain.com/oss/python/langgraph/fault-tolerance
+Current docs describe node retries, timeouts, execution-attempt metadata, and
+clearing failed-attempt state writes. Clearing graph writes is not undoing a
+published notification, completed vendor job, or committed database transaction.
+Retry transient failures with limits; quarantine schema errors; fail closed on
+permission errors; reconcile ambiguous external outcomes before replaying them.
+
+4.4 Async/sync/exit durability is a cost/recovery tradeoff [DOC]
+The chosen durability mode changes when checkpoints are written. A persistent
+checkpointer is necessary for restart recovery; in-memory state is not durable.
+Benchmark checkpoint overhead for our actual partition size and state payload.
+No mode gives a distributed transaction across every downstream system.
+
+4.5 Agent Server connection/concurrency settings interact [DOC]
+https://docs.langchain.com/langsmith/env-var-self-hosted
+https://docs.langchain.com/langsmith/env-var-cloud
+Docs describe BG_JOB_ISOLATED_LOOPS as isolating background execution from the
+serving event loop; it is a workaround for blocking code, not the preferred
+substitute for native async I/O. The cloud guidance also describes per-worker
+Postgres pool allocation under isolated loops, coupling pool capacity with
+N_JOBS_PER_WORKER. Verify exact runtime/version semantics before tuning.
+
+The earlier Agent Server research explains API versus run concurrency. We need
+separate limits for API admission, active runs, per-run model fan-out, provider
+requests/tokens, CPU/GPU inference, database connections, and artifact rendering.
+A per-process semaphore alone does not enforce a shared provider quota after
+horizontal scaling.
+
+5. COMMUNITY EXPERIENCE — ATTRIBUTED, NOT A TWITTER CONSENSUS
+
+These are issue reports, not proof that the latest release or every deployment
+has the described behavior. This study did not run their reproduction code,
+verify all linked experiments, or establish a maintainer-confirmed root cause.
+All three issues were open when read on 2026-09-21 UTC.
+
+C1. Long-running work may be dispatched again [REPORT]
+Author: MarioAlessandroNapoli
+https://github.com/langchain-ai/langgraph/issues/7417
+Opened: 2026-04-05. Original report describes ~180-second re-dispatch on specific
+LangGraph Cloud versions and redundant long-running subagent work. A recent
+reporter comment says they changed deployment architecture; that is their
+experience, not evidence we should adopt that alternative.
+https://github.com/langchain-ai/langgraph/issues/7417#issuecomment-5729162936
+
+Implication [PROPOSAL]: test long model/inference jobs and worker liveness on the
+selected runtime. Give expensive external operations stable job identities and
+queryable status. If a job may already be running, do not blindly resubmit it.
+Do not infer a universal three-minute LangGraph time limit from this report.
+
+C2. Checkpoint ordering deserves failure-injection tests [REPORT]
+Author: sajjadanwar0
+https://github.com/langchain-ai/langgraph/issues/8039
+Opened: 2026-06-10. Reports a pending-write/checkpoint persistence ordering issue
+under sync durability on specified versions. Recent community comments discuss
+mechanism-level assertions and candidate patches. Their current merge/release
+claims were not independently verified here.
+
+Useful testing lesson: distinguish a deterministic invariant test from a
+probabilistic race test. Show a regression test failing on the broken condition,
+then passing when the invariant is restored. Do not confuse internal ordering
+with exactly-once external effects.
+
+C3. Durable admission precedes graph recovery [REPORT]
+Author: mstevens843
+https://github.com/langchain-ai/langgraph/issues/8764
+Opened: 2026-08-30. Reports that a local graph invocation killed before its first
+checkpoint has no resumable input or durable failure marker without another ledger.
+
+Scope distinction: the example concerns local LangGraph invocation/checkpointer
+behavior. It does NOT establish that Agent Server's separately persisted queued
+run admission has the same gap.
+Implication: identify the real point at which our API promises acceptance. Only
+acknowledge after the responsible runtime/job store commits a durable job record.
+
+Several inspected issue comments advertise unrelated tools or paid audits. Those
+commercial pitches were excluded as engineering evidence. No recommendation to
+install or pay for a commenter-provided product follows from this study.
+
+6. PROPOSED MVP INFRASTRUCTURE SHAPE
+
+This is a design candidate; deployment and autonomy choices remain unapproved.
+
+                    CONTROL / JOB STATUS / REVIEW UI
+                                  |
+Replay scheduler -> durable admission -> bounded LangGraph workers
+                                  |             |
+                         checkpoints/jobs       +-> Jev / extractor clients
+                                  |             +-> analytical query tools
+                                  |             +-> TabFM inference job
+                                  |             +-> result/renderer step
+                                  v
+                       versioned artifact manifests
+
+Data remains outside graph state:
+  immutable input partitions -> observations -> feature snapshots -> results
+
+Logical components:
+- API/job control: admission, progress, cancel, retry, approval and readback.
+- Scheduler/replay adapter: source cursor, manifest and available-time ordering.
+- Durable queue owner: Agent Server OR the application's worker system. Avoid
+  duplicating responsibility without a clearly defined parent/child job boundary.
+- LangGraph execution: bounded partitions; selective exception investigation.
+- Persistence: jobs/checkpoints/review records with explicit retention; separate
+  source/evidence/analytical objects and query access.
+- Provider gateway: connection reuse, token/request limits, attempt and cost logs.
+- Inference boundary: bounded local execution initially if measurements justify
+  it; separate process/service if CPU/GPU work would starve orchestration.
+- Artifact publisher: deterministic rendering and versioned result bundles.
+- Observability: queue lag, throughput, latency, checkpoint/storage overhead,
+  retries, stale work, costs, quality outcomes and provenance.
+
+Agent Server already supplies substantial run/queue/persistence infrastructure.
+An application-owned runtime must supply those contracts itself. PostgreSQL and
+object/file storage are candidate building blocks; a distributed bulk engine or
+Kubernetes is not yet justified by Olist. Redis is part of the documented Agent
+Server topology, not automatically a universal requirement of LangGraph.
+
+7. NON-NEGOTIABLE CONTRACTS TO SPECIFY BEFORE CODING
+
+Admission:
+  Acknowledged job -> durable job/input reference exists.
+  A lost HTTP response -> repeated admission resolves to the same logical job.
+
+Processing identity:
+  tenant/access scope + source/dataset version + record/partition identity +
+  transformation/rubric/model/preprocessing versions.
+  Canonicalize inputs for hashes. Source identity and semantic deduplication are
+  different concerns; identical text can occur in distinct valid source records.
+
+Publication:
+  Write staged outputs -> validate/reconcile -> commit immutable manifest and
+  selected-current-version pointer atomically where supported.
+  Consumers never see half an updated dataset as a complete new version.
+  For outward notifications, use stable delivery identities/outbox and provider
+  idempotency where available; otherwise reconcile uncertain outcomes.
+
+Batch versus record acceptance:
+  Preserve per-record outcomes. A few malformed records should not necessarily
+  block all valid records; define whether a partial batch is publishable and show
+  coverage explicitly. A missing required partition blocks complete aggregation.
+
+Human exceptions:
+  Review exact evidence and proposed interpretation, not raw confidence alone.
+  Corrections append versions and trigger targeted invalidation; they do not
+  overwrite history or silently change the meaning of every future feature.
+
+Backpressure:
+  Bound run count AND request/token volume inside runs. Reserve budgets across
+  workers; account for compounded SDK retries, node retries, and job retries.
+  Prefer a fair bounded queue and provider Retry-After handling over blind fan-out.
+
+Cancellation:
+  Stop scheduling new work; propagate cancellation where supported. An already
+  executing external job may continue, so cancelled does not mean all effects
+  were undone. Retain the status needed to reconcile it.
+
+Security:
+  Approved connectors, least privilege, restricted query tools, sandboxing for
+  generated code if enabled, network egress controls, secrets redaction, and
+  access checks on derived artifacts. Jev risk scores are not authorization.
+
+Versioning:
+  Pin Python and the compatible LangChain/LangGraph/TypeSafe/checkpointer/SDK set.
+  Check graph-state compatibility before resuming old checkpoints on new code.
+  The tutorials' broad version ranges do not prove a reproducible environment.
+
+8. NEXT RESEARCH / PROTOTYPE EVIDENCE
+
+Still research-only; paid calls and runnable prototypes require explicit scope.
+
+A. Runtime comparison — Agent Server versus application-owned worker.
+Inspect: license/hosting terms, restart/cancel behavior, admission durability,
+checkpoint and run retention, deployment upgrades, auth, and operating costs.
+
+B. Mock partition lifecycle — no Jev/TabFM needed to establish plumbing.
+Required test cases:
+- Submit the same manifest twice, including concurrently.
+- Lose the HTTP response after successful admission.
+- Terminate before the first checkpoint and after an output write.
+- Interrupt twice in one logical case; no earlier effect repeats.
+- Provider timeout, throttling, malformed response, and unavailable database.
+- Cancel while an external job is running.
+- Correct a source record and regenerate only affected outputs.
+- Expire graph checkpoints while preserving durable analytical artifacts.
+Required evidence: observable job and output identities plus reconciled counts.
+
+C. Jev adapter contract — pin exact package/model and use a reviewed sample.
+Verify mixed question response shapes, bounded async calls, retry layering,
+version-aware result caching, abstention/unknown handling, trace redaction,
+Portuguese/translation quality and actual per-stage cost.
+
+D. Prediction boundary — only after point-in-time data contract is verified.
+Verify source availability, feature snapshots, baseline comparison, outcome
+eligibility, bounded TabFM context/inference, and actual runtime/memory costs.
+
+E. Twitter research completion.
+Accept only attributable original posts with post URL, author/date, concrete
+claim, context/version, and ideally a linked implementation or measurement.
+Separate maintainers, independent operators, vendor marketing, and anecdotes.
+Corroborate operational claims against source/docs or an approved experiment.
+Status remains BLOCKED until posts can actually be retrieved.
+
+9. SOURCE AND VALIDATION NOTES
+
+Primary source file URLs and SHA-256 hashes are in
+sources/langchain-example-source-manifest.json. It indexes all twelve inspected
+files and their immutable Git commit URLs. No third-party source is installed or
+imported by our project.
+
+Community issue URLs and report dates are recorded in Section 5. Their status is
+a snapshot, not a live promise. Recent comments were inspected selectively and
+commercial pitches were excluded. No claim of reproduced community failures.
+
+Context7 libraries consulted:
+/websites/langchain_oss_python_langgraph
+/websites/langchain_langsmith
+
+Documentation evidence is current to retrieval, not bound to an installed runtime.
+Behavioral validation and throughput/cost benchmarks: NOT RUN.
+X/Twitter attribution evidence: BLOCKED.
+Product implementation and publication: NOT STARTED.
