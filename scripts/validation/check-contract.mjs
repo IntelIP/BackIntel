@@ -62,12 +62,12 @@ function checkSchema(manifest) {
 function checkPolicy(manifest) {
   const issues = [];
   const text = [...manifest.acceptance.outcomes, ...manifest.acceptance.invariants, ...manifest.acceptance.forbiddenOutcomes].join('\n').toLowerCase();
-  for (const term of ['data', 'jev', 'prediction', 'model', 'ui', 'cost', 'recovery', 'security']) {
+  for (const term of ['data', 'jev', 'prediction', 'model', 'ui', 'cost', 'recovery', 'security', 'profile']) {
     if (!text.includes(term)) issues.push(`Acceptance contract does not mention ${term} validation`);
   }
   if (!text.includes('blocked')) issues.push('Contract must define blocked handling for missing evidence');
-  if (!manifest.acceptance.requiredValidatorTypes.includes('static') || !manifest.acceptance.requiredValidatorTypes.includes('schema')) {
-    issues.push('Bootstrap must require static and schema validation');
+  if (!['static', 'schema', 'semantic'].every((type) => manifest.acceptance.requiredValidatorTypes.includes(type))) {
+    issues.push('Bootstrap must require static, schema, and semantic validation');
   }
   if (manifest.validators.some((validator) => validator.costPolicy.maxUsd !== 0)) issues.push('Bootstrap validators must have a zero-USD cap');
   return issues;

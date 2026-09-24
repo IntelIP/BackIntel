@@ -1,0 +1,362 @@
+{
+  "profile_version": "0.1.0",
+  "profile_tool": {
+    "path": "scripts/data/profile_olist.py",
+    "sha256": "ef93873aa8534a428e0a4b5b9f23bbb217f4357149c1dee52355a31d2a2e7bb3"
+  },
+  "source": "Kaggle Olist Brazilian E-Commerce Public Dataset",
+  "ref": "olistbr/brazilian-ecommerce",
+  "kaggle_current_version_verified": 2,
+  "license": "CC BY-NC-SA 4.0",
+  "approved_use": "non-commercial local prototype/demo only; approved 2026-09-23",
+  "source_page": "https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce",
+  "metadata_api": "https://www.kaggle.com/api/v1/datasets/view/olistbr/brazilian-ecommerce",
+  "file_list_api": "https://www.kaggle.com/api/v1/datasets/list/olistbr/brazilian-ecommerce",
+  "review_language": {
+    "expected": "Portuguese (Brazil)",
+    "observed_nonblank_comment_rows": 40950,
+    "language_detection_performed": false,
+    "note": "Language is a source-context expectation, not a programmatically verified label. Jev suitability remains unproven."
+  },
+  "archive": {
+    "name": "brazilian-ecommerce.zip",
+    "bytes": 44717580,
+    "sha256": "967e41e04fc306fe604e2a693f488995a8b41e5047418f8a5c8e4abd6deca784"
+  },
+  "files": {
+    "olist_customers_dataset.csv": {
+      "rows": 99441,
+      "headers": [
+        "customer_id",
+        "customer_unique_id",
+        "customer_zip_code_prefix",
+        "customer_city",
+        "customer_state"
+      ],
+      "empty_cells_by_column": {},
+      "timestamp_ranges": {},
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {},
+      "value_counts": {},
+      "bytes": 9033957,
+      "sha256": "983a422239e1712ded753b3bf9ecf47dc73f144d306029dcfa99e70a226883d2"
+    },
+    "olist_geolocation_dataset.csv": {
+      "rows": 1000163,
+      "headers": [
+        "geolocation_zip_code_prefix",
+        "geolocation_lat",
+        "geolocation_lng",
+        "geolocation_city",
+        "geolocation_state"
+      ],
+      "empty_cells_by_column": {},
+      "timestamp_ranges": {},
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {},
+      "value_counts": {},
+      "bytes": 61273883,
+      "sha256": "b514f6fc991b9566aeba02aa5d67e2c3630f034b60a0e05aa0d082a3b66d88d6"
+    },
+    "olist_order_items_dataset.csv": {
+      "rows": 112650,
+      "headers": [
+        "order_id",
+        "order_item_id",
+        "product_id",
+        "seller_id",
+        "shipping_limit_date",
+        "price",
+        "freight_value"
+      ],
+      "empty_cells_by_column": {},
+      "timestamp_ranges": {
+        "shipping_limit_date": [
+          "2016-09-19 00:15:34",
+          "2020-04-09 22:35:08"
+        ]
+      },
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {
+        "order_item_id": 112629,
+        "order_id": 13984,
+        "(order_id,order_item_id)": 0
+      },
+      "value_counts": {},
+      "bytes": 15438671,
+      "sha256": "0bc4d068c4fe38cbb01bd90e8746e3c613fe7b4baef75fab7b0e329701c3e279"
+    },
+    "olist_order_payments_dataset.csv": {
+      "rows": 103886,
+      "headers": [
+        "order_id",
+        "payment_sequential",
+        "payment_type",
+        "payment_installments",
+        "payment_value"
+      ],
+      "empty_cells_by_column": {},
+      "timestamp_ranges": {},
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {
+        "payment_sequential": 103857,
+        "order_id": 4446,
+        "(order_id,payment_sequential)": 0
+      },
+      "value_counts": {},
+      "bytes": 5777138,
+      "sha256": "4f713964f2815dbbaa40b9488268c55aac3627bfce5aa96cf58d1f3616de3cc0"
+    },
+    "olist_order_reviews_dataset.csv": {
+      "rows": 99224,
+      "headers": [
+        "review_id",
+        "order_id",
+        "review_score",
+        "review_comment_title",
+        "review_comment_message",
+        "review_creation_date",
+        "review_answer_timestamp"
+      ],
+      "empty_cells_by_column": {
+        "review_comment_title": 87656,
+        "review_comment_message": 58247
+      },
+      "timestamp_ranges": {
+        "review_creation_date": [
+          "2016-10-02 00:00:00",
+          "2018-08-31 00:00:00"
+        ],
+        "review_answer_timestamp": [
+          "2016-10-07 18:32:28",
+          "2018-10-29 12:27:35"
+        ]
+      },
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {
+        "order_id": 551,
+        "review_id": 814
+      },
+      "value_counts": {
+        "review_score": {
+          "4": 19142,
+          "5": 57328,
+          "1": 11424,
+          "3": 8179,
+          "2": 3151
+        }
+      },
+      "bytes": 14451670,
+      "sha256": "012b61c7593e34f51fa614efdf802b9c7056ce6aae5307ddb93236e7cfc797d7"
+    },
+    "olist_orders_dataset.csv": {
+      "rows": 99441,
+      "headers": [
+        "order_id",
+        "customer_id",
+        "order_status",
+        "order_purchase_timestamp",
+        "order_approved_at",
+        "order_delivered_carrier_date",
+        "order_delivered_customer_date",
+        "order_estimated_delivery_date"
+      ],
+      "empty_cells_by_column": {
+        "order_delivered_carrier_date": 1783,
+        "order_delivered_customer_date": 2965,
+        "order_approved_at": 160
+      },
+      "timestamp_ranges": {
+        "order_purchase_timestamp": [
+          "2016-09-04 21:15:19",
+          "2018-10-17 17:30:18"
+        ],
+        "order_approved_at": [
+          "2016-09-15 12:16:38",
+          "2018-09-03 17:40:06"
+        ],
+        "order_delivered_carrier_date": [
+          "2016-10-08 10:34:01",
+          "2018-09-11 19:48:28"
+        ],
+        "order_delivered_customer_date": [
+          "2016-10-11 13:46:32",
+          "2018-10-17 13:22:46"
+        ],
+        "order_estimated_delivery_date": [
+          "2016-09-30 00:00:00",
+          "2018-11-12 00:00:00"
+        ]
+      },
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {},
+      "value_counts": {
+        "order_status": {
+          "delivered": 96478,
+          "invoiced": 314,
+          "shipped": 1107,
+          "processing": 301,
+          "unavailable": 609,
+          "canceled": 625,
+          "created": 5,
+          "approved": 2
+        }
+      },
+      "bytes": 17654914,
+      "sha256": "8df58ef3d2d7e9944010f7beecd9b75367f5588ec6e3c91cec19ae3345ef9ecf"
+    },
+    "olist_products_dataset.csv": {
+      "rows": 32951,
+      "headers": [
+        "product_id",
+        "product_category_name",
+        "product_name_lenght",
+        "product_description_lenght",
+        "product_photos_qty",
+        "product_weight_g",
+        "product_length_cm",
+        "product_height_cm",
+        "product_width_cm"
+      ],
+      "empty_cells_by_column": {
+        "product_category_name": 610,
+        "product_name_lenght": 610,
+        "product_description_lenght": 610,
+        "product_photos_qty": 610,
+        "product_weight_g": 2,
+        "product_length_cm": 2,
+        "product_height_cm": 2,
+        "product_width_cm": 2
+      },
+      "timestamp_ranges": {},
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {},
+      "value_counts": {},
+      "bytes": 2379446,
+      "sha256": "3e6569628a17fbc75fd206ee357b59e20364b9afa90f5b6cd5b4d624c58aa9cc"
+    },
+    "olist_sellers_dataset.csv": {
+      "rows": 3095,
+      "headers": [
+        "seller_id",
+        "seller_zip_code_prefix",
+        "seller_city",
+        "seller_state"
+      ],
+      "empty_cells_by_column": {},
+      "timestamp_ranges": {},
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {},
+      "value_counts": {},
+      "bytes": 174703,
+      "sha256": "1f643d2b950373b85735e7794b20986f528d7a000432e7c6f9bcbb44d0846a0e"
+    },
+    "product_category_name_translation.csv": {
+      "rows": 71,
+      "headers": [
+        "product_category_name",
+        "product_category_name_english"
+      ],
+      "empty_cells_by_column": {},
+      "timestamp_ranges": {},
+      "malformed_timestamp_cells": {},
+      "duplicate_extra_rows_by_candidate_key": {},
+      "value_counts": {},
+      "bytes": 2613,
+      "sha256": "a81f0d1f27b27e7293f761bc79e3ce8f348ee39c4b3ed3e49bde38f478586278"
+    }
+  },
+  "relationship_profile": {
+    "orders": {
+      "rows": 99441,
+      "unique_order_ids": 99441,
+      "orders_missing_customer_dimension": 0,
+      "orders_missing_approval_timestamp": 160,
+      "status_counts": {
+        "delivered": 96478,
+        "invoiced": 314,
+        "shipped": 1107,
+        "processing": 301,
+        "unavailable": 609,
+        "canceled": 625,
+        "created": 5,
+        "approved": 2
+      }
+    },
+    "order_items": {
+      "rows": 112650,
+      "orders_with_items": 98666,
+      "item_order_ids_not_in_orders": 0,
+      "item_seller_ids_not_in_sellers": 0,
+      "item_product_ids_not_in_products": 0,
+      "orders_with_multiple_sellers": 1278
+    },
+    "payments": {
+      "rows": 103886,
+      "payment_order_ids_not_in_orders": 0,
+      "orders_with_multiple_payment_rows": 2961
+    },
+    "reviews": {
+      "rows": 99224,
+      "distinct_order_ids": 98673,
+      "review_order_ids_not_in_orders": 0,
+      "orders_with_multiple_review_rows": 547,
+      "orders_with_multiple_distinct_review_ids": 547,
+      "rows_with_nonblank_review_comment": 40950,
+      "review_ids_associated_with_multiple_orders": 789
+    },
+    "timestamp_ordering_checks": {
+      "carrier_before_purchase": 166,
+      "delivery_before_carrier": 23,
+      "estimated_delivery_before_approval": 12,
+      "review_created_before_delivery": 8320,
+      "review_created_before_purchase": 74
+    },
+    "source_row_trace": {
+      "source_file": "olist_orders_dataset.csv",
+      "source_file_sha256": "8df58ef3d2d7e9944010f7beecd9b75367f5588ec6e3c91cec19ae3345ef9ecf",
+      "data_row_ordinal_1_based": 1,
+      "schema_columns": [
+        "order_id",
+        "customer_id",
+        "order_status",
+        "order_purchase_timestamp",
+        "order_approved_at",
+        "order_delivered_carrier_date",
+        "order_delivered_customer_date",
+        "order_estimated_delivery_date"
+      ],
+      "record_key_handling": "raw identifier omitted from the committed profile artifact",
+      "observed_fields": {
+        "purchase_timestamp": "2017-10-02 10:56:33",
+        "approval_timestamp": "2017-10-02 11:07:15",
+        "actual_delivery_timestamp": "2017-10-10 21:25:13",
+        "estimated_delivery_timestamp": "2017-10-18 00:00:00"
+      },
+      "retrospective_late_label": false,
+      "label_is_feature": false,
+      "availability_decision": "Approval-time prediction remains conditional; the static extract has no field-version history."
+    },
+    "delivery_target_candidate": {
+      "decision": "candidate only; not an approved prediction target",
+      "prediction_time": "order approval, conditional on a valid historical feature cutoff",
+      "eligible_population": "delivered orders with approval, actual delivery, and estimated delivery timestamps",
+      "delivered_orders": 96478,
+      "delivered_with_actual_and_estimated_timestamps": 96470,
+      "delivered_with_approval_and_both_outcome_timestamps": 96456,
+      "late_by_actual_after_estimated_in_eligible_subset": 7826,
+      "late_rate_in_eligible_subset": 0.08113543999336485,
+      "malformed_timestamp_pairs": 0,
+      "availability_caveat": "The static extract has no field-version history. It cannot prove exactly when estimated delivery dates or other fields became available.",
+      "selection_caveat": "This retrospective label excludes undelivered, cancelled, and otherwise ineligible orders; it does not describe all orders."
+    }
+  },
+  "limitations": [
+    "Historical static data, not a live feed.",
+    "Reviews are post-purchase and unavailable for same-order approval-time prediction.",
+    "Orders may contain multiple sellers; do not attribute a review to every seller on that order.",
+    "The dataset lacks business intervention, seller-contact, and carrier-exception records.",
+    "Shipping-limit timestamps extend beyond the order-purchase period and require investigation before use.",
+    "Kaggle license is CC BY-NC-SA 4.0; approved use is non-commercial local prototype/demo only."
+  ]
+}
