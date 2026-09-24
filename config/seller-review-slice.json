@@ -1,0 +1,11 @@
+{
+  "dataset_ref": "olistbr/brazilian-ecommerce",
+  "profile_sha256": "066a03a26aeb10a26a847988c8f2d6c148895fe083bae27c14468d1ad09d31ac",
+  "comparison_purchase_month": "2017-02",
+  "report_purchase_month": "2017-03",
+  "selection_rule": "Earliest adjacent calendar purchase months with at least 1000 delivered orders each in the profiled Olist v2 extract; selected from month counts before inspecting seller/category findings.",
+  "min_delivered_orders_per_month": 1000,
+  "minimum_comparable_seller_orders": 20,
+  "report_kind": "retrospective final-extract cohort; NOT an as-of-month-end operational snapshot",
+  "license_boundary": "CC BY-NC-SA 4.0; non-commercial local prototype/demo only"
+}

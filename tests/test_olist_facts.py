@@ -14,6 +14,7 @@ from psycopg.conninfo import conninfo_to_dict
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "data"))
+from seller_review import build_report, render_html, next_month  # noqa: E402
 from load_olist_facts import (  # noqa: E402
     DATASET_REF,
     EXCLUDED_FILES,
@@ -48,7 +49,7 @@ CSV_ROWS = {
         ["order_id", "customer_id", "order_status", "order_purchase_timestamp", "order_approved_at", "order_delivered_carrier_date", "order_delivered_customer_date", "order_estimated_delivery_date"],
         [
             {"order_id": "o1", "customer_id": "c1", "order_status": "delivered", "order_purchase_timestamp": "2017-01-01 10:00:00", "order_approved_at": "2017-01-01 10:05:00", "order_delivered_carrier_date": "2017-01-02 10:00:00", "order_delivered_customer_date": "2017-01-05 10:00:00", "order_estimated_delivery_date": "2017-01-04 10:00:00"},
-            {"order_id": "o2", "customer_id": "c2", "order_status": "delivered", "order_purchase_timestamp": "2017-01-02 10:00:00", "order_approved_at": "2017-01-02 10:05:00", "order_delivered_carrier_date": "2017-01-03 10:00:00", "order_delivered_customer_date": "2017-01-06 10:00:00", "order_estimated_delivery_date": "2017-01-07 10:00:00"},
+            {"order_id": "o2", "customer_id": "c2", "order_status": "delivered", "order_purchase_timestamp": "2017-02-02 10:00:00", "order_approved_at": "2017-02-02 10:05:00", "order_delivered_carrier_date": "2017-02-03 10:00:00", "order_delivered_customer_date": "2017-02-06 10:00:00", "order_estimated_delivery_date": "2017-02-07 10:00:00"},
         ],
     ),
     "product_category_name_translation.csv": (
@@ -188,6 +189,31 @@ class OlistFactsIntegrationTests(unittest.TestCase):
         self.assertEqual(first["status"], "passed")
         self.assertTrue(second["already_loaded"])
         self.assertEqual(second["fact_counts"], first["fact_counts"])
+
+    def test_monthly_review_counts_once_and_keeps_multi_seller_out(self) -> None:
+        load(self.data_dir, self.profile_path, self.dsn)
+        contract = {
+            "dataset_ref": DATASET_REF,
+            "comparison_purchase_month": "2017-01",
+            "report_purchase_month": "2017-02",
+            "minimum_comparable_seller_orders": 1,
+            "min_delivered_orders_per_month": 1,
+            "license_boundary": "synthetic fixture",
+        }
+        with psycopg.connect(self.dsn) as conn:
+            report = build_report(conn, contract)
+        jan, feb = report["marketplace"]
+        self.assertEqual((jan["delivered_orders"], jan["late_orders"], jan["review_rows"], jan["orders_with_review"]), (1, 1, 2, 1))
+        self.assertEqual((feb["delivered_orders"], feb["late_orders"], feb["review_rows"]), (1, 0, 1))
+        self.assertFalse([r for r in report["seller_metrics"] if r["purchase_month"] == "2017-01"])
+        self.assertFalse([r for r in report["category_metrics"] if r["purchase_month"] == "2017-01"])
+        self.assertEqual(len(report["findings"]), 0)
+        self.assertIn("No sellers met", render_html(report))
+        dangerous = {**report, "limitations": ["<script>alert(1)</script>"]}
+        rendered = render_html(dangerous)
+        self.assertIn("&lt;script&gt;", rendered)
+        self.assertNotIn("<script>", rendered)
+        self.assertEqual(next_month("2017-12").isoformat(), "2018-01-01")
 
     def test_source_records_cannot_be_updated_or_deleted(self) -> None:
         load(self.data_dir, self.profile_path, self.dsn)
