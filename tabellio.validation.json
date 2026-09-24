@@ -1,0 +1,89 @@
+{
+  "$schema": "tabellio-validation/v0.2",
+  "acceptance": {
+    "id": "backintel-repository-validation-bootstrap",
+    "source": "BackIntel AgentShift BINT-2 and repository new-product validation policy",
+    "risk": "high",
+    "outcomes": [
+      "Validation runs against the exact pull-request head SHA, not a merge ref or mutable branch name.",
+      "Every invocation writes non-empty machine-readable evidence and a human-readable report, including failed and blocked outcomes.",
+      "Bootstrap validation proves only repository contract and static structure; it does not claim application behavior or product readiness.",
+      "Before v0.1.0 release, the manifest must require evidence for data, Jev semantics, prediction/model quality, user workflows, visual presentation, cost and resource limits, recovery, and security/isolation."
+    ],
+    "invariants": [
+      "Missing or untrustworthy required evidence is blocked, never passed.",
+      "An uncommitted or dirty candidate cannot receive exact-commit validation status passed.",
+      "No model calls, network access, paid services, or external side effects are allowed in the bootstrap validator."
+    ],
+    "forbiddenOutcomes": [
+      "Do not describe structural checks as complete product validation.",
+      "Do not treat a local working-tree result as evidence for a different commit.",
+      "Do not report unknown validation cost as zero."
+    ],
+    "requiredValidatorTypes": [
+      "static",
+      "schema"
+    ]
+  },
+  "validators": [
+    {
+      "id": "manifest-schema",
+      "type": "schema",
+      "argv": [
+        "node",
+        "scripts/validation/check-contract.mjs",
+        "--manifest",
+        "tabellio.validation.json",
+        "--check",
+        "schema"
+      ],
+      "cwd": ".",
+      "timeout": 30,
+      "required": true,
+      "evidencePath": "manifest-schema.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "validation-policy",
+      "type": "static",
+      "argv": [
+        "node",
+        "scripts/validation/check-contract.mjs",
+        "--manifest",
+        "tabellio.validation.json",
+        "--check",
+        "policy"
+      ],
+      "cwd": ".",
+      "timeout": 30,
+      "required": true,
+      "evidencePath": "validation-policy.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "status-self-test",
+      "type": "static",
+      "argv": [
+        "node",
+        "scripts/validation/test-runner.mjs"
+      ],
+      "cwd": ".",
+      "timeout": 30,
+      "required": true,
+      "evidencePath": "status-self-test.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    }
+  ]
+}

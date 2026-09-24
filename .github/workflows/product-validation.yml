@@ -1,0 +1,69 @@
+name: Product validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      VALIDATION_OUTPUT: artifacts/validation/${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run exact-candidate validation
+        id: validation
+        continue-on-error: true
+        run: |
+          node scripts/validation/run.mjs \
+            --manifest tabellio.validation.json \
+            --expected-commit "$CANDIDATE_SHA" \
+            --output "$VALIDATION_OUTPUT"
+
+      - name: Upload durable validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-validation-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/validation/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Enforce validation result
+        if: always()
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const file = `${process.env.VALIDATION_OUTPUT}/evidence.json`;
+            if (!fs.existsSync(file) || fs.statSync(file).size === 0) {
+              console.error("Validation evidence is missing or empty.");
+              process.exit(1);
+            }
+            const evidence = JSON.parse(fs.readFileSync(file, "utf8"));
+            if (evidence.expectedCommit !== process.env.CANDIDATE_SHA) {
+              console.error("Evidence SHA does not match the pull-request head.");
+              process.exit(1);
+            }
+            if (evidence.status !== "passed") {
+              console.error(`Candidate status is ${evidence.status}; review is blocked.`);
+              process.exit(1);
+            }
+          '
