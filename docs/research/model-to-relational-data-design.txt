@@ -1,18 +1,20 @@
 JEV + TABFM — FROM SOURCE MATERIAL TO RELATIONAL DATA PRODUCTS
 Research date: 2026-09-21 UTC
-Status: discussion draft; logical data design, not approved SQL migrations
+Status: working design; BINT-4 PostgreSQL migration and loader implemented on branch for validation
 Parent index: background-agents-research.txt (D04–D09, D12–D14)
 Runtime candidate: open-source-runtime-study.txt
 
 0. INTENT AND BOUNDARY
 
 User direction: Olist first, Amazon Reviews later; open-source background server
-with local execution before cloud deployment. This document explains model roles
-and proposes relational data contracts for discussion. Aegra is a runtime
-candidate, not an installed dependency. PostgreSQL is the proposed application
-relational database, not a separately confirmed production infrastructure choice.
-The first prediction target, stakeholder priority, rubric, model route and budget
-remain open. No data, model weights or runtime dependencies were installed.
+with local execution before cloud deployment. PostgreSQL is selected for the
+local v0.1 application facts store, isolated in the `backintel` schema and kept
+separate from Aegra-owned execution tables. This selects the database technology,
+not a persistent service deployment; production/local-service provisioning remains
+a separate decision. Aegra remains a runtime candidate. The first prediction
+target, stakeholder priority, rubric, model route and budget remain open. The
+BINT-4 migration and loader are being validated against synthetic fixtures and
+an ephemeral local PostgreSQL instance; raw Kaggle files remain outside Git.
 
 Core principle:
 Preserve source facts, probabilistic observations, point-in-time features, actual
@@ -454,7 +456,34 @@ The latter can produce real value without a predictor. This choice determines th
 first table grain, outcome rule and stakeholder acceptance criteria; it is not yet
 confirmed simply because delivery risk appears as an example here.
 
-12. SOURCES AND VALIDATION STATUS
+12. BINT-4 POSTGRESQL FACTS IMPLEMENTATION
+
+PostgreSQL is selected for the local v0.1 application facts store. BINT-4 uses
+an application-owned `backintel` schema and never writes business records into
+Aegra-owned execution tables. The migration is
+`migrations/0001_olist_business_facts.sql`; the bounded importer is
+`scripts/data/load_olist_facts.py`. Psycopg 3 is pinned in `requirements.txt`.
+
+The importer verifies the exact profiled Kaggle v2 archive and each included CSV
+hash, records immutable source batches and parsed source-row occurrences, and
+loads customers, sellers, products, orders, category translations, items,
+payments and reviews. The 1,000,163-row geolocation CSV is deliberately excluded
+from this v0.1 fact model; the original archive remains outside Git. Source
+occurrences are append-only; business facts link to file hash and row ordinal.
+Amounts use exact decimal values and source timestamps remain naive timestamps
+because the extract does not establish timezone semantics. Multi-seller orders,
+multiple reviews per order, and repeated review IDs are preserved.
+
+`backintel.order_summary` aggregates items, payments and reviews separately
+before joining to the one-order grain. Reconciliation compares canonical totals
+to the source-occurrence ledger. A synthetic fixture proves raw-grain joins can
+multiply sums and that the summary view does not. Integration tests also prove
+idempotent reload, source immutability and lineage. The actual Olist v2 load was
+validated in an ephemeral local PostgreSQL instance; its aggregate report is
+stored outside Git under `~/Library/Application Support/BackIntel/Evidence/BINT4/`.
+No persistent database service was provisioned by this work.
+
+13. SOURCES AND VALIDATION STATUS
 
 [J1] TypeSafe models; directly read in this task:
 https://docs.typesafe.ai/models.md
@@ -473,13 +502,14 @@ This is a retrieval-time reference, not a tested/pinned local installation.
 /google-research/tabfm. Follow repository source for exact version behavior.
 https://github.com/google-research/tabfm
 
-[D1] Olist data documentation, carried forward from prior research:
+[D1] Olist data documentation:
 https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce
-No Olist CSV was downloaded/profiled in this task. Proposed keys, timestamp
-policies, coverage and joins must be verified against the acquired manifest.
+The approved non-commercial local Olist v2 archive was profiled and its hashes,
+row counts and joins are recorded in `data/profiles/olist-v2/source-manifest-profile.json`.
+The profile's static delivery label remains a candidate, not an approved
+prediction target; exact historical availability is not established.
 
-Source review and documentation: performed.
-Database migrations, model execution, accuracy, cost, performance, product/UI and
-exact-head behavioral validation: NOT RUN. There is no implementation commit.
-All schemas, field lists and numeric examples above are proposals/illustrations,
-not measured data or approved production contracts.
+BINT-4 schema, fixture integration tests, and full-data reconciliation were run
+locally before an implementation commit. Exact-commit validation and CI execution
+remain pending. No model execution, external API, persistent database service,
+production data, cloud runtime or stakeholder notification was used.

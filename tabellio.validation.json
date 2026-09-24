@@ -1,15 +1,16 @@
 {
   "$schema": "tabellio-validation/v0.2",
   "acceptance": {
-    "id": "backintel-repository-validation-bootstrap",
-    "source": "BackIntel AgentShift BINT-2 and repository new-product validation policy",
+    "id": "backintel-olist-relational-facts-v0.1",
+    "source": "BackIntel AgentShift BINT-4; Olist source contract and relational-facts acceptance",
     "risk": "high",
     "outcomes": [
       "Validation runs against the exact pull-request head SHA, not a merge ref or mutable branch name.",
       "Every invocation writes non-empty machine-readable evidence and a human-readable report, including failed and blocked outcomes.",
       "Bootstrap validation proves only repository contract and static structure; it does not claim application behavior or product readiness.",
       "Before v0.1.0 release, the manifest must require evidence for data, Jev semantics, prediction/model quality, user workflows, visual presentation, cost and resource limits, recovery, and security/isolation.",
-      "The committed Olist profile records reproducible Kaggle v2 file fingerprints, schemas, row/null/key statistics, relationship checks, timestamp checks, language uncertainty, and a conditional target-feasibility decision."
+      "The committed Olist profile records reproducible Kaggle v2 file fingerprints, schemas, row/null/key statistics, relationship checks, timestamp checks, language uncertainty, and a conditional target-feasibility decision.",
+      "A PostgreSQL application schema loads the approved local Olist v2 facts with source-row lineage, preserves observed one-to-many multiplicity, and reconciles counts and monetary totals without join fan-out."
     ],
     "invariants": [
       "Missing or untrustworthy required evidence is blocked, never passed.",
@@ -19,7 +20,9 @@
     "forbiddenOutcomes": [
       "Do not describe structural checks as complete product validation.",
       "Do not treat a local working-tree result as evidence for a different commit.",
-      "Do not report unknown validation cost as zero."
+      "Do not report unknown validation cost as zero.",
+      "Do not commit raw Kaggle source files or represent a review as attributable to every seller in a multi-seller order.",
+      "Do not join order items, payments, and reviews at their raw grains to calculate totals."
     ],
     "requiredValidatorTypes": [
       "static",
@@ -98,6 +101,30 @@
       "timeout": 30,
       "required": true,
       "evidencePath": "olist-profile-contract.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "olist-business-facts",
+      "type": "semantic",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_olist_facts.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "timeout": 180,
+      "required": true,
+      "evidencePath": "olist-business-facts.json",
       "metricThresholds": {},
       "costPolicy": {
         "requiredTelemetry": true,
