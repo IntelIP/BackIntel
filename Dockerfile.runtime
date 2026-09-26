@@ -1,13 +1,14 @@
 FROM python:3.12-slim-bookworm
 WORKDIR /app
+ARG BACKINTEL_CANDIDATE_SHA
+ENV BACKINTEL_CANDIDATE_SHA=$BACKINTEL_CANDIDATE_SHA
 RUN pip install --no-cache-dir aegra-api==0.10.5 langchain-typesafe==0.0.1a3
 COPY aegra.json ./aegra.json
 COPY config ./config
 COPY runtime ./runtime
-COPY migrations/0002_partition_results.sql ./migrations/0002_partition_results.sql
-COPY migrations/0003_usage_events.sql ./migrations/0003_usage_events.sql
-COPY migrations/0004_jev_observations.sql ./migrations/0004_jev_observations.sql
-COPY migrations/0005_semantic_signal_snapshots.sql ./migrations/0005_semantic_signal_snapshots.sql
+COPY migrations ./migrations
+COPY scripts ./scripts
+COPY data/profiles ./data/profiles
 COPY tests/test_replay_ledger.py ./tests/test_replay_ledger.py
 COPY tests/test_costs.py ./tests/test_costs.py
 COPY tests/test_jev.py ./tests/test_jev.py

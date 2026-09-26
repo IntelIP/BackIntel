@@ -11,9 +11,9 @@ from pathlib import Path
 BASE = "http://127.0.0.1:2026"
 
 
-def request(method: str, path: str, body: dict | None = None) -> dict:
+def request(method: str, path: str, body: dict | None = None, *, base: str = BASE) -> dict:
     req = urllib.request.Request(
-        BASE + path,
+        base.rstrip("/") + path,
         data=json.dumps(body).encode("utf-8") if body is not None else None,
         method=method,
         headers={"Content-Type": "application/json"},

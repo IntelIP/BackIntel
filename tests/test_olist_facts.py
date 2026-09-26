@@ -213,6 +213,22 @@ class OlistFactsIntegrationTests(unittest.TestCase):
         rendered = render_html(dangerous)
         self.assertIn("&lt;script&gt;", rendered)
         self.assertNotIn("<script>", rendered)
+        report["semantic_review"] = {
+            "signal_version": "review-signals-v2", "execution_mode": "recorded fixture; no inference",
+            "interpretation": "Selected sample, not a population trend.",
+            "comparison": {"findings": [{"entity_type": "marketplace", "entity_key": "*",
+                "previous_review_count": 1, "current_review_count": 1,
+                "mean_model_probability_delta_points": 20.8}]},
+            "source_evidence": [{"review_record_id": 1, "order_id": "<script>alert(1)</script>",
+                "source_file": "synthetic.csv", "source_row_number": 17, "file_sha256": "a" * 64,
+                "model": "synthetic-fixture", "request_id": "fixture-1", "question_set_version": "review-text-v1"}],
+        }
+        integrated = render_html(report)
+        self.assertIn("What changed in sampled review text?", integrated)
+        self.assertIn("20.8 points", integrated)
+        self.assertIn("synthetic.csv, row 17", integrated)
+        self.assertNotIn("<script>", integrated)
+        self.assertIn("Total cost remains blocked", integrated)
         self.assertEqual(next_month("2017-12").isoformat(), "2018-01-01")
 
     def test_source_records_cannot_be_updated_or_deleted(self) -> None:

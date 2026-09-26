@@ -11,6 +11,8 @@ from psycopg.types.json import Jsonb
 
 from runtime.ledger import dsn
 
+SIGNAL_VERSION = "review-signals-v2"
+
 
 def _mean(values: list[float]) -> float | None:
     return round(statistics.fmean(values), 6) if values else None
@@ -54,13 +56,18 @@ async def build_signal_snapshot(partition_id: str) -> dict:
         version = versions[0][0]
         rows = await (await conn.execute("""
             WITH sellers AS (
-              SELECT order_id, count(DISTINCT seller_id)::int AS n, min(seller_id) AS entity_key
-                FROM backintel.order_items WHERE seller_id IS NOT NULL GROUP BY order_id
+              SELECT order_id,
+                     CASE WHEN bool_and(seller_id IS NOT NULL)
+                          THEN count(DISTINCT seller_id)::int ELSE 0 END AS n,
+                     min(seller_id) AS entity_key
+                FROM backintel.order_items GROUP BY order_id
             ), categories AS (
-              SELECT i.order_id, count(DISTINCT p.category_name)::int AS n,
+              SELECT i.order_id,
+                     CASE WHEN bool_and(p.category_name IS NOT NULL)
+                          THEN count(DISTINCT p.category_name)::int ELSE 0 END AS n,
                      min(p.category_name) AS entity_key
-                FROM backintel.order_items i JOIN backintel.products p USING (product_id)
-               WHERE p.category_name IS NOT NULL GROUP BY i.order_id
+                FROM backintel.order_items i LEFT JOIN backintel.products p USING (product_id)
+               GROUP BY i.order_id
             )
             SELECT o.answers, r.order_id, s.n AS seller_n, s.entity_key AS seller_key,
                    c.n AS category_n, c.entity_key AS category_key
@@ -78,7 +85,7 @@ async def build_signal_snapshot(partition_id: str) -> dict:
     for row in rows:
         if row[2] == 1 and row[3] is not None:
             groups.setdefault(("seller", str(row[3])), []).append(row)
-        if row[4] == 1 and row[5] is not None:
+        if row[2] == 1 and row[4] == 1 and row[5] is not None:
             groups.setdefault(("category", str(row[5])), []).append(row)
 
     snapshots = []
@@ -87,20 +94,21 @@ async def build_signal_snapshot(partition_id: str) -> dict:
         async with await psycopg.AsyncConnection.connect(dsn()) as conn:
             await conn.execute("""
                 INSERT INTO backintel.semantic_signal_snapshots
-                  (snapshot_id, partition_id, question_set_version, entity_type, entity_key, review_count, metrics)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (partition_id, question_set_version, entity_type, entity_key) DO NOTHING
-            """, (uuid.uuid4(), partition_id, version, entity_type, entity_key, len(members), Jsonb(metrics)))
+                  (snapshot_id, partition_id, question_set_version, signal_version, entity_type, entity_key, review_count, metrics)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (partition_id, question_set_version, signal_version, entity_type, entity_key) DO NOTHING
+            """, (uuid.uuid4(), partition_id, version, SIGNAL_VERSION, entity_type, entity_key, len(members), Jsonb(metrics)))
             stored = await (await conn.execute("""
                 SELECT review_count, metrics FROM backintel.semantic_signal_snapshots
-                 WHERE partition_id=%s AND question_set_version=%s AND entity_type=%s AND entity_key=%s
-            """, (partition_id, version, entity_type, entity_key))).fetchone()
+                WHERE partition_id=%s AND question_set_version=%s AND signal_version=%s
+                  AND entity_type=%s AND entity_key=%s
+            """, (partition_id, version, SIGNAL_VERSION, entity_type, entity_key))).fetchone()
             stored_metrics = stored[1] if isinstance(stored[1], dict) else json.loads(stored[1])
             if stored[0] != len(members) or stored_metrics != metrics:
                 raise ValueError("Immutable signal snapshot conflicts with recomputed partition result")
         snapshots.append({"entity_type": entity_type, "entity_key": entity_key,
                           "review_count": len(members), "metrics": metrics})
-    return {"partition_id": partition_id, "question_set_version": version,
+    return {"partition_id": partition_id, "question_set_version": version, "signal_version": SIGNAL_VERSION,
             "snapshot_count": len(snapshots), "snapshots": snapshots}
 
 
@@ -110,12 +118,14 @@ async def compare_signal_snapshots(previous_partition: str, current_partition: s
     async with await psycopg.AsyncConnection.connect(dsn()) as conn:
         previous = await (await conn.execute("""
             SELECT entity_type, entity_key, review_count, metrics, question_set_version
-              FROM backintel.semantic_signal_snapshots WHERE partition_id=%s
-        """, (previous_partition,))).fetchall()
+              FROM backintel.semantic_signal_snapshots WHERE partition_id=%s AND signal_version=%s
+        """, (previous_partition, SIGNAL_VERSION))).fetchall()
         current = await (await conn.execute("""
             SELECT entity_type, entity_key, review_count, metrics, question_set_version
-              FROM backintel.semantic_signal_snapshots WHERE partition_id=%s
-        """, (current_partition,))).fetchall()
+              FROM backintel.semantic_signal_snapshots WHERE partition_id=%s AND signal_version=%s
+        """, (current_partition, SIGNAL_VERSION))).fetchall()
+    if not previous or not current:
+        raise ValueError("Both partitions require accepted snapshots at the current signal version")
     old = {(r[0], r[1]): r for r in previous}
     new = {(r[0], r[1]): r for r in current}
     shared = sorted(set(old) & set(new))
@@ -137,4 +147,5 @@ async def compare_signal_snapshots(previous_partition: str, current_partition: s
                          "current_theme_counts": after_metrics.get("primary_expressed_theme_counts", {}),
                          "interpretation": "Difference in mean Jev-assigned probability that sampled text mentions delivery problems; not an observed complaint rate, verified delivery event, seller responsibility, or operational outcome probability."})
     return {"previous_partition": previous_partition, "current_partition": current_partition,
+            "signal_version": SIGNAL_VERSION,
             "shared_entities_compared": len(findings), "findings": findings}

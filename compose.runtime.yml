@@ -25,9 +25,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.runtime
+      args:
+        BACKINTEL_CANDIDATE_SHA: ${BACKINTEL_CANDIDATE_SHA:?Set exact committed candidate SHA}
     environment:
       DATABASE_URL: postgresql://aegra:${BACKINTEL_RUNTIME_DB_PASSWORD:?Set local DB password in .env}@postgres:5432/aegra
       BACKINTEL_APP_DATABASE_URL: postgresql://aegra:${BACKINTEL_RUNTIME_DB_PASSWORD:?Set local DB password in .env}@postgres:5432/backintel_app
+      BACKINTEL_REPORT_DIR: /reports
       REDIS_URL: redis://redis:6379/0
       REDIS_BROKER_ENABLED: "true"
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
@@ -38,6 +41,8 @@ services:
       OTEL_CONSOLE_EXPORT: "false"
     ports:
       - "127.0.0.1:2026:2026"
+    volumes:
+      - ${BACKINTEL_REPORT_DIR:?Set an external report directory}:/reports
     depends_on:
       postgres:
         condition: service_healthy

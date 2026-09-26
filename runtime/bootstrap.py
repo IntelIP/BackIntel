@@ -6,9 +6,13 @@ import psycopg
 from runtime.ledger import dsn
 
 
-if __name__ == "__main__":
+def initialize() -> None:
     root = Path(__file__).resolve().parents[1] / "migrations"
     with psycopg.connect(dsn()) as conn:
-        for name in ("0002_partition_results.sql", "0003_usage_events.sql", "0004_jev_observations.sql", "0005_semantic_signal_snapshots.sql"):
-            conn.execute((root / name).read_text(), prepare=False)
-    print("Application result and usage ledgers ready")
+        for migration in sorted(root.glob("*.sql")):
+            conn.execute(migration.read_text(), prepare=False)
+
+
+if __name__ == "__main__":
+    initialize()
+    print("Application facts, result, usage, and semantic schemas ready")

@@ -78,7 +78,7 @@ class JevPipelineTests(unittest.IsolatedAsyncioTestCase):
                 (1, 'A entrega demorou muito.', '00000000-0000-0000-0000-000000000001', 17, 'o1'),
                 (2, 'O produto chegou rápido.', '00000000-0000-0000-0000-000000000001', 18, 'o2')""")
             migration_dir = ROOT / "migrations"
-            for name in ("0002_partition_results.sql", "0003_usage_events.sql", "0004_jev_observations.sql", "0005_semantic_signal_snapshots.sql"):
+            for name in ("0002_partition_results.sql", "0003_usage_events.sql", "0004_jev_observations.sql", "0005_semantic_signal_snapshots.sql", "0006_signal_definition_version.sql"):
                 conn.execute((migration_dir / name).read_text(), prepare=False)
 
     async def test_observation_lineage_usage_and_replay_are_persisted(self):
@@ -192,6 +192,30 @@ class JevPipelineTests(unittest.IsolatedAsyncioTestCase):
         marketplace = next(row for row in result["findings"] if row["entity_type"] == "marketplace")
         self.assertEqual(marketplace["mean_model_probability_delta_points"], 60.0)
         self.assertIn("not an observed complaint rate", marketplace["interpretation"])
+
+    async def test_unknown_category_and_multiple_sellers_are_not_attributed(self):
+        with psycopg.connect(self.test_dsn) as conn:
+            conn.execute("INSERT INTO backintel.products VALUES ('unknown', NULL)")
+            conn.execute("INSERT INTO backintel.order_items VALUES ('o1','s1','unknown'), ('o2','s2','p1')")
+        await process_review_ids(partition_id="ambiguous", review_record_ids=[1, 2], classifier=FakeClassifier())
+        snapshot = await build_signal_snapshot("ambiguous")
+        scopes = {(s["entity_type"], s["entity_key"]): s["review_count"] for s in snapshot["snapshots"]}
+        self.assertEqual(scopes, {("marketplace", "*"): 2, ("seller", "s1"): 1})
+        self.assertEqual(snapshot["signal_version"], "review-signals-v2")
+        self.assertEqual(snapshot, await build_signal_snapshot("ambiguous"))
+
+    async def test_recorded_replay_needs_no_credential_and_never_calls_provider(self):
+        fake = FakeClassifier()
+        await process_review_ids(partition_id="recorded", review_record_ids=[1], classifier=fake)
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": ""}):
+            with patch("runtime.jev.OpenRouterJevClassifier", side_effect=AssertionError("Provider forbidden")):
+                replay = await process_review_ids(partition_id="recorded", review_record_ids=[1], reuse_only=True)
+                with self.assertRaisesRegex(ValueError, "Recorded observation missing"):
+                    await process_review_ids(partition_id="absent-recording", review_record_ids=[2], reuse_only=True)
+        self.assertEqual(replay["reused_observations"], 1)
+        self.assertEqual(fake.calls, 1)
+        with psycopg.connect(self.test_dsn) as conn:
+            self.assertEqual(conn.execute("SELECT count(*) FROM backintel.usage_events").fetchone()[0], 1)
 
     async def test_provider_failure_is_recorded_as_unknown_cost(self):
         class FailingClassifier(FakeClassifier):

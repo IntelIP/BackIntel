@@ -13,7 +13,10 @@ from pathlib import Path
 
 import psycopg
 
-from load_olist_facts import git_identity
+if __package__:
+    from .load_olist_facts import git_identity
+else:
+    from load_olist_facts import git_identity
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "config" / "seller-review-slice.json"
@@ -237,13 +240,42 @@ def render_html(report: dict) -> str:
         for r in categories
     )
     caveats = "".join(f"<li>{esc(s)}</li>" for s in report["limitations"])
+    semantic_html = ""
+    if report.get("semantic_review"):
+        semantic = report["semantic_review"]
+        changes = "".join(
+            f"<tr><th>{esc(f['entity_type'])}: {esc(f['entity_key'])}</th>"
+            f"<td>{f['previous_review_count']} / {f['current_review_count']}</td>"
+            f"<td>{esc(f['mean_model_probability_delta_points'])} points</td></tr>"
+            for f in semantic["comparison"]["findings"]
+        )
+        sources = "".join(
+            f"<li>Review {e['review_record_id']}; order {esc(e['order_id'])}; "
+            f"{esc(e['source_file'])}, row {e['source_row_number']}, SHA-256 {esc(e['file_sha256'])}; "
+            f"model {esc(e['model'])}; request {esc(e['request_id'])}; "
+            f"question set {esc(e['question_set_version'])}</li>"
+            for e in semantic["source_evidence"]
+        )
+        semantic_html = (
+            "<section id='semantic-review'><h2>What changed in sampled review text?</h2>"
+            f"<p>{esc(semantic['interpretation'])}</p>"
+            f"<p>Attribution definition: {esc(semantic['signal_version'])}. "
+            f"Execution: {esc(semantic['execution_mode'])}.</p>"
+            "<div class='table-scroll'><table><thead><tr><th>Scope</th><th>Previous / current reviews</th>"
+            f"<th>Change in mean model probability</th></tr></thead><tbody>{changes}</tbody></table></div>"
+            "<details><summary>Review source evidence</summary><ul>" + sources + "</ul></details>"
+            "<h3>Cost status</h3><p>Measured provider charges and unpriced local work are separate. "
+            "Total cost remains blocked until local compute and human review are priced.</p></section>"
+        )
     c = report["contract"]
     return ("<!doctype html><html lang='en'><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
             "<title>BackIntel | Seller review candidate</title>"
             "<style>body{font:16px/1.5 system-ui;max-width:76rem;margin:auto;padding:2rem;color:#172338}"
             "table{border-collapse:collapse;width:100%;margin:1rem 0 2rem}th,td{padding:.6rem;border:1px solid #aab3c2;text-align:left}"
-            "thead{background:#e5ebf4}section{scroll-margin-top:1rem}small{color:#35435e}</style>"
+            "thead{background:#e5ebf4}section{scroll-margin-top:1rem}small{color:#35435e}"
+            "main{overflow-wrap:anywhere}.table-scroll{overflow-x:auto}"
+            "@media(max-width:600px){body{padding:.75rem}table{display:block;overflow-x:auto}th,td{padding:.4rem}}</style>"
             "<main><h1>Monthly seller-performance review — candidate</h1>"
             f"<p><strong>Purchase cohorts:</strong> {esc(c['comparison_purchase_month'])} vs "
             f"{esc(c['report_purchase_month'])}. Retrospective final extract, not a live or month-end snapshot.</p>"
@@ -258,10 +290,10 @@ def render_html(report: dict) -> str:
             f"<h2>Top categories by current delivered-order count</h2><table><thead><tr>"
             "<th>Category</th><th>Current delivered</th><th>Previous late / dated</th><th>Current late / dated</th><th>Review coverage</th>"
             f"</tr></thead><tbody>{category_rows}</tbody></table><h2>Source examples</h2>{evidence}"
-            f"<h2>Limits and handling</h2><ul>{caveats}</ul>"
+            f"{semantic_html}<h2>Limits and handling</h2><ul>{caveats}</ul>"
             "<p>Missing reviews are not negative feedback; order-level reviews are never assigned to "
             "each seller of a multi-seller order. Full seller/category aggregates, definitions, and "
-            "batch hashes are in the companion JSON. No review themes or predictions are inferred.</p>"
+            "batch hashes are in the companion JSON. No predictions or causal conclusions are inferred.</p>"
             f"<small>Non-commercial local Olist v2 demo (CC BY-NC-SA 4.0). "
             f"Candidate commit: {esc(report['candidate']['exact_candidate_sha'] or 'uncommitted')}.</small></main></html>\n")
 

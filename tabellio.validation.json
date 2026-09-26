@@ -12,7 +12,9 @@
       "The committed Olist profile records reproducible Kaggle v2 file fingerprints, schemas, row/null/key statistics, relationship checks, timestamp checks, language uncertainty, and a conditional target-feasibility decision.",
       "A PostgreSQL application schema loads the approved local Olist v2 facts with source-row lineage, preserves observed one-to-many multiplicity, and reconciles counts and monetary totals without join fan-out.",
       "A reproducible February versus March 2017 retrospective seller/category report uses frozen purchase-month cohorts, correct grains, missingness and source-linked evidence; independent raw-data checks are required locally before acceptance.",
-      "Offline Jev adapter checks preserve typed answer distributions, source/question provenance, usage events, replay-safe observation persistence, and a changed-signal comparison without claiming live model quality."
+      "Offline Jev adapter checks preserve typed answer distributions, source/question provenance, usage events, replay-safe observation persistence, and a changed-signal comparison without claiming live model quality.",
+      "The integrated local demo reuses recorded Jev observations without provider calls, preserves unknown attribution, and renders source-linked sampled changes.",
+      "Offline runtime checks cover cost accounting, replay safety, and the versioned semantic pipeline; integrated runtime, rendered UI, and total-cost readiness require separate exact-candidate receipts."
     ],
     "invariants": [
       "Missing or untrustworthy required evidence is blocked, never passed.",
@@ -135,23 +137,17 @@
       }
     },
     {
-      "id": "jev-pipeline-contract",
+      "id": "runtime-contracts",
       "type": "semantic",
       "argv": [
         "python3",
         "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "tests",
-        "-p",
-        "test_jev.py",
-        "-v"
+        "scripts.validation.check_runtime"
       ],
       "cwd": ".",
       "timeout": 120,
       "required": true,
-      "evidencePath": "jev-pipeline-contract.json",
+      "evidencePath": "runtime-contracts.json",
       "metricThresholds": {},
       "costPolicy": {
         "requiredTelemetry": true,

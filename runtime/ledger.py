@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import os
-from urllib.parse import urlparse
-
 import psycopg
+from psycopg.conninfo import conninfo_to_dict
 
 
 def dsn() -> str:
     value = os.environ.get("BACKINTEL_APP_DATABASE_URL", "")
-    database = urlparse(value).path.lstrip("/")
+    database = conninfo_to_dict(value).get("dbname", "")
     if database == "backintel_app":
         return value
     test_value = os.environ.get("BACKINTEL_TEST_DATABASE_URL", "")

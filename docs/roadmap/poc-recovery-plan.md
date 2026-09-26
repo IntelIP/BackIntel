@@ -1,6 +1,8 @@
 # BackIntel repository recovery and first integrated PoC
 
-Date: 2026-09-26. Status: repository analysis complete; implementation plan proposed.
+Date: 2026-09-26. Status: user approved local implementation; consolidation complete; integration and validation in progress.
+
+Current checkout: `/Users/hudson/Documents/GitHub/BackIntel`. Main now includes the complete implementation chain and preserved design work. The inventory below records the pre-recovery state; use the [maintained repository map](../architecture/repository-map.md) for current source ownership. Original design changes were committed on `recovery/design-preservation`; an independent working-file copy and Git bundle are retained under `~/Library/Application Support/BackIntel/Recovery/20260926T170122`.
 
 ## Outcome
 
@@ -83,7 +85,7 @@ The full release still separately requires adjudicated semantic quality, a measu
 
 ## Authority
 
-This document records analysis and the requested goal. It does not mutate application code, move/delete checkouts, stop/rebuild containers, write Plane items, run paid inference, publish branches/PRs, merge, deploy, or send external messages. Review this proposed integration approach before implementation. Publication, infrastructure, paid inference, destructive cleanup, and external actions keep their separate authorization gates.
+The user approved the proposed local implementation. Canonical checkout consolidation, local code changes, and isolated validation are authorized. Publication, changes to the active demonstration runtime, paid inference, destructive cleanup, and external actions keep their separate authorization gates. All historical worktrees remain retained: the semantic worktree owns an active runtime, and the others preserve local work pending explicit retirement. None is used as a new development home.
 
 ## Evidence locators
 

@@ -172,6 +172,9 @@ async def classify_one(*, partition_id: str, review: dict, definition: dict,
                 return {"observation_id": str(existing[0]), "answers": existing[1], "request_id": existing[2],
                         "model": existing[3], "reused": True}
 
+            if classifier is None:
+                raise ValueError("Recorded observation missing; reuse-only mode never calls a provider")
+
             provider = getattr(classifier, "provider_name", "typesafe")
             usage_id = await begin_usage(partition_id=partition_id, stage="jev", provider=provider,
                                          model="jev-1.13" if provider == "openrouter" else "jev-latest", record_count=1)
@@ -252,27 +255,31 @@ async def record_correction(*, observation_id: str, corrected_by: str,
 
 
 async def process_review_ids(*, partition_id: str, review_record_ids: list[int],
-                             classifier: Any | None = None, definition_path: Path = QUESTION_PATH) -> dict:
+                             classifier: Any | None = None, definition_path: Path = QUESTION_PATH,
+                             reuse_only: bool = False) -> dict:
     if not partition_id or len(partition_id) > 80:
         raise ValueError("partition_id must be nonempty and at most 80 characters")
     if not review_record_ids or len(review_record_ids) > 100 or any(type(i) is not int or i < 1 for i in review_record_ids):
         raise ValueError("review_record_ids must contain 1..100 positive integer IDs")
     if len(set(review_record_ids)) != len(review_record_ids):
         raise ValueError("review_record_ids must be unique")
-    owned_classifier = classifier is None
+    if reuse_only and classifier is not None:
+        raise ValueError("reuse_only cannot be combined with a classifier")
+    owned_classifier = classifier is None and not reuse_only
+    typesafe = None
     if owned_classifier:
         api_key = os.environ.get("OPENROUTER_API_KEY")
         if not api_key:
             raise RuntimeError("OPENROUTER_API_KEY is not configured; no Jev request was made")
         classifier = OpenRouterJevClassifier(api_key=api_key)
         typesafe = classifier.question_types
-    else:
+    elif classifier is not None:
         typesafe = getattr(classifier, "question_types", None)
         if typesafe is None:
             raise ValueError("Injected classifier must provide `question_types` for isolated tests")
     try:
         definition, question_digest = load_question_set(definition_path)
-        questions = build_questions(definition, typesafe)
+        questions = build_questions(definition, typesafe) if typesafe is not None else {}
         async with await psycopg.AsyncConnection.connect(dsn()) as conn:
             await register_question_set(conn, definition, question_digest)
             rows = await (await conn.execute("""
