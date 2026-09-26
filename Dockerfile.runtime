@@ -4,7 +4,9 @@ RUN pip install --no-cache-dir aegra-api==0.10.5
 COPY aegra.json ./aegra.json
 COPY runtime ./runtime
 COPY migrations/0002_partition_results.sql ./migrations/0002_partition_results.sql
+COPY migrations/0003_usage_events.sql ./migrations/0003_usage_events.sql
 COPY tests/test_replay_ledger.py ./tests/test_replay_ledger.py
+COPY tests/test_costs.py ./tests/test_costs.py
 ENV AEGRA_CONFIG=/app/aegra.json PYTHONUNBUFFERED=1
 EXPOSE 2026
 CMD ["uvicorn", "aegra_api.main:app", "--host", "0.0.0.0", "--port", "2026"]

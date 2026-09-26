@@ -5,7 +5,10 @@
 !runtime/graph.py
 !runtime/ledger.py
 !runtime/bootstrap.py
+!runtime/costs.py
 !migrations/
 !migrations/0002_partition_results.sql
+!migrations/0003_usage_events.sql
 !tests/
 !tests/test_replay_ledger.py
+!tests/test_costs.py

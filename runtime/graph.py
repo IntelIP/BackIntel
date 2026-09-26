@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import time
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
 from runtime.ledger import accept, admit
+from runtime.costs import record_usage
 
 
 class Partition(TypedDict, total=False):
@@ -29,10 +31,23 @@ async def process(state: Partition) -> Partition:
     if type(delay) is not int or not 0 <= delay <= 20:
         raise ValueError("delay_seconds must be an integer from 0 to 20")
     digest = hashlib.sha256(f"{identifier}:{count}".encode()).hexdigest()
-    await admit(identifier, count, digest)
-    await asyncio.sleep(delay)  # Keep worker heartbeats responsive during the demo.
-    await accept(identifier, count, digest)
-    return {"processed_count": count, "digest": digest}
+    start = time.monotonic()
+    outcome = "error"
+    try:
+        await admit(identifier, count, digest)
+        await asyncio.sleep(delay)  # Keep worker heartbeats responsive during the demo.
+        await accept(identifier, count, digest)
+        outcome = "success"
+        return {"processed_count": count, "digest": digest}
+    except asyncio.CancelledError:
+        outcome = "cancelled"
+        raise
+    finally:
+        # Local runtime is not billed by a provider, but its compute is not free.
+        await record_usage(partition_id=identifier, stage="runtime", provider="local",
+                           outcome=outcome, record_count=count,
+                           wall_ms=round((time.monotonic() - start) * 1000),
+                           charge_status="not_applicable")
 
 
 builder = StateGraph(Partition)

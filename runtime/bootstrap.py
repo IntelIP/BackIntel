@@ -7,7 +7,8 @@ from runtime.ledger import dsn
 
 
 if __name__ == "__main__":
-    migration = Path(__file__).resolve().parents[1] / "migrations" / "0002_partition_results.sql"
+    root = Path(__file__).resolve().parents[1] / "migrations"
     with psycopg.connect(dsn()) as conn:
-        conn.execute(migration.read_text(), prepare=False)
-    print("Application result ledger ready")
+        for name in ("0002_partition_results.sql", "0003_usage_events.sql"):
+            conn.execute((root / name).read_text(), prepare=False)
+    print("Application result and usage ledgers ready")
