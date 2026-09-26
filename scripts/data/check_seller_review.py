@@ -99,7 +99,18 @@ def check(report_path: Path, data: Path) -> dict:
                 if review["order_id"] != key or review["review_comment_message"] != (e["review_text"] or ""):
                     raise ValueError("Evidence review-to-source link differs from raw source")
             examples += 1
+    semantic_examples = 0
+    for evidence in report.get("semantic_review", {}).get("source_evidence", []):
+        if evidence["source_file"] != "olist_order_reviews_dataset.csv":
+            raise ValueError("Semantic evidence must reference the approved review source")
+        review = review_ordinal[evidence["source_row_number"]]
+        if (evidence["file_sha256"] != profile["files"][evidence["source_file"]]["sha256"]
+                or evidence["order_id"] != review["order_id"]
+                or evidence["input_text_sha256"] != hashlib.sha256(review["review_comment_message"].encode()).hexdigest()):
+            raise ValueError("Semantic observation-to-source link differs from raw source")
+        semantic_examples += 1
     return {"status": "passed", "verified_metric_rows": len(selected), "verified_source_examples": examples,
+            "verified_semantic_source_examples": semantic_examples,
             "report_profile_sha256": report["contract"]["profile_sha256"], "report_candidate": report["candidate"]}
 
 

@@ -128,7 +128,7 @@ async def compare_signal_snapshots(previous_partition: str, current_partition: s
         raise ValueError("Both partitions require accepted snapshots at the current signal version")
     old = {(r[0], r[1]): r for r in previous}
     new = {(r[0], r[1]): r for r in current}
-    shared = sorted(set(old) & set(new))
+    shared = sorted(set(old) & set(new), key=lambda key: ({"marketplace": 0, "seller": 1, "category": 2}[key[0]], key[1]))
     findings = []
     for entity_type, entity_key in shared:
         before, after = old[(entity_type, entity_key)], new[(entity_type, entity_key)]
