@@ -9,9 +9,13 @@ import psycopg
 
 def dsn() -> str:
     value = os.environ.get("BACKINTEL_APP_DATABASE_URL", "")
-    if urlparse(value).path != "/backintel_app":
-        raise RuntimeError("BACKINTEL_APP_DATABASE_URL must address the local backintel_app database")
-    return value
+    database = urlparse(value).path.lstrip("/")
+    if database == "backintel_app":
+        return value
+    test_value = os.environ.get("BACKINTEL_TEST_DATABASE_URL", "")
+    if value == test_value and (database.startswith("test_") or database.endswith("_test")):
+        return value
+    raise RuntimeError("Database URL must address backintel_app or an explicitly configured test database")
 
 
 async def admit(partition_id: str, count: int, digest: str) -> None:
@@ -29,7 +33,8 @@ async def admit(partition_id: str, count: int, digest: str) -> None:
             raise ValueError("Partition ID was reused for conflicting input or blocked result")
 
 
-async def accept(partition_id: str, count: int, digest: str) -> str:
+async def accept(partition_id: str, count: int, digest: str, result_digest: str | None = None) -> str:
+    result_digest = result_digest or digest
     async with await psycopg.AsyncConnection.connect(dsn()) as conn:
         row = await (await conn.execute("""
             SELECT input_sha256, record_count, disposition, result_sha256
@@ -41,7 +46,7 @@ async def accept(partition_id: str, count: int, digest: str) -> str:
             await conn.execute("""
                 UPDATE backintel.partition_results SET disposition = 'accepted', result_sha256 = %s, updated_at = now()
                 WHERE partition_id = %s
-            """, (digest, partition_id))
-        elif row[3] != digest:
+            """, (result_digest, partition_id))
+        elif row[3] != result_digest:
             raise ValueError("An accepted result differs from this run's result")
-        return digest
+        return result_digest

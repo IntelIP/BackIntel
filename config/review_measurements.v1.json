@@ -1,0 +1,59 @@
+{
+  "schema": "backintel-review-measurements/v1",
+  "version": "review-text-v1",
+  "dataset": "olistbr/brazilian-ecommerce@2",
+  "scope": "What the review text expresses; not verified delivery facts or seller causation.",
+  "language_policy": {
+    "source_language": "Portuguese (Brazil) expected; detect and preserve uncertainty",
+    "translation": "Optional comparison input only; never replaces the source text or provenance",
+    "unsupported_or_unclear_language": "preserve as unknown and route for review"
+  },
+  "questions": {
+    "mentions_delivery_problem": {
+      "type": "noul",
+      "instructions": "Does the review text express a problem with delivery, such as late delivery, non-delivery, or a delivery-related obstacle? Judge only what the reviewer says. Do not infer an objectively late delivery from the wording or treat packaging/product damage as a delivery problem unless delivery itself is explicitly implicated.",
+      "positive_examples_required": true,
+      "negative_examples_required": true,
+      "ambiguous_examples_required": true
+    },
+    "mentions_product_problem": {
+      "type": "noul",
+      "instructions": "Does the review text express a problem with the product itself, such as a defect, wrong/missing item, breakage, or poor functioning? Judge only what the reviewer says. Do not count slow delivery or outer packaging alone as a product problem.",
+      "positive_examples_required": true,
+      "negative_examples_required": true,
+      "ambiguous_examples_required": true
+    },
+    "primary_expressed_theme": {
+      "type": "choice",
+      "instructions": "Choose the single most central theme expressed in the review. If multiple themes are present, select the one most directly tied to the review's main dissatisfaction; use other_or_unclear if no option clearly fits. This describes text, not verified cause.",
+      "criteria": {
+        "delivery": "Explicit delivery delay, non-delivery, or delivery process complaint.",
+        "product_condition_or_function": "Product defective, damaged, wrong, missing, or not working.",
+        "seller_service_or_communication": "Seller/customer service, responsiveness, or communication is central.",
+        "positive_or_no_problem": "Mainly positive or explicitly reports no problem.",
+        "other_or_unclear": "Other topic, conflicting signals, too little text, or no defensible primary theme."
+      }
+    },
+    "reported_experience_severity": {
+      "type": "score",
+      "instructions": "Rate the severity of the problem the reviewer explicitly reports, not the objective operational impact and not seller fault.",
+      "criteria": [
+        "No explicit problem or positive experience.",
+        "Minor dissatisfaction or inconvenience; no major loss or inability to use the item is described.",
+        "Material problem such as substantial delay, broken/wrong/missing product, or clearly unusable item; use only when supported by the wording."
+      ],
+      "uncertainty": "Keep the full probability distribution; do not treat the expected score as a physical measurement."
+    }
+  },
+  "evaluation_contract": {
+    "retain_distributions": true,
+    "thresholds": "No binary threshold selected yet; report probabilities and separately adjudicate any action threshold.",
+    "human_reference": "Required before quality claims; assistant prelabels are not adjudicated gold labels.",
+    "forbidden_claims": [
+      "A review mention proves a delivery event.",
+      "A text theme proves seller responsibility.",
+      "Jev confidence is the probability of an operational outcome.",
+      "Missing or ambiguous text means a negative label."
+    ]
+  }
+}

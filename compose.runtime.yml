@@ -30,6 +30,7 @@ services:
       BACKINTEL_APP_DATABASE_URL: postgresql://aegra:${BACKINTEL_RUNTIME_DB_PASSWORD:?Set local DB password in .env}@postgres:5432/backintel_app
       REDIS_URL: redis://redis:6379/0
       REDIS_BROKER_ENABLED: "true"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       WORKER_COUNT: "2"
       N_JOBS_PER_WORKER: "1"
       AUTH_TYPE: noop

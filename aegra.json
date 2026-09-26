@@ -1,6 +1,7 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "olist_fixture": "./runtime/graph.py:graph"
+    "olist_fixture": "./runtime/graph.py:graph",
+    "olist_review_enrichment": "./runtime/review_graph.py:graph"
   }
 }
