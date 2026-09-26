@@ -1,8 +1,12 @@
-JEV + TABFM — FROM SOURCE MATERIAL TO RELATIONAL DATA PRODUCTS
+JEV + TABULAR PREDICTORS — FROM SOURCE MATERIAL TO RELATIONAL DATA PRODUCTS
 Research date: 2026-09-21 UTC
 Status: working design; BINT-4 PostgreSQL migration and loader implemented on branch for validation
 Parent index: background-agents-research.txt (D04–D09, D12–D14)
 Runtime candidate: open-source-runtime-study.txt
+Predictor follow-up: catboost-tabicl-system-design.txt (current CatBoost/TabICLv2
+direction; supersedes TabFM as the assumed predictor, not the shared data contracts).
+Delivery follow-up: stakeholder-artifacts-and-escalation.txt (artifact definitions,
+policy evaluations, attention episodes and notification audit).
 
 0. INTENT AND BOUNDARY
 
@@ -105,7 +109,7 @@ Blending: deterministic SQL joins/aggregations produce purpose-specific tables.
 Prediction: an approved predictor relates feature snapshots to observed outcomes.
 Delivery: SQL results, triage queues, charts and reports use published data versions.
 
-Not every output passes through TabFM. Review themes and actual lateness dashboards
+Not every output requires a predictor. Review themes and actual lateness dashboards
 are descriptive products; exception queues may use rules without prediction.
 LangGraph/Aegra coordinates stages and retries. It is not the bulk storage engine.
 Graph checkpoints should hold IDs, manifests, cursors and counters, not full tables.
@@ -321,7 +325,7 @@ historical orders where the metric's denominator is orders, not line items.
 
 Core tables support many queries. Feature tables are deliberately narrow model
 inputs. IDs, source URLs, future timestamps, free text and target labels are not
-passed to TabFM by default; keep an explicit ordered feature-column allowlist.
+passed to a predictor by default; keep an explicit ordered feature-column allowlist.
 Categorical encoding/scalers/imputation are fitted using allowed context/development
 rows only. Preserve semantic missingness indicators even if the estimator imputes.
 
@@ -350,7 +354,7 @@ Label availability matters: an earlier order cannot be context with a label that
 became known only after the query order's prediction time. Outcome corrections
 append versions; they do not retroactively rewrite prior prediction artifacts.
 
-8. TABFM INPUTS, OUTPUTS AND EVALUATION RECORDS
+8. PREDICTOR INPUTS, OUTPUTS AND EVALUATION RECORDS
 
 prediction_runs
   PK prediction_run_id; predictor_name, model_version/weights_hash,
@@ -382,8 +386,9 @@ Evaluation recipe:
 - Forward chronological holdouts; no future labels in context or feature history.
 - Question/rubric discovery, preprocessing, thresholds and calibration use only
   development data; final held-out cases do not guide revisions.
-- Compare conventional baseline with/without Jev features and TabFM with/without
-  those same features, using the same time cutoffs and eligible cases.
+- Current comparison: CatBoost with/without Jev features and TabICLv2 with/without
+  those same features, using the same time cutoffs and eligible cases. Registry
+  extensions and lifecycle are in catboost-tabicl-system-design.txt.
 - Measure discrimination, calibration where applicable, precision/recall at the
   chosen review capacity, useful lead time, segment coverage, and full cost.
 - Report missing or biased labels and uncertainty about historical availability.

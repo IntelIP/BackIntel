@@ -2,3 +2,5 @@
 __pycache__/
 *.py[cod]
 .env
+# Graphify generates a graph in the working directory and a cache beside scanned files.
+**/graphify-out/
