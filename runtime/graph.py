@@ -7,6 +7,8 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from runtime.ledger import accept, admit
+
 
 class Partition(TypedDict, total=False):
     partition_id: str
@@ -26,11 +28,11 @@ async def process(state: Partition) -> Partition:
         raise ValueError("record_count must be an integer from 1 to 100")
     if type(delay) is not int or not 0 <= delay <= 20:
         raise ValueError("delay_seconds must be an integer from 0 to 20")
+    digest = hashlib.sha256(f"{identifier}:{count}".encode()).hexdigest()
+    await admit(identifier, count, digest)
     await asyncio.sleep(delay)  # Keep worker heartbeats responsive during the demo.
-    return {
-        "processed_count": count,
-        "digest": hashlib.sha256(f"{identifier}:{count}".encode()).hexdigest(),
-    }
+    await accept(identifier, count, digest)
+    return {"processed_count": count, "digest": digest}
 
 
 builder = StateGraph(Partition)

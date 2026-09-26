@@ -3,3 +3,9 @@
 !aegra.json
 !runtime/
 !runtime/graph.py
+!runtime/ledger.py
+!runtime/bootstrap.py
+!migrations/
+!migrations/0002_partition_results.sql
+!tests/
+!tests/test_replay_ledger.py
