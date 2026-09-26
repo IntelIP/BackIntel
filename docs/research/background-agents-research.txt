@@ -6,8 +6,14 @@ Engineering follow-up: langchain-engineering-study.txt (pinned example code,
 community issue reports, infrastructure contracts, and Twitter research gap).
 Open-source runtime follow-up: open-source-runtime-study.txt (Aegra candidate,
 local worker-backed topology, license caveats and recovery tests).
-Model/data follow-up: model-to-relational-data-design.txt (Jev/TabFM roles,
-proposed relational grains, evidence, feature snapshots and outcome contracts).
+Model/data follow-up: model-to-relational-data-design.txt (semantic evidence,
+proposed relational grains, feature snapshots and outcome contracts).
+Current predictive design: catboost-tabicl-system-design.txt (CatBoost math,
+CatBoost/TabICLv2 lifecycle, tuning, evaluation and data management).
+Delivery design: stakeholder-artifacts-and-escalation.txt (stakeholder views,
+event/schedule/deadline triggers, episode state and proposed escalation policies).
+v0.1.0 release roadmap: ../roadmap/v0.1.0-development-roadmap.md (principal brief,
+release scope, epics, sprint sequence, dependencies, gates and success measures).
 
 0. DESTINATION, AUTHORITY, AND CURRENT STATE
 
@@ -220,7 +226,7 @@ Immutable source objects
   -> validation, provenance, and entity association
   -> versioned evidence records
   -> point-in-time analytical feature tables
-  -> descriptive analysis / TabFM predictions / triage
+  -> descriptive analysis / approved predictor inference / triage
   -> verified result bundles
   -> rendered stakeholder artifacts
 
@@ -315,19 +321,25 @@ corrections, schema changes, and downstream invalidation. A historical Kaggle
 snapshot does not prove every field's historical value. Document replay
 assumptions and exclude unsupported as-of features.
 
-D08 — Prediction contract and TabFM deployment route
-Choose first outcome and prediction timestamp, target eligibility/censoring,
-context selection, baseline, holdout, calibration, and prediction retention.
-Candidate: order lateness predicted at approval from available operational fields
-and earlier review observations. Own-order future reviews are forbidden inputs.
-TabFM is a replaceable prediction component; commercial/production permission
-for the selected model/service route must be resolved separately. [S17]
+D08 — Prediction contract and model lifecycle
+Current design direction: compare CatBoost and TabICLv2 behind one logical feature
+contract; no active predictor selected or measured. Architecture, mathematical
+explanation, tuning/weight fine-tuning, evaluation and model registry are recorded
+in catboost-tabicl-system-design.txt. Google TabFM remains a licensing-constrained
+research reference, not a required dependency. [S17]
+Choose first target and prediction time, eligibility/censoring, context/training
+cutoffs, calibration and retention. Approval-only and rolling predictions require
+different validated contracts. Future reviews/outcomes remain forbidden inputs.
 
-D09 — Stakeholders and artifacts
-Choose first roles, questions, granularity, refresh cadence, and presentation.
-Recommendation: one operator queue, one analyst table/chart, one executive brief
-from a shared result bundle. Native Excel/Word/Teams/Slack adapters are not yet
-specified, not silently included in the first build.
+D09 — Stakeholders, dynamic artifacts and escalation
+Design source: stakeholder-artifacts-and-escalation.txt. It defines proposed
+stakeholder contracts, event/schedule/deadline triggers, rule/statistical/agent
+candidate detection, evidence gates, policy versions, episode response state,
+delivery audit and a local replay storyboard.
+Thresholds, recipients, cadence, first stakeholder and autonomous-action authority
+remain open. The agent may propose attention points; automatic escalation under
+approved rules is a proposed boundary, not yet granted external-action authority.
+Native Excel/Word/Teams/Slack adapters remain future options, not first-build scope.
 
 D10 — Reliability, publication, and failure behavior
 Define idempotent writes, transactional boundaries, retry budgets, quarantine,

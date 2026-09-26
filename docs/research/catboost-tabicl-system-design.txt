@@ -1,0 +1,313 @@
+CATBOOST + TABICLv2 — PREDICTIVE SYSTEM DESIGN AND MATHEMATICS
+Recorded: 2026-09-21 UTC
+Status: design/research draft; not an implementation or approved deployment
+Parent: background-agents-research.txt, D08
+Relational foundation: model-to-relational-data-design.txt
+Runtime: open-source-runtime-study.txt
+Delivery: stakeholder-artifacts-and-escalation.txt
+
+1. PURPOSE AND DECISION STATUS
+
+Record the architecture discussed with the user: CatBoost and TabICLv2 are two
+candidate predictors consuming the same logical feature contract, not sequential
+agents. This is the current design direction; no model has been trained, compared,
+selected for production or installed. Jev supplies semantic observations; neither
+predictor replaces parsing, joins, provenance, label design or data validation.
+Google TabFM remains a research reference rather than a required dependency.
+
+Approved activity: document and discuss. No paid model calls, downloads, database
+migrations, external notifications or deployments are authorized by this note.
+Olist-first/Amazon-later and local-first infrastructure direction are recorded in
+the parent index. Numerical examples here are illustrations, not observed results.
+
+2. THREE SEPARATE WORKFLOWS
+
+A. Evidence and features
+  source manifests -> parse facts -> Jev observations -> validation/resolution
+  -> point-in-time feature snapshots.
+
+B. Predictor preparation/evaluation
+  approved target + chronological training/development data
+  -> CatBoost training OR TabICL context preparation
+  -> evaluation on common eligible query cases
+  -> candidate registry -> explicitly approved promotion.
+
+C. Routine scoring and delivery
+  new eligible feature rows -> approved predictor -> versioned predictions
+  -> accepted result bundles -> artifact/policy evaluation.
+
+New source evidence does not automatically require retraining either predictor.
+An evidence update, feature rebuild, model preparation, inference, artifact refresh
+and outward notification are six different actions with different dependencies.
+
+Proposed local components:
+- Aegra/LangGraph: durable job lifecycle, schedules, routing and human interrupts.
+- PostgreSQL: framework database plus separate application database/roles.
+- Redis: Aegra queue/event coordination, not the application evidence store.
+- Bounded model subprocess or process pool: train/prepare/score outside serving
+  and heartbeat event loops. One owner schedules a logical job; do not add a
+  competing queue merely to obtain process isolation.
+- Local artifact storage: source partitions, model packages, caches, result files.
+
+Initially no separate model-serving API, Kubernetes or registry product is needed.
+A later persistent inference service must have stable child-job identities and
+reconciliation if the parent retries after an uncertain timeout. Model initialization
+is per reusable process/model version, not per individual order. Bound threads and
+memory as well as concurrent jobs. For Apple Silicon, assess host-native MPS
+separately; Linux Docker containers do not automatically expose the host Metal GPU.
+
+3. WHAT A CATBOOST MODEL IS
+
+CatBoost fits an additive ensemble of decision trees. A tree routes feature rows
+through learned splits into leaves; each leaf contributes a numeric correction.
+Trees can represent interactions such as a short promised delivery window combined
+with limited seller history. Do not equate a learned association with causation.
+
+A trained package can score new feature rows without being handed all historical
+training rows again. Keep the training manifest for reproducibility even though
+ordinary prediction does not require those rows as context.
+
+Many CatBoost configurations use symmetric (oblivious) trees: all nodes at one
+depth use the same split. A depth-d symmetric tree has at most 2^d leaves. Other
+growth policies exist; do not describe symmetry as universal to every CatBoost
+configuration. Categorical processing and ordered methods are key differentiators,
+but exact defaults and CPU/GPU support depend on version/configuration.
+
+4. THE MATH, WITH EXPLICIT SIMPLIFICATIONS
+
+4.1 Additive prediction
+Let x_i be a feature row and y_i its observed target. The raw prediction is:
+
+  F_M(x) = F_0(x) + eta * sum_{m=1..M} f_m(x)
+
+Here M is the number of trees, f_m returns a leaf value, and eta is the learning
+rate (shrinkage). Real model serialization may fold learning-rate scaling into
+leaf values; the equation explains the concept, not the file format.
+
+For binary late/not-late classification, map raw score to probability:
+
+  p_i = sigmoid(F_M(x_i)) = 1 / (1 + exp(-F_M(x_i)))
+
+A raw score 1.10 corresponds to p approximately 0.7503. This mathematical mapping
+does not establish calibration: among cases assigned p=0.75, the event need not
+actually occur 75% of the time until reliability is demonstrated empirically.
+
+For regression, the ensemble can directly return a scalar, such as predicted
+lateness in hours, if that target and eligibility policy have been defined.
+
+4.2 Loss and why another tree helps
+For binary classification, a common objective is log loss:
+
+  L = -(1/n) * sum_i [y_i log(p_i) + (1-y_i) log(1-p_i)]
+
+Confident wrong answers have high loss. For one example, derivatives with respect
+to the raw score are:
+
+  g_i = p_i - y_i
+  h_i = p_i (1 - p_i)
+
+The negative gradient is y_i-p_i. A late order (y=1) assigned p=0.20 has a strong
+positive correction signal; an on-time order (y=0) assigned p=0.80 has a strong
+negative correction signal. A new tree groups examples whose remaining errors
+can be reduced with useful splits.
+
+A simplified Newton leaf update for examples I in one leaf is:
+
+  v_I approximately -sum_{i in I} g_i / (sum_{i in I} h_i + lambda)
+
+Then update F by eta*v_I for examples routed to that leaf. Lambda is a
+regularization term discouraging large updates. This is a teaching approximation:
+CatBoost's exact implementation includes configurable leaf estimation, weights,
+ordered/plain boosting, sampling and other details. It is not a complete derivation
+of every CatBoost training mode or a formula for reproducing its leaf values.
+
+For squared-error regression, using loss (y-F)^2/2 gives negative gradient y-F:
+the familiar residual. Successive trees learn corrections to those residuals.
+
+4.3 Categorical features
+Categorical values are not arbitrary numbers with meaningful distances. A region
+code or product category should be declared categorical where appropriate; a
+surrogate order ID is normally excluded from predictive inputs entirely.
+
+CatBoost supports categorical statistics, one-hot handling in some cases, and
+category combinations. A simplified ordered target statistic is:
+
+  TS_i(c) = [sum_{j preceding i, category_j=c} y_j + alpha*prior]
+            / [count_{j preceding i, category_j=c} + alpha]
+
+This illustrates smoothing and exclusion of an example's own target when encoding
+that example. Actual categorical statistics may use transformed targets and vary
+by configuration; not every categorical column uses this exact formula.
+
+'Preceding' here can mean earlier in a training permutation, NOT earlier in real
+business time. Ordered target statistics and ordered boosting reduce particular
+forms of training leakage/prediction shift. They do not repair temporal leakage in
+our SQL, unknown historical values, or a badly chosen train/test split. Ordered
+boosting and ordered categorical statistics are related but distinct mechanisms.
+
+4.4 A probability is not yet an action
+A threshold t makes an application decision p>=t. Training loss, calibration and
+action threshold are separate choices. Thresholds depend on missed-event cost,
+review capacity, interruption cost and useful lead time. A universal 0.5 threshold
+is not justified. A stakeholder's priority is not simply the model's confidence.
+Class weights can alter probability calibration; assess their effect before using
+scores as event probabilities. Threshold policy lives outside the model package.
+
+5. TUNING, CONTINUATION AND 'FINE-TUNING'
+
+CATBOOST HYPERPARAMETER TUNING
+Train candidate ensembles with bounded combinations of:
+- iterations: maximum trees; early stopping can select fewer.
+- depth: interaction capacity and leaf count/resource cost.
+- learning_rate: how strongly each new tree changes the model.
+- l2_leaf_reg: regularization of leaf estimates.
+- sampling/randomness and categorical-processing choices where justified.
+Use a time-forward development/validation split, early stopping, fixed trial budget
+and recorded seeds. A grid-search example using ordinary folds is not a suitable
+chronological evaluation policy by default.
+
+CATBOOST RETRAINING
+Preferred initial refresh mechanism: create a new candidate from an approved
+expanding or rolling historical window; evaluate; promote explicitly. Preserve the
+previous model for reproducibility and rollback. Retraining need not occur for each
+new review or order. Enough newly matured labels, scheduled review, or verified
+degradation can trigger a preparation job, not automatic production promotion.
+
+CATBOOST CONTINUED TRAINING
+CatBoost's documented init_model allows continuing from a compatible model of the
+same problem type. This generally extends an existing ensemble rather than
+performing LLM-style weight fine-tuning. Check the exact installed API/backend and
+feature compatibility before use. Continued learning on only the newest rows is
+not automatically better, is not arbitrary online partial_fit, and can retain
+obsolete structure. Treat it as an evaluated option rather than the first default.
+
+TABICL CONTEXT PREPARATION
+Default TabICL fit configures preprocessing, labels, ensemble views, checkpoint
+loading and optional cache. It does not optimize pretrained weights. Context
+selection/refresh changes the fitted predictor and must create a new version.
+Use exact eligible example IDs/label versions, not merely a seed or mutable query.
+
+TABICL WEIGHT FINE-TUNING (OPTIONAL, NOT MVP DEFAULT)
+The current project documents FinetunedTabICLClassifier/Regressor with a PyTorch
+training loop, AdamW, gradient clipping, early stopping and learning-rate scheduling.
+This actually updates pretrained parameters and creates a distinct checkpoint.
+Use explicit chronological X_val/y_val: the documented automatic stratified split
+is inappropriate for our temporal task. Preserve the base checkpoint hash,
+training/context manifests, configuration and candidate checkpoint/evaluation.
+Only undertake it after default inference has a measured limitation and a bounded
+compute budget. Extra tuning can overfit small datasets and is not guaranteed gain.
+
+Recommended experiment order:
+1. Conventional CatBoost with modest, explicit defaults.
+2. Default TabICLv2 on a bounded eligible context.
+3. Bounded hyperparameter/context selection on development data.
+4. Weight fine-tuning only if justified by independent evidence.
+
+6. MODEL COMPARISON AND PROMOTION
+
+Four comparisons, same target/cutoffs/eligible evaluation cases:
+  CatBoost(structured)       CatBoost(structured + Jev)
+  TabICL(structured)         TabICL(structured + Jev)
+
+This distinguishes evidence value from predictor value. Model-specific internal
+encoding is allowed; silently changing business feature definitions is not.
+If context sizes differ for capacity reasons, disclose them and run a matched-data
+comparison where feasible. Do not claim a pure algorithm comparison when data or
+budgets differ substantially.
+
+Metrics should include a simple base-rate predictor, PR-AUC/ROC-AUC as appropriate,
+log loss/Brier score, calibration, precision/recall at review capacity, warning lead
+time, subgroup coverage, inference latency, peak memory and total unit cost.
+For regression use suitable error and interval coverage if intervals are produced.
+Calibration fitting uses a separate development slice or time-aware out-of-fold
+predictions, not the final test. Feature discovery/rubric changes also stay off the
+final holdout. Repeated use of a test set turns it into development data.
+
+Candidate states: prepared -> evaluated -> approved -> active -> retired.
+Failed or blocked evidence prevents promotion. Initially one active predictor per
+task; an optional shadow model records comparisons without operational action.
+An ensemble is a separate evaluated predictor, not automatic averaging.
+Fallback selection must be explicit and visible; never substitute a different
+predictor while claiming the original produced the result.
+
+7. DATA MANAGEMENT AND REPRODUCIBILITY
+
+Input contracts:
+- Exact source/dataset versions, identity and attribution rules.
+- Question/model/preprocessing versions for Jev observations.
+- Feature types, order, units, null policy and category handling.
+- Target definition, eligibility, label availability and censoring.
+- Time-forward split manifests with labeled example membership.
+- Per-stage record reconciliation, source permissions and quality dispositions.
+
+Store exact source availability separately from today's ingestion/computation time.
+Historical replay is explicitly simulated. Features and context/training labels
+must be known by their applicable cutoff. For repeated snapshots of one order,
+use group-aware temporal evaluation that prevents overlapping future information
+and labels from leaking across splits; define weighting so long-lived orders do
+not dominate the metric by appearing many times.
+
+No delivery timestamp is not an on-time label. Cancellation/unresolved cases need
+a target-specific policy. Dataset rights remain distinct from model licenses.
+Do not infer zero complaint prevalence from missing/empty reviews.
+
+Proposed registry table, extending the earlier logical data design:
+predictor_versions
+  predictor_version_id PK, family, task_definition_id, feature_recipe_version,
+  base_weights_hash nullable, model_artifact_uri/hash, preparation_manifest_ref,
+  context_manifest_ref nullable, training_manifest_ref nullable,
+  preprocessing_config_ref, dependency_lock_ref, code_commit,
+  evaluation_id, status, approved_by, approved_at, created_at.
+
+Support tables:
+- model_preparation_runs: attempts, parent job, budget, resource usage, outcome.
+- evaluation_runs: split manifests, metrics, uncertainty, limitations, evidence.
+- predictor_activations: append-only active-version decisions and rollback history.
+- Existing feature_snapshots/order_outcomes/prediction_runs/predictions remain.
+
+The logical registry need not be a separate service. Store large models/caches on
+local disk then object storage; keep content hashes and references in PostgreSQL.
+Load only trusted artifacts; serialized estimator/pickle files can execute code.
+KV caches/embeddings are sensitive derived data, not anonymization. Protect caches
+by tenant/access scope, encrypt as needed, and bind them to exact data and model
+versions. New context means a new cache identity; invalidate on relevant changes.
+
+Deletion/access revocation may affect source copies, artifacts, caches and trained
+models. Record lineage to support exclusion/rebuild/retirement rather than claiming
+that deleting a source row erases its influence from an existing model.
+
+8. DYNAMIC PREDICTIONS REQUIRE A DIFFERENT CONTRACT
+
+The previous example scored at order approval. That score is a historical artifact,
+not a continuously current risk estimate. To rescore an open order every hour or
+day, define a rolling task with rows (order_id, as_of_time), matching historical
+landmark examples, and features such as elapsed age and time remaining to deadline.
+Use only evidence available at each landmark and evaluate calibration by horizon.
+
+Do not feed later-stage features to a model evaluated only at approval and imply
+it remains validated. Alerting can also combine a stored approval score with a
+current deterministic deadline rule, but label the score's age and role explicitly.
+An observed missed deadline is a fact-based escalation, not a newly validated
+prediction. Materiality comparisons require compatible target, horizon, recipe and
+model versions or an explicit model-change annotation/rebaseline policy.
+
+9. LICENSE AND SOURCE NOTES
+
+Current direction favors CatBoost (Apache-2.0) and TabICLv2 (core BSD-3-Clause;
+weight model card BSD-3-Clause, with notices for optional third-party components).
+Verify exact dependency/checkpoint licenses before installation/distribution.
+No model weights downloaded, no paid calls, no fitting or benchmarks run.
+
+Sources consulted in this and immediately preceding discussions:
+https://github.com/catboost/catboost
+https://catboost.ai/docs/en/concepts/algorithm-main-stages
+https://catboost.ai/docs/en/concepts/python-reference_train
+https://github.com/catboost/catboost/blob/master/catboost/docs/en/concepts/python-reference_train.md
+https://github.com/soda-inria/tabicl
+https://huggingface.co/jingang/TabICL
+Context7: /catboost/catboost, /soda-inria/tabicl.
+
+Mathematical equations above are explanatory summaries, explicitly distinguished
+from exact implementation formulas. Package API/backend behavior is version-bound.
+No threshold, accuracy, local hardware performance or stakeholder acceptance claim
+has been validated. All production promotion and external action remain separate.

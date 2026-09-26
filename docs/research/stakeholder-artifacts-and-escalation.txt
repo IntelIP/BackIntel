@@ -1,0 +1,408 @@
+DYNAMIC STAKEHOLDER ARTIFACTS AND POLICY-GOVERNED ESCALATION
+Recorded: 2026-09-21 UTC
+Status: proposed product/architecture contract; not approved notification policy
+Parent: background-agents-research.txt, D09/D10/D11/D12
+Predictive design: catboost-tabicl-system-design.txt
+Evidence/data contract: model-to-relational-data-design.txt
+Execution candidate: open-source-runtime-study.txt
+
+0. OBJECTIVE, AUTHORITY AND USER INTENT
+
+The user wants background intelligence that produces artifacts for different
+stakeholders at different times: ordinary updates plus critical information that
+can trigger escalation, including agent-detected situations with some defined
+conditions. This document specifies a proposed bounded interpretation of that
+capability. The user has not selected recipients, numeric thresholds, time zones,
+response SLAs, delivery channels, first prediction target or autonomous-action scope.
+
+This task only documents and discusses. No messages are sent, accounts connected,
+models run, dashboards implemented or infrastructure deployed. Proposed examples
+below use fabricated values and policies; they are not Olist findings or approved
+business rules. A local demo should use an in-app inbox/simulated delivery log,
+not real Slack/Teams/email messages or calls to sellers/customers.
+
+PRODUCT PRINCIPLE
+Recompute when relevant evidence changes; publish when results are accepted;
+interrupt a person only when an approved policy says attention is warranted.
+Artifact refresh frequency is not notification frequency.
+
+1. WHAT IS AN ARTIFACT?
+
+A durable, versioned representation of accepted analytical results for a specific
+question and audience. Examples: an order review queue, seller scorecard, category
+complaint chart, feature workbook, executive briefing or evidence-linked alert.
+A prose paragraph is not the only artifact and a chat message is not the data store.
+
+Artifact contract:
+- Audience, owner and intended decision.
+- Grain/entity scope, period and timezone.
+- Metrics/target definitions and units.
+- Source/data/model/policy versions and exact result references.
+- Data watermark, generated_at, completeness and expiry/freshness status.
+- Actuals versus predictions versus hypotheses clearly labeled.
+- Deltas against a named comparable prior snapshot/baseline.
+- Evidence links, uncertainty/coverage and known limitations.
+- Suggested next step and optional review action; action is not execution authority.
+- Access scope, publication state, content hash and supersession history.
+
+Refresh a current-view pointer only after the new version passes validation.
+Retain old versions for comparison/retraction. Failed refresh leaves the last good
+artifact visible with an explicit stale/failed-refresh indicator, not a fresh date.
+
+2. STAKEHOLDER MATRIX (PROPOSED)
+
+Operations reviewer
+  Decision: which open orders deserve attention now?
+  Artifact: ranked review queue and individual evidence card.
+  Updates: on new eligible predictions, deadline crossings or correction events.
+  Escalation: approved risk/deadline/impact rule, or confirmed critical exception.
+  Caveat: prediction score freshness and task horizon must match the decision.
+
+Seller/account manager
+  Decision: which seller performance changes need investigation?
+  Artifact: seller scorecard, trend chart, eligible review excerpts.
+  Updates: periodic digest plus a material deterioration case.
+  Caveat: restrict attribution where multi-seller order reviews are ambiguous;
+  show denominators and excluded cases rather than accusing every seller.
+
+Product/category manager
+  Decision: which experience themes are recurring or newly emerging?
+  Artifact: theme trends, representative passages, coverage and topic investigation.
+  Updates: daily/weekly summary or a corroborated severe-theme exception.
+  Caveat: a customer report of a defect is not verified product causality/safety.
+
+Analyst/model owner
+  Decision: whether evidence, features and predictors remain trustworthy.
+  Artifact: lineage workbook, coverage drift, calibration, error and cost report.
+  Updates: dataset/model releases, matured outcomes, evaluation failures.
+  Escalation: broken data contracts, loss of freshness or validated model degradation.
+
+Executive
+  Decision: where attention/resources are needed across the portfolio.
+  Artifact: concise actual-performance briefing, separately labeled forecast,
+  top material changes, coverage and links to underlying cases.
+  Updates: scheduled digest; immediate interruption only under a separate approved
+  aggregate/material-impact policy, not for every individual operational alert.
+
+Native Excel/Word/Slack/Teams integrations remain future adapters. Local HTML,
+CSV/XLSX, JSON results and an in-app inbox can demonstrate the behavior first.
+Specific file renderers and UI designs are not selected by this document.
+
+3. THREE CLOCKS PLUS ON-DEMAND WORK
+
+A. Event-driven
+New source batch, accepted observation, corrected fact, matured outcome, new
+prediction or review resolution invalidates only dependent results. Coalesce
+related changes for a bounded period; several messages about one order need not
+cause several complete rebuilds. Preserve per-entity ordering where required.
+
+B. Scheduled
+A digest has its own cadence (e.g. business morning); aggregation/evaluation jobs
+may have another cadence. These times are examples, not chosen requirements.
+Store schedule timezone, DST behavior and an idempotent scheduled occurrence ID.
+A delayed/missed tick follows an explicit catch-up policy; do not blast recipients
+with every missed digest after downtime. Recheck current permissions before send.
+
+C. Deadline/time-driven
+Some things become important without any new data: a due date approaches, a source
+becomes stale, an acknowledgment timer expires. Persist next_evaluation_at and
+response deadlines; a durable scheduler wakes the job. Do not occupy a worker in
+an infinite sleep loop waiting for the clock.
+
+D. On demand
+A stakeholder requests a drill-down or revised view. Reuse accepted snapshots if
+appropriate; otherwise request a bounded refresh and show its status. User queries
+do not silently change scheduled policy or permit access to broader source data.
+
+Historical replay needs two explicitly different clocks:
+- simulation business time, driving Olist event availability and example deadlines;
+- wall-clock time, driving worker execution, retries and resource budgets.
+No replayed 2018 deadline is a real overdue customer action today. Every replay
+artifact and simulated notification must be visibly marked as such.
+
+4. WHAT 'CRITICAL NODES' MEANS IN THIS DESIGN
+
+Two separate meanings:
+1. Workflow decision points, implemented as LangGraph nodes.
+2. Business attention points: order, seller, category, model or source condition
+   whose change may deserve investigation or escalation.
+
+The agent can identify candidate business attention points inside approved scopes.
+It does not have authority to add executable graph nodes, invent notification
+recipients or rewrite production thresholds simply because source text suggests it.
+
+Logical workflow:
+  event/schedule/deadline
+    -> resolve affected entities and input manifest
+    -> refresh or reuse accepted results
+    -> check freshness, coverage, integrity and access
+    -> detect rule conditions / statistical changes / semantic candidates
+    -> optional bounded investigation
+    -> evaluate versioned policy
+    -> record immutable decision and update episode
+       -> no material change: retain routine result
+       -> useful non-urgent change: include in digest
+       -> missing/uncertain evidence: local review/question case
+       -> approved critical condition: escalation case
+    -> render deterministic figures/table + grounded narrative
+    -> validate artifact
+    -> local publish or explicitly authorized delivery
+    -> await response/deadline without holding a worker.
+
+A deterministic critical rule should not wait for an LLM to write a summary.
+Publish a minimal evidence card from code; attach explanation later if it passes
+validation. If the model/provider is unavailable, independently verified rules
+remain evaluable. Do not fabricate a model classification as a fallback.
+
+5. THREE DETECTION ROUTES
+
+5.1 Explicit policy rule
+Example: a verified deadline has passed and the event/status policy says fulfillment
+is still unresolved. Code evaluates dates/status; Jev is not needed for arithmetic.
+The exact outcome/cancellation/source-coverage semantics must be agreed first.
+
+5.2 Statistical or model-derived change
+Example: a comparable seller metric rises above a baseline by an approved amount,
+with sufficient eligible cases, coverage and persistence. Define both minimum
+absolute and relative effects where useful. Sampling error, repeated scanning and
+multiple comparisons can create false alarms; use validated control limits/FDR or
+review screening, and measure false-alert rates rather than calling every spike real.
+Predicted probability thresholds require a calibrated/validated task and current
+feature/model contract. Model-version changes are annotated/rebaselined, not
+silently presented as a business deterioration.
+
+5.3 Agent-proposed exception
+Jev or an investigative agent identifies a theme, conflict or unusual combination
+not captured by a simple rule. It emits a typed candidate with:
+  entity/scope, concern category, evidence IDs, novelty, suggested severity,
+  uncertainty, proposed next step and the policy provision it claims applies to.
+Code checks provenance, permissions, budget, eligibility and approved routing.
+Unless a preapproved semantic rule explicitly authorizes escalation, a novel
+candidate goes to human triage, not an external alarm or automatic business action.
+
+Business risk and evidence uncertainty are different axes:
+- High supported impact + adequate evidence -> eligible for approved escalation.
+- High potential impact + uncertain evidence -> urgent verification when policy allows.
+- Low impact + adequate evidence -> ordinary digest or no notification.
+- Low impact + weak evidence -> bounded investigation or abstention.
+Weak evidence is not automatically low business risk. Conversely a confident
+classifier is not proof of high business impact. Jev confidence is not downstream
+outcome probability or authorization.
+
+6. A VERSIONED ESCALATION POLICY
+
+Each policy needs at least:
+- ID/version, owner, approval state, effective time and allowed scope.
+- Trigger events/cadence, event-time watermark and allowed lateness.
+- Metric/target/feature/model eligibility and comparison baseline.
+- Freshness, source coverage, sample-size and provenance requirements.
+- Enter/escalate/clear conditions, persistence and hysteresis.
+- Severity mapping and uncertainty handling.
+- Recipient role resolution and channel allowlist.
+- Quiet hours, digest/coalescing windows, repeat/reminder limits.
+- Deduplication key and material-change definition.
+- Acknowledgment/resolution deadlines and approved fallback owner.
+- Allowed action: local display, notify, ask, request approval; execution of business
+  changes is a distinct authority, not implied by escalation.
+- Cost/latency budgets, audit requirements, review date and expiry.
+
+Policy definitions are data interpreted by deterministic code, not arbitrary
+agent-generated Python. The agent can propose a new version with examples and
+estimated effects; changes require review, replay evaluation and explicit activation.
+Record the version on every decision. Never retroactively reinterpret a past alert
+under a new policy without an explicit reevaluation record.
+
+7. ILLUSTRATIVE ROLLING-RISK POLICY — NOT APPROVED
+
+Policy: rolling_order_risk_demo_v1
+Scope: eligible open orders in a LOCAL historical replay.
+Task dependency: a separately evaluated rolling (not approval-only) predictor.
+Trigger: accepted score/deadline/status event or scheduled reevaluation.
+Evidence gates:
+  approved predictor and feature contract; required source watermark current;
+  no missing required features or unresolved ownership/status conflict.
+Example enter condition:
+  p_late >= 0.75 AND time_to_deadline in (0,24] hours,
+  sustained for 2 complete evaluations at least 15 simulated minutes apart.
+Example clear condition:
+  p_late <= 0.55 for 2 complete evaluations,
+  OR a verified final status satisfying the approved close policy.
+Routing: local Operations review inbox; no external channel.
+Acknowledgment example: 2 simulated business hours.
+No acknowledgment: create a local lead-review event under the same episode;
+  notify the approved fallback only if such a recipient/action has been authorized.
+Repeats: at most one unchanged reminder per 4 simulated hours, maximum 2 reminders;
+  then retain as unresolved and route through the approved timeout disposition.
+Material severity increase or independently verified critical breach:
+  bypass ordinary cooldown once per new severity transition, preserving deduplication.
+
+All numbers above are placeholders for replay testing, not business defaults.
+A p=0.75 threshold is not warranted before calibration/capacity assessment.
+Repeated duplicate runs are not two independent qualifying evaluations.
+No new data can still justify a deadline reevaluation, but does not create invented
+new evidence. Stale/incomplete data yields unknown and a data-health case, not
+clear/on-time. Budget exhaustion also does not mean the business condition cleared.
+
+A parallel data-health policy is evaluated independently:
+if required input freshness/integrity fails, hold affected new predictions and
+notify the appropriate data owner under that policy; existing risk episodes become
+unknown/stale, not automatically resolved. Data-health incidents have their own
+severities and do not share every minimum-sample gate with statistical detection.
+
+Hysteresis (different enter and clear thresholds) reduces flapping; sustained
+conditions reduce transient noise. Both can delay detection, so immediate critical
+conditions and urgent verification must have explicit approved exceptions.
+
+8. EPISODES, ACTIONS AND ACKNOWLEDGMENT
+
+An episode groups one continuing concern rather than creating a new incident for
+every refreshed score. Suggested identity:
+  access_scope + policy_family + entity_or_group + concern_type.
+A policy-version transition has an explicit migrate/rebaseline/close policy; it
+must not open duplicate alerts merely because its version string changed.
+
+Maintain two related but separate state dimensions:
+- Condition: normal, watch, active, unknown, cleared.
+- Response: unassigned, assigned, acknowledged, investigating, resolved, dismissed.
+Severity, suppression window and next_evaluation_at are separate fields.
+Acknowledgment does not imply the underlying condition improved. Dismissal needs
+a reason and duration; it cannot erase evidence or suppress unrelated critical facts.
+A delivery receipt is not human acknowledgment. Quiet-hours suppression is not
+resolution. Explicitly record reopen events if a cleared concern returns.
+
+Concurrent workers update an episode using transactions/locking or optimistic
+version checks. Persist entry time, qualifying evaluations, last material change,
+last notification, acknowledgment deadline and escalation level. No essential state
+lives only in an in-memory graph execution or Redis event stream.
+
+9. ADDITIONS TO THE RELATIONAL DATA MODEL
+
+artifact_definitions
+  definition_id/version, role, question, grain, metric_refs, view/template,
+  refresh_triggers, timezone, freshness/coverage_rules, access_scope, approval.
+
+artifact_runs and artifact_versions
+  build attempt and immutable published version, accepted result IDs,
+  data_watermark, generated_at, renderer version, validation, URI/hash, supersedes.
+  These refine the earlier artifacts contract rather than duplicate it; final
+  schema naming is an implementation decision.
+
+escalation_policies
+  policy_id/version, owner, structured conditions, gates, routing, response timers,
+  severity/clearing rules, approval/effective interval and definition hash.
+
+policy_evaluations
+  evaluation_id, policy_version, entity_scope, evaluation_at, trigger_id,
+  input/result/prediction refs, observed operands, pass/fail/unknown gates,
+  outcome (none/digest/review/escalate/clear/blocked), reason_codes,
+  agent_candidate_ref nullable, cost, episode_ref.
+
+attention_episodes
+  episode_id, logical_concern_key, condition_state, response_state, severity,
+  owner_role, current_policy_version, first_seen_at, last_evaluated_at,
+  last_material_change_at, next_evaluation_at, acknowledgment_due_at,
+  optimistic_version, current_evidence_manifest_ref.
+
+episode_events
+  immutable transitions, evidence links, user acknowledgments, assignments,
+  questions/answers, suppression decisions, corrections, retractions and resolution.
+
+notification_outbox / delivery_attempts
+  durable logical delivery identity, episode/digest/artifact version,
+  resolved authorized recipient/channel, status, attempt sequence,
+  provider receipt, sent_at and uncertain-outcome/reconciliation status.
+
+replay_scenarios (local evidence fixtures, table or versioned files)
+  simulated clock, input event manifest, approved demo policy version,
+  expected decisions/artifacts, actual trace and evidence disposition.
+
+Foreign keys, access scope and retention must connect artifacts and decisions back
+to exact accepted evidence. Recipient scopes can be narrower than the data analyst's
+scope; redact or regenerate results before delivery. Do not leak restricted data
+through a title, aggregate, chart, explanation or notification preview.
+
+10. ARTIFACT GENERATION AND DELIVERY SAFETY
+
+Build result bundle with SQL/approved analytic tools. Validate counts, units,
+filters, joins, dates, denominators and actual-versus-predicted labels. A generative
+presenter can select a template and write grounded explanations. It cannot invent
+numbers, source links, causal explanations, confidence intervals or actions taken.
+Use deterministic chart rendering from structured specifications where possible.
+If prose fails checks or the provider is down, retain a factual table/card fallback.
+
+Publisher transaction records accepted artifact version and logical outbox event.
+Delivery worker rechecks authorization and episode/artifact freshness, then sends
+only to approved recipients. For stale queued alerts, suppress or replace according
+to policy; preserve the audit trail. Use provider idempotency where available.
+A crash after sending but before recording the receipt creates an uncertain outcome;
+reconcile rather than promise exactly-once notification. Retry budgets and duplicate
+protections are needed even if Aegra resumes perfectly.
+
+Change comparison should use normalized result content, not a newly worded LLM
+summary: different wording of identical facts is not a material business update.
+Corrections may require an explicit retraction/replacement notification, not silent
+editing of the old briefing. A later permission revocation can block new deliveries
+but cannot guarantee deletion of a message already delivered to an external system.
+
+11. LOCAL DEMONSTRATION STORYBOARD
+
+Use deterministic fixtures and simulated business time before real model calls.
+Display side by side: event timeline, pipeline progress, stakeholder artifacts,
+policy operands/gates, episode state, notifications and evidence drill-down.
+
+Example progression (all simulated):
+08:00: scheduled digest publishes accepted baseline; no critical case.
+09:00: new evidence produces a changed analytical result; dashboard refreshes.
+09:15: second qualifying evaluation enters active risk; Operations card appears.
+09:20: replay duplicate event; no duplicate episode or delivery.
+09:30: reviewer acknowledges; condition remains active, response is acknowledged.
+10:00: required source becomes stale; score refresh blocks, card shows unknown;
+       data-owner case appears; business episode is not declared cleared.
+10:30: source recovers and new accepted result increases severity; an approved
+       severity transition can update the case despite ordinary reminder cooldown.
+11:00: valid final outcome arrives; close policy records resolution and history.
+12:00: digest includes the resolved episode without pretending a customer was contacted.
+
+Separate cases demonstrate no acknowledgment, quiet hours, provider failure,
+agent-discovered ambiguity, rejected policy proposal, source correction and worker
+restart. Not every case must appear in the same compressed demonstration.
+
+12. REQUIRED EVIDENCE BEFORE CLAIMING DYNAMIC INTELLIGENCE
+
+- Artifact values reconcile to exact query results and immutable manifests.
+- Future/late evidence cannot leak into an earlier replayed prediction or digest.
+- Approval-only versus rolling prediction contracts cannot be mixed silently.
+- Threshold boundary, persistence, hysteresis and deadline behavior is deterministic.
+- Stale/unknown does not equal false/clear; data-health rules still run.
+- Duplicate input, concurrent evaluation and resume do not duplicate logical episodes.
+- Cooldown suppresses repeats but approved severity transitions still surface once.
+- Quiet hours, time zones/DST and missed schedules have tested behavior.
+- Acknowledgment, delivery and resolution remain distinguishable.
+- Unapproved agent severity/recipient/policy changes cannot execute external actions.
+- A deterministic critical card is available without generative-model success.
+- Correction/retraction and previously queued stale-alert handling work as specified.
+- End-to-end restart and uncertain-send handling retain an auditable disposition.
+- Rendered stakeholder views expose freshness, evidence and labels clearly.
+- Measure precision/usefulness of alerts, missed critical cases, response effort,
+  reviewer load, latency/lead time and per-update cost; do not use volume of alerts
+  as a success metric. Detection delay and notification fatigue are trade-offs.
+
+Evidence must identify candidate commit, fixture/data, model and policy versions.
+Required evidence ends passed/failed/blocked; none has been executed for this design.
+
+13. FIRST HUMAN DECISION AND FOLLOW-ON WORK
+
+First decision: for the MVP, may the agent autonomously create/update LOCAL review
+cases under approved policies, while new policies/recipients and all outward
+notifications/actions require approval? This is a proposed authority boundary,
+not an assumed permission.
+
+After that decision, define one stakeholder workflow at a time: owner and intended
+action, trusted evidence, artifact, enter/clear rules, timing, review capacity and
+success measures. Then evaluate candidate thresholds with historical replay and
+human review. Do not implement a generic policy language or many integrations
+before demonstrating one complete observe -> explain -> review -> resolve loop.
+
+This document is our design synthesis, not a claim that Aegra or LangGraph ships
+these domain-specific policies. Runtime capabilities and their primary sources are
+recorded in open-source-runtime-study.txt and langchain-engineering-study.txt.
