@@ -1,0 +1,50 @@
+name: backintel-runtime-proof
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: aegra
+      POSTGRES_PASSWORD: ${BACKINTEL_RUNTIME_DB_PASSWORD:?Set local DB password in .env} 
+      POSTGRES_DB: aegra
+    volumes:
+      - runtime_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegra -d aegra"]
+      interval: 3s
+      retries: 20
+  redis:
+    image: redis:7.2.5-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - runtime_broker:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+  runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+    environment:
+      DATABASE_URL: postgresql://aegra:${BACKINTEL_RUNTIME_DB_PASSWORD:?Set local DB password in .env}@postgres:5432/aegra
+      REDIS_URL: redis://redis:6379/0
+      REDIS_BROKER_ENABLED: "true"
+      WORKER_COUNT: "1"
+      N_JOBS_PER_WORKER: "1"
+      AUTH_TYPE: noop
+      OTEL_TARGETS: ""
+      OTEL_CONSOLE_EXPORT: "false"
+    ports:
+      - "127.0.0.1:2026:2026"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:2026/health', timeout=2)"]
+      interval: 5s
+      retries: 15
+volumes:
+  runtime_db:
+  runtime_broker:

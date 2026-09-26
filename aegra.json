@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "olist_fixture": "./runtime/graph.py:graph"
+  }
+}

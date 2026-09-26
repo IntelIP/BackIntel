@@ -1,3 +1,4 @@
 /artifacts/validation/
 __pycache__/
 *.py[cod]
+.env
