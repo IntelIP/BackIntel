@@ -1,8 +1,22 @@
 # BackIntel repository recovery and first integrated PoC
 
-Date: 2026-09-26. Status: user approved local implementation; consolidation complete; integration and validation in progress.
+Date: 2026-09-26. Status: consolidation, integrated runtime transition, and scoped deletion complete; required total-cost acceptance remains blocked.
 
 Current checkout: `/Users/hudson/Documents/GitHub/BackIntel`. Main now includes the complete implementation chain and preserved design work. The inventory below records the pre-recovery state; use the [maintained repository map](../architecture/repository-map.md) for current source ownership. Original design changes were committed on `recovery/design-preservation`; an independent working-file copy and Git bundle are retained under `~/Library/Application Support/BackIntel/Recovery/20260926T170122`.
+
+## Current recovery result
+
+The user approved the explicit local switch-and-delete scope. The maintained backend is `/Users/hudson/Documents/GitHub/BackIntel`; the separate website is preserved. All eight historical worktree folders and their `bint*` branch references were deleted after confirming clean state, preserved commit ancestry, credential access, and lack of application/container dependencies. Generated Python caches, redundant local validation outputs, stale Graphify indexes, and the superseded Docker image were removed. Required historical evidence and the old runtime image archive remain in the single recovery set.
+
+The installed runtime candidate is `741773df289866437b067c306d6fefea1b415691`. All three Compose services now identify the canonical checkout and retain the original PostgreSQL/Redis volumes. Fresh recorded-data processing completed after client disconnect. Its report is byte-identical to the independently checked and visually validated report. A graceful container restart preserved accepted output; replay reused the artifacts. Observation, usage-event, and accepted-partition counts were unchanged. No new provider calls occurred, and the running service has no provider credential enabled. This is not a hard-crash recovery or model-quality claim.
+
+Evidence is under `~/Library/Application Support/BackIntel/Evidence/PoCRecovery`: `canonical-runtime.json`, `cutover-acceptance.json`, `cleanup-receipt.json`, and the original exact-candidate validation. Live report/receipt output is under sibling `PoCReports`. The coordinated recovery set is under `~/Library/Application Support/BackIntel/Recovery/20260926T170122/runtime-cutover`; it includes the Git bundle, application/checkpoint database dumps, Redis volume snapshot, and previous runtime image archive. Credentials are preserved in macOS Keychain; README documents the non-secret service names and startup commands.
+
+Required total-cost acceptance remains blocked: the earlier input `100` has no confirmed unit, and local-compute pricing and actual human-review time remain unknown. Technical operation and cleanup do not depend on resolving that accounting input. Full v0.1.0 release acceptance remains outside this bounded milestone.
+
+The post-cleanup workspace audit still reports 22 issues outside the approved BackIntel scope: unrelated folder naming, Tabellio worktree registrations, and obsolete paths in generated IntelIP output. Those projects were left unchanged. The bounded audit log is retained as `PoCRecovery/workspace-audit.log`; this is not a claim that the whole workspace is clean.
+
+The inventory and diagnosis below record the initial state, not the current folder layout.
 
 ## Outcome
 
@@ -10,7 +24,7 @@ Give a Marketplace Seller Performance Analyst one maintained local checkout and 
 
 Use the existing [roadmap's immediate execution goal](v0.1.0-development-roadmap.md#immediate-execution-goal--finish-sprint-1). This is the first integrated PoC milestone, not completion of the roadmap's full v0.1.0 release. Prediction experiments, generated-code sandboxes, and a permanent dashboard retain their later gates.
 
-## Confirmed repository map
+## Pre-recovery repository inventory
 
 Eight sibling directories are linked worktrees of one local backend repository. They are a linear development history, not eight separate services. All eight implementation worktrees were clean when inspected. Main contains modified and untracked design work. No backend Git remote or branch upstream is configured.
 
@@ -85,13 +99,14 @@ The full release still separately requires adjudicated semantic quality, a measu
 
 ## Authority
 
-The user approved the proposed local implementation. Canonical checkout consolidation, local code changes, and isolated validation are authorized. Publication, changes to the active demonstration runtime, paid inference, destructive cleanup, and external actions keep their separate authorization gates. All historical worktrees remain retained: the semantic worktree owns an active runtime, and the others preserve local work pending explicit retirement. None is used as a new development home.
+The user approved local implementation, runtime transition, credential preservation, and the explicit scoped deletion plan. Those local actions are complete. Paid inference, publication, remote deployment, Plane writes, unrelated-project cleanup, and external messages remain separately gated.
 
 ## Evidence locators
 
 - Git: `git worktree list --porcelain`, `codex-repo-snapshot`, per-checkout status/remotes, and `git log --all` inspected on 2026-09-26.
-- Current implementation: [runtime graph](/Users/hudson/Documents/GitHub/BackIntelSemanticEvidence/runtime/graph.py), [review graph](/Users/hudson/Documents/GitHub/BackIntelSemanticEvidence/runtime/review_graph.py), [signals](/Users/hudson/Documents/GitHub/BackIntelSemanticEvidence/runtime/signals.py), [report](/Users/hudson/Documents/GitHub/BackIntelSemanticEvidence/scripts/data/seller_review.py), [validation manifest](/Users/hudson/Documents/GitHub/BackIntelSemanticEvidence/tabellio.validation.json).
-- [Latest exact-commit evidence](</Users/hudson/Library/Application Support/BackIntel/Evidence/BINT10/exact-39b86c98d0754711eeb1e956c2bcfa61f2d8d715/evidence.json>).
+- Current implementation: [runtime graph](/Users/hudson/Documents/GitHub/BackIntel/runtime/graph.py), [review graph](/Users/hudson/Documents/GitHub/BackIntel/runtime/review_graph.py), [signals](/Users/hudson/Documents/GitHub/BackIntel/runtime/signals.py), [report](/Users/hudson/Documents/GitHub/BackIntel/scripts/data/seller_review.py), [validation manifest](/Users/hudson/Documents/GitHub/BackIntel/tabellio.validation.json).
+- [Integrated runtime acceptance](</Users/hudson/Library/Application Support/BackIntel/Evidence/PoCRecovery/cutover-acceptance.json>) and [cleanup receipt](</Users/hudson/Library/Application Support/BackIntel/Evidence/PoCRecovery/cleanup-receipt.json>).
+- [Historical pre-integration exact-commit evidence](</Users/hudson/Library/Application Support/BackIntel/Evidence/BINT10/exact-39b86c98d0754711eeb1e956c2bcfa61f2d8d715/evidence.json>).
 - [Report independent check](</Users/hudson/Library/Application Support/BackIntel/Evidence/BINT5/independent-check.json>).
 - [Real Jev comparison](</Users/hudson/Library/Application Support/BackIntel/Evidence/OpenRouterJev/real-jev-batch-comparison.json>) and [cost summary](</Users/hudson/Library/Application Support/BackIntel/Evidence/OpenRouterJev/cost-summary.json>).
 - [Historical fault matrix](</Users/hudson/Library/Application Support/BackIntel/Evidence/BINT8/exact-1440c64e15647a1208d73554157adbcdf207c6cd-fault-matrix.json>) and [Reflex prototype limits](</Users/hudson/Library/Application Support/BackIntel/Evidence/ReflexPilot/prototype-observation.json>).

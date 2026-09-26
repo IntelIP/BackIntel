@@ -3,8 +3,35 @@
 Local Olist Seller Performance PoC: reconciled facts, background review enrichment, versioned semantic changes, and a source-linked manager review. This checkout is the integration home. The website remains a separate project.
 
 - [Current repository map](docs/architecture/repository-map.md)
-- [Recovery plan and retained worktrees](docs/roadmap/poc-recovery-plan.md)
+- [Recovery plan and cleanup record](docs/roadmap/poc-recovery-plan.md)
 - [Product contract and later release gates](docs/roadmap/v0.1.0-development-roadmap.md)
+
+## Current local runtime
+
+The local stack now runs from this canonical checkout. Runtime candidate: `741773df289866437b067c306d6fefea1b415691`. The eight historical backend worktrees have been deleted; their commits remain in `main` and the recovery bundle. The separate website remains untouched.
+
+Health endpoint: <http://127.0.0.1:2026/health>. Reports and submission receipts live outside Git at `~/Library/Application Support/BackIntel/Evidence/PoCReports`. The installed runtime has no provider key enabled. Its recorded demo, graceful restart, and replay checks passed without new inference calls. Required total-cost acceptance remains blocked for unpriced local compute and human review.
+
+Run a new recorded demo on the installed stack; choose an unused receipt filename:
+
+```sh
+docker exec backintel-runtime-proof-runtime-1 python -m scripts.poc demo \
+  --previous-partition openrouter-olist-2017-02-v1 \
+  --partition openrouter-olist-2017-03-v1 \
+  --receipt /reports/my-demo.json
+
+docker exec backintel-runtime-proof-runtime-1 python -m scripts.poc inspect \
+  --receipt /reports/my-demo.json --wait
+```
+
+The original database password is preserved in macOS Keychain, service `BackIntel Local PostgreSQL`, account `aegra`. The existing provider credential is preserved under service `BackIntel OpenRouter`, account `runtime`; retrieving it for inference requires separate authorization. No repository `.env` file is needed. Before an authorized future rebuild, inject the database password without printing it and keep paid inference disabled:
+
+```sh
+export BACKINTEL_RUNTIME_DB_PASSWORD="$(security find-generic-password -s 'BackIntel Local PostgreSQL' -a aegra -w)"
+export OPENROUTER_API_KEY=""
+```
+
+Cutover and cleanup receipts: `~/Library/Application Support/BackIntel/Evidence/PoCRecovery/{cutover-acceptance,cleanup-receipt}.json`. Recovery set: `~/Library/Application Support/BackIntel/Recovery/20260926T170122/runtime-cutover`. Migration 0006 changes the snapshot uniqueness key; rollback requires restoring the coordinated application/checkpoint/broker backups before starting the previous image.
 
 ## Run the local PoC
 

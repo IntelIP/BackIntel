@@ -30,9 +30,9 @@ flowchart LR
 
 The graph also supports separately authorized live enrichment; the PoC entrypoint exposes recorded replay only. Observation provenance always retains the original model and request IDs.
 
-`graphify-out` remains an ignored historical research graph from the initial commit. Its conceptual relationships do not describe this runtime. Use the source links above for the maintained implementation map.
+The stale generated Graphify research indexes were deleted during cleanup. Use the source links above for the maintained implementation map; regenerate a scoped graph when a future relationship question requires it.
 
-Historical worktrees are preserved references, not independent services or new development homes. `BackIntelSemanticEvidence` still owns the running original demonstration stack. Folder retirement and runtime transition require their separate lifecycle checks; see the recovery plan.
+All eight historical backend worktrees and their obsolete local branch references were removed after successful runtime transition and lifecycle checks. Every implementation commit remains reachable from `main` and the verified recovery bundle. The runtime, PostgreSQL, and Redis containers now reference this canonical checkout; their original data volumes remain in use. See the [recovery plan](../roadmap/poc-recovery-plan.md) for receipts and remaining acceptance limits.
 
 ## Report presentation contract
 
