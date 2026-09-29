@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Help a reviewer decide whether a BackIntel finding needs action, inspect its source, and record a reasoned decision. The first example is public-issue review. The layout is a concept, not a working application or proof of prediction quality.
+Help a reviewer decide whether a BackIntel finding needs action, inspect its source, and record a reasoned decision. The working local React and Reflex demos show public-issue review and clearly simulated equipment cases. They share one API and durable review store. This is a frontend demonstration, not proof of prediction quality.
 
-**Design status — 2026-09-29:** the first SVG mockup was rejected by the user. It is retained as an earlier draft and must not be used as an approved reference. The revised direction below is a proposal grounded in inspected interfaces.
+**Design status — 2026-09-29:** the user approved matching Front styling with BackIntel content. The first SVG mockup was rejected and is retained only as an earlier draft. The approved direction uses the inspected Front inbox reference below. The running demos and checks are documented in [frontend/README.md](../../frontend/README.md).
 
 ## Revised visual direction
 
@@ -12,7 +12,7 @@ Primary reference: [Front's inbox email thread on Mobbin](https://mobbin.com/exp
 
 ![Observed Front inbox reference on Mobbin](references/front-inbox-mobbin.jpg)
 
-Use a neutral canvas, thin dividers, compact 32–36px controls, readable body text, and one accent for selection and primary action. Evidence opens on demand in a drawer or tab so the finding has room to read. Keep source facts, interpretation, and predictions visibly distinct through labels and grouping. Avoid oversized cards, decorative shadows, a permanently expanded third evidence column, large summary banners, and a contrasting navy navigation panel. The [reference lock](decision-workspace-reference-lock.json) records these constraints; the direction has not received user approval.
+Use a neutral canvas, thin dividers, compact 32–36px controls, readable body text, and one accent for selection and primary action. Evidence opens on demand in a drawer or tab so the finding has room to read. Keep source facts, interpretation, and predictions visibly distinct through labels and grouping. Avoid oversized cards, decorative shadows, a permanently expanded third evidence column, large summary banners, and a contrasting navy navigation panel. The [reference lock](decision-workspace-reference-lock.json) records the approved direction. The user has not approved a new rendered regression baseline.
 
 ## What determines the view
 
@@ -42,7 +42,7 @@ The current audience server already has artifact JSON and review routes, but the
 - `IntelIP/IntelIPWebsite/package.json` declares React 19, Tailwind 4, Radix controls, Instrument Sans, and Phosphor icons. Its actual `src/components/ui/` contains button, badge, card, tabs, separator, toggle, and toggle-group primitives. Inspect and adapt those before adding equivalents.
 - Its `components.json` configures an `@intelip` registry at `http://localhost:3000/r/{name}.json`. A read-only connection check found no server listening on that port. Registry configuration is not proof of an operational shared component service.
 - The IntelIP design skill and website instructions refer to design-system paths that are absent from the inspected locations. Treat those path references as stale; use present component source and CSS as evidence.
-- BackIntel has Python artifact and review machinery but no frontend package manifest. These frontend packages are proposed, not installed in BackIntel.
+- BackIntel now has a pinned React frontend package and the separate pinned Reflex comparison. Their shared API adapts retained issue evidence; it is separate from the platform's existing audience server.
 
 ## Proposed CSS and component stack
 

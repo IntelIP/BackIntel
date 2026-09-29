@@ -6,3 +6,10 @@ __pycache__/
 .env
 # Graphify generates a graph in the working directory and a cache beside scanned files.
 **/graphify-out/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+reflex_demo/.venv/
+reflex_demo/.web/
+reflex_demo/assets/
+reflex_demo/__pycache__/

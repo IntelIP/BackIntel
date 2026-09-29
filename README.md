@@ -1,5 +1,7 @@
 # BackIntel
 
+The [interactive decision workspace demo](frontend/README.md) lets a reviewer inspect a finding, open evidence and record a decision. React and the Python Reflex alternative share one local review API.
+
 BackIntel targets a recurring operational problem: before a team can decide what needs attention, someone must gather scattered records, read free-text notes, reconcile changes, judge significance, and assemble a review people can trust. New information can make that review stale and force the same work again. This is the problem hypothesis we are testing; its frequency and cost still need validation with a real team.
 
 The intended outcome is a current, prioritized review package showing what changed, what might happen next, what evidence supports each finding, and what still needs human judgment. BackIntel automates preparation and follow-up through approved data admission, structured interpretation, prediction, attention tracking, and reports. Operations analysts and supervisors retain responsibility for investigation, intervention, and business decisions.
