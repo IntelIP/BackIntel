@@ -15,7 +15,7 @@ function Evidence({ item, children }: { item: Case; children: ReactNode }) {
     <Dialog.Content className="evidence-drawer">
       <header><div><Dialog.Title>Source evidence</Dialog.Title><Dialog.Description>Original record used for this finding.</Dialog.Description></div><Dialog.Close asChild><Button aria-label="Close evidence"><X size={20} /></Button></Dialog.Close></header>
       <div className="drawer-body"><span className="eyebrow">{item.simulated ? 'Simulated record' : 'Archived public issue'}</span><h2>{item.title}</h2>
-        <div className="source-meta">Collected {new Date(item.evidence.collected_at).toLocaleDateString('en-US', { dateStyle: 'medium', timeZone: 'UTC' })}</div>
+        <div className="source-meta">Source date {new Date(item.evidence.collected_at).toLocaleDateString('en-US', { dateStyle: 'medium', timeZone: 'UTC' })}</div>
         <pre>{item.evidence.text}</pre>
         {item.evidence.url && <a href={item.evidence.url} target="_blank" rel="noreferrer">Open original source <ArrowSquareOut size={15} /></a>}
         <details><summary>Record fingerprint</summary><code>{item.evidence.sha256}</code></details>
