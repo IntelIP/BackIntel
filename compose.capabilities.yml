@@ -1,0 +1,73 @@
+name: backintel-capability-demo
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: capability_demo
+      POSTGRES_DB: test_backintel_demo
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:55437:5432"
+    volumes:
+      - capability_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U capability_demo -d test_backintel_demo"]
+      interval: 2s
+      retries: 20
+  redis:
+    image: redis:7.2.5-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - capability_broker:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 20
+  runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
+      args:
+        BACKINTEL_CANDIDATE_SHA: ${BACKINTEL_CANDIDATE_SHA:-working-tree}
+        BACKINTEL_WITH_MODELS: ${BACKINTEL_WITH_MODELS:-0}
+    command: ["sh", "-c", "python -m runtime.bootstrap && exec uvicorn aegra_api.main:app --host 0.0.0.0 --port 2026"]
+    environment:
+      DATABASE_URL: postgresql://capability_demo@postgres:5432/test_backintel_demo
+      BACKINTEL_APP_DATABASE_URL: postgresql://capability_demo@postgres:5432/test_backintel_demo
+      BACKINTEL_TEST_DATABASE_URL: postgresql://capability_demo@postgres:5432/test_backintel_demo
+      REDIS_URL: redis://redis:6379/0
+      REDIS_BROKER_ENABLED: "true"
+      AUTH_TYPE: noop
+      WORKER_COUNT: "1"
+      N_JOBS_PER_WORKER: "1"
+      CRON_ALLOW_SECONDS_SCHEDULE: "true"
+      CRON_POLL_INTERVAL_SECONDS: "1"
+      OTEL_TARGETS: ""
+      OTEL_CONSOLE_EXPORT: "false"
+      BACKINTEL_REPORT_DIR: /reports
+      BACKINTEL_MODEL_DIR: /models
+      BACKINTEL_PROVIDER_CREDENTIAL_FILE: /run/backintel-credentials/openrouter.json
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      HF_HUB_OFFLINE: "1"
+    cpus: 2.0
+    tmpfs:
+      - /run/backintel-credentials:mode=0700,size=1m
+    ports:
+      - "127.0.0.1:2027:2026"
+    volumes:
+      - ./artifacts/validation/CapabilityDemo/Reports:/reports
+      - ./artifacts/Models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:2026/health',timeout=2)"]
+      interval: 3s
+      retries: 30
+volumes:
+  capability_db:
+  capability_broker:

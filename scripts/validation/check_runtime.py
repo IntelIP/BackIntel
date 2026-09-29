@@ -15,7 +15,7 @@ def main() -> int:
     os.environ["BACKINTEL_APP_DATABASE_URL"] = test_dsn
     initialize()
     suite = unittest.TestSuite()
-    for pattern in ("test_costs.py", "test_replay_ledger.py", "test_jev.py"):
+    for pattern in ("test_costs.py", "test_replay_ledger.py", "test_jev.py", "test_simulation_runtime.py"):
         suite.addTests(unittest.defaultTestLoader.discover("tests", pattern=pattern))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1

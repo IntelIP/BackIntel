@@ -1,5 +1,6 @@
 *
 !Dockerfile.runtime
+!requirements.models.txt
 !aegra.json
 !runtime/
 !runtime/**

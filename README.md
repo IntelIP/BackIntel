@@ -1,12 +1,143 @@
 # BackIntel
 
-Local Olist Seller Performance PoC: reconciled facts, background review enrichment, versioned semantic changes, and a source-linked manager review. This checkout is the integration home. The website remains a separate project.
+BackIntel targets a recurring operational problem: before a team can decide what needs attention, someone must gather scattered records, read free-text notes, reconcile changes, judge significance, and assemble a review people can trust. New information can make that review stale and force the same work again. This is the problem hypothesis we are testing; its frequency and cost still need validation with a real team.
 
+The intended outcome is a current, prioritized review package showing what changed, what might happen next, what evidence supports each finding, and what still needs human judgment. BackIntel automates preparation and follow-up through approved data admission, structured interpretation, prediction, attention tracking, and reports. Operations analysts and supervisors retain responsibility for investigation, intervention, and business decisions.
+
+The current implementation is a predefined background workflow with model-assisted interpretation and prediction. Code controls its sequence, schedules, and permissions. It is developed against synthetic scenarios; the existing Olist PoC remains an optional integration example. Whole-job replacement, real-world predictive accuracy, and staff time saved have not been demonstrated.
+
+- [Current roadmap](docs/roadmap/v0.1.0-development-roadmap.md) — six steps to test and demonstrate issue review
+- [Detailed capability reference](docs/roadmap/capability-reference.md) — full acceptance contract and supporting research
 - [Current repository map](docs/architecture/repository-map.md)
 - [Recovery plan and cleanup record](docs/roadmap/poc-recovery-plan.md)
-- [Product contract and later release gates](docs/roadmap/v0.1.0-development-roadmap.md)
 
-## Current local runtime
+## Run the capability simulation
+
+The [active goal](docs/roadmap/v0.1.0-development-roadmap.md) requires real Jev interpretation and real CatBoost/TabICLv2 execution on synthetic data, followed by analysis, attention and useful stakeholder reports. Actual local predictors, durable follow-ups and report packaging now work with clearly labelled Jev fixtures. One actual Jev probe passed; the complete two-scenario Jev run remains unfinished. The command below is a development fixture; its simulated answers cannot satisfy final completion. Google TabFM is a separate model choice.
+
+```sh
+python3 -m scripts.simulate
+```
+
+Two synthetic domains use one engine: JSON support tickets and CSV equipment readings. No dataset download, model key, server, or dependency installation is needed. Reports and JSON outputs appear in `~/Library/Application Support/BackIntel/Evidence/Simulation`.
+
+The scenarios exercise mapped ingestion, source lineage, rule-based simulated extraction, comparisons, missing observations, injected failure/retry, duplicate replay, simulated schedule events, acknowledgment/staleness/recovery, and audience-specific reports. Each artifact labels its synthetic inputs and simulation boundaries. Forecast output is an unevaluated linear stand-in; generated-code execution is deferred.
+
+Use `--scenario support` or `--scenario equipment` to select one; use `--output /absolute/path` to choose another output location. `python3 -m unittest discover -s tests -p test_simulation.py -v` runs the offline workflow checks.
+
+The new `capability_simulation` graph also plugs into the existing LangGraph/PostgreSQL runtime. Its registration is source code until an approved runtime update; the offline command already exercises the same core functions.
+
+The durable development journey uses a separate local service, preserving the installed Olist service and its data:
+
+```sh
+.venv/bin/python -m scripts.capability_demo --development --demo-id demo-v1 --verify-recovery --wait
+```
+
+This builds the isolated service from `Dockerfile.runtime` and starts it on localhost:2027. Both synthetic scenarios complete durable source changes, comparisons, prediction-driven attention, model-update controls, audience reports and actual sandbox execution of a fixed generated-view fixture. The command restarts only the isolated runtime while work is pending, verifies replay, then packages scoped HTML/JSON/CSV reports, source code, execution logs and review receipts. Exported HTML is read-only and links to local evidence files, so it can be read without the viewer. It uses simulated predictors; final real-model acceptance remains separate.
+
+Use a fresh demonstration ID for `--verify-recovery`. To resume or replay that same stream, reuse its ID without that flag. Inspect with `python3 -m scripts.capability_demo --status --demo-id demo-v1`. Add `--serve` to the command to open the scoped local viewer after packaging; it prints a loopback login URL and the path to private one-hour audience tokens. Stop the viewer with Ctrl-C. The native scheduler stops after the bounded run, or after two minutes if the client disconnects. Each invocation retains its own receipt directory under `artifacts/validation/CapabilityDemo/<demo-id>/Attempt...`; the isolated database volume retains recovery state.
+
+## Approved local model and sandbox checks
+
+Real CatBoost and TabICLv2 now execute classification and regression on synthetic structured features. The full facts-plus-real-Jev comparison remains unfinished. Model use requires the matching local approval record and pinned weights; it never authorizes paid Jev calls. The original Olist runtime stays separate.
+
+After preparing the approved `.venv`, model directory and a dedicated `test_` database, run:
+
+```sh
+export BACKINTEL_MODEL_DIR="$PWD/artifacts/Models"
+export BACKINTEL_APP_DATABASE_URL="$BACKINTEL_TEST_DATABASE_URL"
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 MKL_NUM_THREADS=2 HF_HUB_OFFLINE=1 \
+  .venv/bin/python -m scripts.validation.check_real_models
+.venv/bin/python -m scripts.validation.check_sandbox
+```
+
+The sandbox check uses the existing local `backintel-capability-demo-runtime` image and actually attempts prohibited operations. Results are retained under `artifacts/validation/RealPredictors` and `artifacts/validation/Sandbox`. These checks establish subsystem behavior on an uncommitted working tree, not final acceptance. The sandbox returns an untrusted candidate for later review; it does not publish a report.
+
+The optional model-enabled image also runs both predictors on CPU, using the approved local weights and two threads. Build it with `BACKINTEL_WITH_MODELS=1 docker compose -f compose.capabilities.yml build runtime`, then start the isolated service with `docker compose -f compose.capabilities.yml up --detach --wait --no-build runtime`. The default image build omits model dependencies. No provider credential is configured by Compose.
+
+Prepare committed synthetic histories through that service without spending money:
+
+```sh
+.venv/bin/python -m scripts.real_capabilities prepare \
+  --scenario support --demo-id real-demo-v1 --request-id history-preparation
+```
+
+Repeat with `--scenario equipment` for the second domain. Reusing the same request and demonstration identities replays the completed stage. `interpret` requires the exact source hash, a separately approved provider authorization and an ephemeral runtime credential. `compare` rejects incomplete or simulated Jev history and unknown actual charges. The stages now include the durable follow-up path described below; the complete real-run driver remains unfinished. Receipts remain under `artifacts/validation/RealPipeline`.
+
+Actual Linux model checks and file/checkpoint recovery passed in `artifacts/validation/RealPredictorsLinux` and `artifacts/validation/RealModelRecovery`. Recovery restored the approved files into a temporary directory and reproduced all 24 recorded predictions. That earlier check used the existing isolated evidence database. Combined recovery now reproduces 50 predictions and replays 90 completed jobs from restored database and model files, using Jev fixtures. Final actual-Jev recovery remains pending.
+
+The real path now also prepares future arrivals and corrections as immutable, time-scoped synthetic records:
+
+```sh
+.venv/bin/python -m scripts.real_capabilities prepare_followups \
+  --scenario support --demo-id real-demo-v1 --request-id future-source-preparation
+```
+
+Future records stay outside earlier feature cutoffs. After separate approval covering the prepared history and future sources, the `start` stage accepts `--authorization <approved-id>` and durably queues interpretation, comparison and follow-ups. Each scenario needs a scope covering 27 source versions. The existing one-request probe cannot authorize this batch. Every paid request still checks its own budget and approval; failed or uncertain requests stop subsequent work for that task.
+
+Both scenarios completed 45 durable jobs with actual local predictors and **fixture Jev responses**. The check advances due timestamps in an isolated test database; it does not prove a live paid Jev journey or native-clock execution of that journey. Corrections invalidate earlier predictions and exclude superseded sources from subsequent training. Replaying all completed jobs changes no records and makes no extra fixture calls. The receipt is `artifacts/validation/RealFollowups/Attempt333bb285ed2d/Followups.json`.
+
+Prepare both scenarios without provider access:
+
+```sh
+.venv/bin/python -m scripts.real_demo --demo-id real-driver-v1 --prepare-only
+```
+
+This builds the isolated model-enabled service and writes `AuthorizationScopes.json` under `artifacts/validation/RealDemo/<demo-id>/Attempt...`. Each scope names the exact task, questions and 27 source versions. Startup refuses to replace a runtime with pending work. Use `--no-start` to reuse an existing compatible service and resume its workload.
+
+After separate approval for both complete scopes, use the same demonstration ID:
+
+```sh
+.venv/bin/python -m scripts.real_demo --demo-id real-driver-v1 \
+  --authorizations /absolute/path/Authorizations.json --verify-recovery
+```
+
+The authorization file maps scenario names to existing approved authorization records. Writing this file does not grant approval:
+
+```json
+{"support": "existing-approved-support-id", "equipment": "existing-approved-equipment-id"}
+```
+
+The driver checks both scopes, request limits, pricing, measured budget and expiry before retrieving the existing Keychain credential. It places the credential in an owner-bound, task-bound, expiring file on runtime memory storage (`tmpfs`, directory `0700`, file `0600`). It never places the key in command arguments or Docker environment configuration. Cleanup removes only that attempt's credential and scheduler. An optional restart preserves pending work and reinstalls the authorized credential afterward. A failed or uncertain provider request stops further paid work for that task.
+
+Preparation, unauthorized-run denial, scoped native-clock scheduling and restart recovery passed without paid calls. Full paid execution remains unverified. The approved one-request Jev probe passed at a measured provider charge of $0.000011592. It returned `typesafe/jev-1.13-20260917` for the requested `jev-1.13` alias. Its saved response was accepted after a narrow model-name compatibility fix, without another paid call. That approval does not authorize either complete source scope. See `artifacts/validation/RealModelPreparation/ProbeAcceptance.json`.
+
+Packaging has explicit `development`, `real` and `predictor_fixture` modes. Real mode requires actual predictors, actual Jev and complete provider billing. Fixture mode labels simulated text findings and separates fictional charges from actual spending. Both ordinary and sandbox-generated offline reports passed desktop/mobile checks. All results remain working-tree evidence; paid Jev and exact committed-candidate acceptance are separate gates.
+
+## Local audience reports
+
+The working tree now produces audience-scoped briefings, analysis, CSV/JSON exports and source evidence. Operators can review and correct observations; read-only audiences cannot. Corrections preserve history and refresh the report. Generated layouts execute in the restricted host sandbox and require a separate local review. Development checks still use explicitly simulated models.
+
+After running the updated development code against an isolated database, open reports for its completed task IDs:
+
+```sh
+export BACKINTEL_APP_DATABASE_URL="$BACKINTEL_TEST_DATABASE_URL"
+.venv/bin/python -m scripts.audience_demo \
+  --task support-audience-v1 --task equipment-audience-v1 \
+  --access-file artifacts/validation/Audiences/local-access.json
+```
+
+The task IDs must match the chosen demonstration ID; `audience-v1` is an example. Open the printed loopback login page and use the appropriate token from the new private access file. Tokens last one hour, bind a task version and audience, and never appear in URLs or logs. The access file must not already exist. Stop the viewer with Ctrl-C. The isolated development image now includes the audience workflow; the preserved Olist service remains unchanged.
+
+Direct checks: `python -m scripts.validation.check_audiences` exercises actual HTTP authorization, report actions and generated-code review against an explicitly isolated test database. The browser companion is `scripts/validation/check_audience_ui.cjs`; it uses Playwright, a live local viewer and the private fixture emitted by the direct check. Evidence includes desktop/mobile captures, keyboard source inspection and table scrolling, saved corrections, and denied access. Full real-model packaging remains unfinished.
+
+A separate restore check backs up the completed development database, restores it into a fresh `test_` database on the existing isolated validation PostgreSQL container, compares accepted evidence, replays completed jobs, and removes the temporary clone:
+
+```sh
+.venv/bin/python -m scripts.validation.check_capability_restore --demo-id demo-v1
+```
+
+This check currently requires the local `backintel-capability-test` PostgreSQL container on port 55436. Its backup and receipt remain under `artifacts/validation/CapabilityRestore`. To restore an isolated predictor evidence database and approved model files together, set both database variables to that source database and run:
+
+```sh
+.venv/bin/python -m scripts.validation.check_real_model_restore \
+  --predictor-receipt /absolute/path/PredictorReceipt.json --restore-database \
+  --predictor-image sha256:<existing-image-that-prepared-the-models>
+```
+
+Omit `--predictor-image` only when the host libraries match the prepared packages. The check uses a fresh temporary database on the validation server, restores package/checkpoint files into a temporary directory, reproduces recorded predictions and replays completed jobs. It preserves a backup and receipt, then removes both temporary restores. It does not restore the live scheduler or broker, and fixture Jev evidence cannot establish actual Jev recovery.
+
+## Preserved Olist runtime
 
 The local stack now runs from this canonical checkout. Runtime candidate: `741773df289866437b067c306d6fefea1b415691`. The eight historical backend worktrees have been deleted; their commits remain in `main` and the recovery bundle. The separate website remains untouched.
 
@@ -33,7 +164,7 @@ export OPENROUTER_API_KEY=""
 
 Cutover and cleanup receipts: `~/Library/Application Support/BackIntel/Evidence/PoCRecovery/{cutover-acceptance,cleanup-receipt}.json`. Recovery set: `~/Library/Application Support/BackIntel/Recovery/20260926T170122/runtime-cutover`. Migration 0006 changes the snapshot uniqueness key; rollback requires restoring the coordinated application/checkpoint/broker backups before starting the previous image.
 
-## Run the local PoC
+## Run the preserved Olist PoC
 
 Use the existing Python/PostgreSQL/Aegra stack. The demo defaults to replaying recorded observations and makes **no inference calls**. Missing recordings are an error; they are never replaced with fabricated Jev output.
 

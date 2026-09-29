@@ -26,11 +26,13 @@ class _OpenRouterCaptureClient(httpx2.Client):
     def __init__(self, **client_kwargs):
         super().__init__(**client_kwargs)
         self.last_metadata: dict = {}
+        self.last_response: dict = {}
 
     def post(self, *args, **kwargs):
         response = super().post(*args, **kwargs)
         try:
             body = response.json()
+            self.last_response = body
             usage = body.get("usage") or {}
             self.last_metadata = {
                 "request_id": body.get("id"),
@@ -46,7 +48,7 @@ class _OpenRouterCaptureClient(httpx2.Client):
 class OpenRouterJevClassifier:
     """LangChain TypeSafeClassifier routed through OpenRouter's System One API."""
     provider_name = "openrouter"
-    def __init__(self, api_key: str, transport: Any | None = None):
+    def __init__(self, api_key: str, transport: Any | None = None, model: str = "jev-1.13"):
         from langchain_typesafe import Choice, Noul, Score, TypeSafeClassifier
         if transport is not None:
             self._client = _OpenRouterCaptureClient(transport=transport)
@@ -56,18 +58,22 @@ class OpenRouterJevClassifier:
         self._classifier = TypeSafeClassifier(
             api_key=api_key,
             base_url="https://openrouter.ai/api",
-            model="jev-1.13",
+            model=model,
             client=self._client,
             async_client=self._async_client,
         )
         self.question_types = type("QuestionTypes", (), {"Choice": Choice, "Noul": Noul, "Score": Score})
         self.last_metadata: dict = {}
+        self.last_response: dict = {}
 
     def invoke(self, request: dict) -> Any:
         self._client.last_metadata = {}
-        response = self._classifier.invoke(request)
-        self.last_metadata = dict(self._client.last_metadata)
-        return response
+        self._client.last_response = {}
+        try:
+            return self._classifier.invoke(request)
+        finally:
+            self.last_metadata = dict(self._client.last_metadata)
+            self.last_response = dict(self._client.last_response)
 
     async def aclose(self) -> None:
         self._client.close()
