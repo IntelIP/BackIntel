@@ -23,7 +23,7 @@ from runtime.signals import build_signal_snapshot, compare_signal_snapshots  # n
 
 class Answer:
     def __init__(self, **values): self.values = values
-    def model_dump(self, mode="python"): return self.values
+    def model_dump(self, mode="python"): return self.values  # noqa: vulture - required interface
 
 
 class Primitive:
