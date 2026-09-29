@@ -16,6 +16,7 @@ def main():
         shutil.copy2(fonts / name, assets / name)
         declarations.append(f"@font-face{{font-family:'Instrument Sans';font-style:normal;font-weight:{weight};font-display:swap;src:url('/{name}') format('woff2');}}")
     overrides = ".save-button{background:var(--primary);color:#fff;border:0;border-radius:6px;padding:4px 10px}.decision-options button{border:0;background:transparent;border-radius:5px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}.evidence-drawer{transform:none!important;left:auto!important;top:0!important;bottom:0!important;right:0!important;margin:0!important;border-radius:0!important;}"
+    overrides += ".save-button:disabled{background:var(--muted);color:var(--quiet);cursor:not-allowed}.workspace input::placeholder,.workspace textarea::placeholder{color:var(--quiet);opacity:1}.evidence-drawer{color:var(--ink);color-scheme:light;font:14px/1.5 'Instrument Sans',sans-serif}"
     (assets / "workspace.css").write_text("\n".join(declarations) + "\n" + css + "\n" + overrides)
     print("Reflex assets generated from shared CSS and installed font files.")
 

@@ -178,5 +178,5 @@ def index():
     )
 
 
-app = rx.App(stylesheets=["/workspace.css"], theme=rx.theme(accent_color="purple", gray_color="mauve", radius="small"))
+app = rx.App(stylesheets=["/workspace.css"], theme=rx.theme(appearance="light", accent_color="purple", gray_color="mauve", radius="small"))
 app.add_page(index, title="BackIntel · Reflex comparison", on_load=State.load)
