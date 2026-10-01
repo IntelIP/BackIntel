@@ -1,10 +1,20 @@
 """Thin client: both frontends use the same server-owned records and reviews."""
 import json
+import os
 from urllib.error import HTTPError
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
-BASE = "http://127.0.0.1:2041/api"
+def api_origin(value):
+    parsed = urlsplit(value)
+    if (parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost")
+            or parsed.username or parsed.password or parsed.path not in ("", "/")
+            or parsed.query or parsed.fragment or not parsed.port or not 1 <= parsed.port <= 65535):
+        raise ValueError("The demonstration API must be an HTTP loopback origin with a port")
+    return value.rstrip("/")
+
+
+BASE = api_origin(os.environ.get("BACKINTEL_WORKSPACE_API_ORIGIN", "http://127.0.0.1:2041")) + "/api"
 
 
 def read_workspace():

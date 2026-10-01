@@ -33,7 +33,9 @@ def questions_for(task: dict, types) -> dict:
             scale = task["policy"]["signal_scale"]
             if scale != int(scale) or not 1 <= scale <= 10:
                 raise ValueError("Real Jev numeric questions require an explicit 1..10 ordinal scale")
-            questions[question["id"]] = types.Score(instructions=question["prompt"],criteria=list(range(int(scale)+1)))
+            levels = min(int(scale)+1,10)
+            criteria = [format(scale*index/(levels-1),".12g") for index in range(levels)]
+            questions[question["id"]] = types.Score(instructions=question["prompt"],criteria=criteria)
     return questions
 
 
@@ -43,12 +45,19 @@ def typed_answer(question: dict, answer: dict) -> dict:
         response = {"status":"known","value":probability >= .5,
                     "distribution":{"true":probability,"false":1-probability},"reason":"actual_jev_response"}
     else:
-        legend = {int(k):v for k,v in answer["legend"].items()}
+        legend = {int(k):float(v) for k,v in answer["legend"].items()}
         probabilities = {int(k):v for k,v in answer["probabilities"].items()}
         if set(probabilities) - set(legend):
             raise ValueError("Jev score probability has no matching legend")
         values = [legend[k] for k in sorted(probabilities)]
         weights = [probabilities[k] for k in sorted(probabilities)]
+        # Jev can return hundredth-rounded probabilities; retain the raw reply
+        # and normalize only within the maximum rounding error for these levels.
+        if (weights and all(type(p) in (int, float) and math.isfinite(p) and 0 <= p <= 1
+                            and abs(p * 100 - round(p * 100)) < 1e-9 for p in weights)):
+            total = sum(weights)
+            if total > 0 and abs(total - 1) <= min(len(weights) * .005, .05) + 1e-9:
+                weights = [p / total for p in weights]
         response = {"status":"known","value":sum(v*p for v,p in zip(values,weights)),
                     "distribution":{"values":values,"probabilities":weights},"reason":"actual_jev_ordinal_expectation"}
     validate_response(question,response)
@@ -194,8 +203,13 @@ def request_real(task_record: dict, source: dict, authorization_id: str, classif
             connection.execute("""UPDATE backintel.capability_model_requests SET state='completed',response=%s,metadata=%s,finished_at=now()
                 WHERE request_key=%s""",(Jsonb(saved),Jsonb(canonical_body(metadata)),key))
         except Exception as error:
+            detail = encoded(getattr(classifier,"last_response",{})).decode()
+            if credential:
+                detail = detail.replace(credential,"[REDACTED]")
+            captured = json.loads(detail) if len(detail)<=8192 else {"detail_omitted":"provider_response_exceeded_bound"}
+            stored_error = type(error).__name__+": "+encoded(captured).decode()
             connection.execute("""UPDATE backintel.capability_model_requests SET state='blocked',error=%s,finished_at=now()
-                WHERE request_key=%s AND state='admitted'""",(type(error).__name__,key))
+                WHERE request_key=%s AND state='admitted'""",(stored_error,key))
             raise
         finally:
             if classifier is not None:

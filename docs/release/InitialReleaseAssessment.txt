@@ -1,0 +1,10 @@
+BackIntel initial source publication
+Updated: 2026-10-01
+
+BackIntel automates repeated data preparation, model comparison and findings refresh within approved workflows. A reviewer retains responsibility for business decisions.
+
+Source is licensed under MIT. The recorded synthetic business-v4 demo and five-minute narration are available in docs/demo. It opens without new model calls. Dependency notices remain included; model weights and credentials are absent.
+
+The recorded run used actual Jev responses and local predictors. It does not establish customer accuracy, measured savings, net benefit or complete real-provider release acceptance. Earlier failed-request charges and local compute cost remain unknown.
+
+Next useful result: rehearse the five-minute showcase, record feedback, then test one approved real-team workflow with a measured manual baseline. Public website deployment and release publication are separate actions.

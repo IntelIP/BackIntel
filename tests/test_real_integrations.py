@@ -18,7 +18,7 @@ from runtime.evidence import Evidence
 from runtime.ledger import dsn
 from runtime.jobs import enqueue, execute
 from runtime.real_pipeline import compare_history, interpret_source, prepare_followups, prepare_history, start_followups
-from runtime.real_semantics import _verified_metadata,extract_real,scope_for,typed_answer,usage_for
+from runtime.real_semantics import _verified_metadata,extract_real,questions_for,scope_for,typed_answer,usage_for
 from runtime.real_models import _allow_model_use,_tabicl,checkpoint,prepare_real
 from runtime.simulation import digest
 from runtime.synthetic import history
@@ -53,6 +53,34 @@ class FixtureClassifier:
 
 
 class ProviderIdentityTests(unittest.TestCase):
+    def test_numeric_probability_rounding_preserves_raw_reply_and_rejects_bad_weights(self):
+        question = {"id": "wear", "type": "number", "prompt": "Reported wear", "rule": {"kind": "number"}}
+        answer = {"legend": {str(i): str(10 * i / 9) for i in range(10)},
+                  "probabilities": dict(zip(map(str, range(10)), [.05, .01, 0, .02, .23, .67, 0, 0, 0, .01]))}
+        result = typed_answer(question, answer)
+        self.assertAlmostEqual(sum(result["distribution"]["probabilities"]), 1)
+        self.assertAlmostEqual(result["value"], sum(float(answer["legend"][k]) * p
+                                                   for k, p in answer["probabilities"].items()) / .99)
+        self.assertAlmostEqual(sum(answer["probabilities"].values()), .99)
+        for invalid in ({"0": .2, "1": .3}, {"0": -.01, "1": 1.01},
+                        {"0": float("nan"), "1": .5}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                typed_answer(question, {"legend": {"0": "0", "1": "10"}, "probabilities": invalid})
+
+    def test_numeric_question_uses_text_labels_and_preserves_numeric_score(self):
+        from langchain_typesafe import Noul, Score
+        question = {"id": "wear", "type": "number", "prompt": "What wear level is reported?", "rule": {"kind": "number"}}
+        task = {"questions": [question], "policy": {"signal_scale": 10}}
+        serialized = questions_for(task, SimpleNamespace(Noul=Noul, Score=Score))["wear"].model_dump(mode="json")
+        self.assertEqual(len(serialized["criteria"]), 10)
+        self.assertEqual((serialized["criteria"][0],serialized["criteria"][-1]), ("0","10"))
+        self.assertTrue(all(isinstance(value,str) for value in serialized["criteria"]))
+        endpoints = typed_answer(question, {"legend": {"0": "0", "9": "10"}, "probabilities": {"0": .25, "9": .75}})
+        self.assertAlmostEqual(endpoints["value"], 7.5)
+        response = typed_answer(question, {"legend": {"0": "1", "1": "4"}, "probabilities": {"0": .25, "1": .75}})
+        self.assertAlmostEqual(response["value"], 3.25)
+        self.assertEqual(response["distribution"]["values"], [1.0, 4.0])
+
     def test_checked_alias_revision_keeps_identity_and_billing_guards(self):
         metadata = {"request_id": "recorded-probe", "model": "typesafe/jev-1.13-20260917", "cost_usd": .000011592}
         _verified_metadata(metadata, "jev-1.13")
@@ -234,6 +262,29 @@ class RealBoundaryTests(unittest.TestCase):
         state,response = self.conn.execute("SELECT state,response FROM backintel.capability_model_requests WHERE authorization_id=%s",(self.authorization,)).fetchone()
         self.assertEqual(state,"completed")
         self.assertTrue(response["raw_response"]["fixture"])
+
+    def test_provider_rejection_is_retained_without_credential_or_automatic_retry(self):
+        from runtime.real_semantics import request_real
+
+        self.approve_fixture()
+        credential = "fixture-secret-never-retain"
+        classifier = FixtureClassifier("jev-1.13")
+        classifier.last_response = {"error": {"code": 400, "message": "Rejected rubric: "+credential}}
+        with patch("runtime.real_semantics.runtime_credential",return_value=credential), \
+                patch("runtime.real_semantics._default_classifier",return_value=classifier), \
+                patch.object(classifier,"invoke",side_effect=RuntimeError("provider rejected request")) as invoke:
+            with self.assertRaisesRegex(RuntimeError,"provider rejected request"):
+                request_real(self.task,self.sources[0],self.authorization)
+            with self.assertRaisesRegex(RuntimeError,"automatic paid retry prohibited"):
+                request_real(self.task,self.sources[0],self.authorization)
+            self.assertEqual(invoke.call_count,1)
+        state,error,response = self.conn.execute("SELECT state,error,response FROM backintel.capability_model_requests WHERE authorization_id=%s",(self.authorization,)).fetchone()
+        self.assertEqual(state,"blocked")
+        self.assertIsNone(response)
+        captured = json.loads(error.split(": ",1)[1])
+        self.assertEqual(captured["error"]["code"],400)
+        self.assertIn("[REDACTED]",captured["error"]["message"])
+        self.assertNotIn(credential,error)
         self.assertEqual(self.store.list("observation"),[])
 
     def test_response_survives_domain_rollback_and_scope_change_is_denied(self):

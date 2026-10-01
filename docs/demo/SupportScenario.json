@@ -1,0 +1,25 @@
+{
+  "schema": "backintel-business-demo/v1",
+  "title": "Support work prepared automatically",
+  "persona": "A support lead responsible for account access and customer service queues",
+  "problem": "The lead must read incoming messages, check operational measurements, assemble evidence, decide what needs attention, and repeat that work whenever information changes.",
+  "today": ["Read the messages and operational queue data", "Identify the problem and missing context", "Compare current conditions with earlier records", "Prioritize investigation and record a reason", "Revisit the case after new information or a missed follow-up"],
+  "dataset": {"mode": "synthetic", "generator": "runtime.synthetic.history", "training_history_rows": 24, "source_versions_per_scenario": 27, "target": "Next-window breach in a controlled synthetic service queue", "horizon": "Two simulation windows; not a customer response guarantee", "business_language": "Support messages are expanded into illustrative customer reports. Their controlled outcomes remain explicitly synthetic."},
+  "objective": "Show background interpretation, model comparison, evidence-linked review, and automatic refresh when the source changes.",
+  "invariants": ["Never present a fixture as a real Jev response", "Never present synthetic predictive performance as real customer performance", "Require separately approved source scopes before any paid Jev call", "Use pinned approved local model files, at most 64 training rows and two CPU threads", "A changed source cannot silently inherit an earlier human decision", "Unknown compute or provider cost cannot become a zero-cost claim", "Preserve running demos, existing review databases, and Olist", "No commit, push, deployment, or merge is authorized by this scenario"],
+  "value_assumptions": {"cases_per_week": 600, "manual_minutes_per_case": 8, "assisted_minutes_per_case": 3, "labour_usd_per_hour": 40},
+  "value_boundary": "Illustrative capacity value, not measured labour savings, cash savings, or revenue gain. Provider charges and compute costs are reported separately. Net benefit remains unknown until all required costs are priced.",
+  "stack": [
+    {"name": "Python", "role": "Admit the source and check its shape and time"},
+    {"name": "LangGraph", "role": "Run the bounded workflow"},
+    {"name": "Aegra", "role": "Host runs and bounded scheduled dispatch"},
+    {"name": "PostgreSQL", "role": "Retain source versions, jobs, observations, predictions, and evidence"},
+    {"name": "Redis", "role": "Support the local workflow service"},
+    {"name": "Jev / TypeSafe / OpenRouter", "role": "Answer a fixed question about the report and return a typed probability or score"},
+    {"name": "CatBoost and TabICLv2", "role": "Compare alternatives using facts alone and facts with Jev interpretation"},
+    {"name": "React / Vite / Tailwind / Radix", "role": "Display the deterministic review template"},
+    {"name": "Python / Reflex", "role": "Display the same packet through a Python frontend"},
+    {"name": "SQLite", "role": "Preserve the demonstration's human decisions independently of the live review database"}
+  ],
+  "acceptance": ["Show the current manual process and business pain", "Show original text and admitted structured measurements", "Show where Jev runs and how its answer is attached to its source", "Compare the baseline, CatBoost, and TabICLv2 on the same time-safe evaluation", "Show background jobs and a source change refreshing the packet", "Save a labelled test decision and preserve its history", "Show the same packet and decision in React and Reflex", "Show assumed capacity value alongside measured or unavailable execution costs", "Provide recording steps and narration", "Verify the journey against the actual run and retain evidence"]
+}

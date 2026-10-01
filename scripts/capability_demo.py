@@ -114,11 +114,14 @@ def main() -> int:
     parser.add_argument("--verify-recovery",action="store_true",help="Restart only the isolated runtime with pending work, then verify replay")
     parser.add_argument("--serve",action="store_true",help="After completion and packaging, serve scoped local reports until Ctrl-C")
     parser.add_argument("--demo-id",default="development-v1",help="Persistent demonstration identity; reuse resumes the same work")
+    parser.add_argument("--scoped",action="store_true",help="Dispatch only this rehearsal's two task identities")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,24}", args.demo_id):
         parser.error("Invalid demonstration identity")
     if not args.development and not args.status:
         parser.error("Real Jev/CatBoost/TabICLv2 integration is unfinished. --development runs fixtures and cannot satisfy final acceptance.")
+    if args.scoped and not args.demo_id.startswith("real-"):
+        parser.error("Scoped dispatch requires a real- namespace prefix; --development still means simulated models")
     OUTPUT.mkdir(parents=True,exist_ok=True)
     if args.status:
         with psycopg.connect(DEMO_DSN,autocommit=True) as connection:
@@ -143,11 +146,15 @@ def main() -> int:
             "assistant_id":assistant,"input":{"operation":"bootstrap","scenario":name,"demo_id":args.demo_id,"request_id":"capability-bootstrap-v1"}},base=BASE)
         receipts.append({"scenario":name,"thread_id":thread["thread_id"],"run_id":run["run_id"]})
     crons = request("POST","/runs/crons/search",{"assistant_id":assistant,"limit":100},base=BASE)
-    cron = next((c for c in crons if c.get("metadata",{}).get("purpose") == "bounded-capability-demo"),None)
+    purpose = f"bounded-capability-demo:{args.demo_id}" if args.scoped else "bounded-capability-demo"
+    dispatch_input = {"operation":"dispatch"}
+    if args.scoped:
+        dispatch_input["task_ids"] = [f"{name}-{args.demo_id}" for name in ("support", "equipment")]
+    cron = next((c for c in crons if c.get("metadata",{}).get("purpose") == purpose),None)
     end = (datetime.now(timezone.utc)+timedelta(seconds=120)).isoformat()
     if cron is None:
         cron = request("POST","/runs/crons",{"assistant_id":assistant,"schedule":"*/2 * * * * *", "enabled":False,
-                       "input":{"operation":"dispatch"},"metadata":{"purpose":"bounded-capability-demo"},"end_time":end},base=BASE)
+                       "input":dispatch_input,"metadata":{"purpose":purpose},"end_time":end},base=BASE)
     cron = request("PATCH",f"/runs/crons/{cron['cron_id']}",{"enabled":True,"end_time":end},base=BASE)
     receipt = {"base_url":BASE,"runs":receipts,"scheduler":"aegra_native_cron","cron_id":cron["cron_id"],"end_time":end,
                "mode":"synthetic_sources_simulated_models","real_model_acceptance":"blocked","demo_id":args.demo_id}

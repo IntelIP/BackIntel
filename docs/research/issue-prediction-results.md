@@ -43,6 +43,16 @@ Offline verification: run `python3 "$HOME/Library/Application Support/BackIntel/
 
 Direct checks passed for label boundaries, bot/author exclusions, close/reopen ordering, future-field exclusion, time-separated evaluation, identical comparison cases, saved-model replay, and offline cohort reproduction. Peak model-process memory was approximately 748 MiB; the model loop including restoration took 8.36 seconds. Local compute cost is unpriced.
 
-Application runtime files were not changed. This is a source-hash-recorded research execution, not exact-commit product validation. Browser visual review, paid text interpretation, the full 112-case study, and integration into the standing background workflow remain outside this result.
+The original research execution did not change application runtime files. It was recorded against source hashes. Browser visual review, paid text interpretation, the full 112-case study, and integration into the standing background workflow remained outside that result.
+
+## Review workspace replay
+
+The seven retained cases passed a separate offline check through the review API and an isolated database. The check verified creation-only features against the original archived reports. Each packet preserved the opening text, issue identity, and stored prediction. Later outcomes stayed hidden until an explicitly labelled test decision was saved. Decisions survived a service restart; duplicate saves and stale source references were rejected. The live demo database was not written.
+
+The check found and repaired a prediction handoff defect: changing the cohort order could attach an estimate to the wrong issue. The adapter now requires the exact cohort hash, matching case identities and order, complete prediction vectors, finite probabilities, and agreement with the per-case scores. Eight focused regression checks passed. These results apply to the uncommitted working tree based on `8b6c0a71e5dc9a3cd6d0840937b81631e6f15fa8`; exact-commit readiness remains blocked.
+
+Local replay evidence is under `artifacts/validation/IssueWorkflow/Run8b6c0a7/`: `VerifyReplay.py`, `WorkflowResults.json`, `PacketsBeforeReview.json`, `PacketsAfterReview.json`, and the recorded working-tree patch. The replay used stored actual predictions and made no new model or paid provider calls. A fresh public-data model run awaits separate dataset approval.
+
+Full agent readiness remains blocked. The five required semantic findings—failure, reproduction steps, expected/actual behavior, environment, and regression claim—are not produced. The public-case finding remains a rule-based suggestion. Automatic processing of later public-issue events is unfinished. Displaying a historical outcome after a test decision does not verify that processing. The recorded prediction comparison still fails to show improvement over the baseline.
 
 Sources: [GH Archive](https://www.gharchive.org/), original hourly files listed in local evidence, [GitHub REST](https://docs.github.com/en/rest/issues), and [ClickHouse's public archive index](https://play.clickhouse.com/). Retrieval and execution: September 29, 2026 UTC.

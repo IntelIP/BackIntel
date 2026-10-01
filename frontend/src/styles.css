@@ -61,6 +61,35 @@ h1,h2,p { margin:0; }
 .row-badge { display:inline-block; color:var(--quiet); font-size:12px; margin-top:7px; }
 .case-list footer { height:38px; padding:10px 16px; font-size:10px; color:var(--quiet); display:flex; gap:6px; align-items:center; border-top:1px solid var(--border); }
 .reader { display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--canvas); }
+.demo-content { display:flex; flex-direction:column; gap:26px; padding-bottom:24px; }
+.demo-section h2 { font-size:16px; margin-bottom:10px; }
+.demo-section p { margin:9px 0; }
+.demo-details { margin-top:12px; }
+.demo-details summary { font-weight:600; cursor:pointer; color:var(--ink); }
+.demo-details ol,.demo-section ul { padding-left:22px; margin:12px 0; }
+.demo-details li,.demo-section li { margin:6px 0; }
+.demo-stages { list-style:none; padding:0; margin:20px 0 0; }
+.demo-stages li { display:flex; gap:12px; padding:0 0 22px; }
+.demo-stages li>div { flex:1; min-width:0; }
+.demo-stages .record-heading { flex-wrap:wrap; gap:4px 12px; }
+.demo-stage-dot { width:28px; height:28px; flex-shrink:0; border:1px solid var(--border); border-radius:50%; display:grid; place-items:center; background:var(--canvas); color:var(--quiet); }
+.demo-stage-dot.observed { color:var(--ink); background:var(--navigation); }
+.demo-table-wrap { overflow:auto; margin:14px 0; }
+.demo-table { width:100%; border-collapse:collapse; font-size:12px; }
+.demo-table th,.demo-table td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+.demo-table thead th { color:var(--quiet); font-weight:500; }
+.demo-table tbody th { font-weight:600; }
+.demo-value { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; padding:14px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.demo-value span { display:block; font-size:12px; }
+.demo-value strong { display:block; font-size:25px; font-weight:600; margin-top:6px; }
+.demo-costs { margin:18px 0; }
+.demo-costs>div { display:flex; justify-content:space-between; gap:18px; padding:7px 0; }
+.demo-costs dd { margin:0; font-weight:600; }
+.demo-stack { margin:16px 0; }
+.demo-stack>div { margin:12px 0; }
+.demo-stack dt { font-weight:600; }
+.demo-stack dd { margin:3px 0 0; }
+@media(max-width:600px) { .demo-value { grid-template-columns:1fr; } .demo-costs>div { flex-wrap:wrap; } }
 .case-toolbar { height:62px; min-height:62px; padding:0 26px; display:flex; align-items:center; justify-content:space-between; }
 .case-number { font-size:11px; color:var(--quiet); }
 .toolbar-actions { display:flex; gap:8px; align-items:center; }

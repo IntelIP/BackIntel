@@ -13,9 +13,26 @@ The current implementation is a predefined background workflow with model-assist
 - [Current repository map](docs/architecture/repository-map.md)
 - [Recovery plan and cleanup record](docs/roadmap/poc-recovery-plan.md)
 
+## Try the recorded business demo
+
+A support lead can follow a customer report through interpretation, prediction comparison, a correction, and a human decision. Support and Equipment use synthetic inputs and outcomes; the retained Jev responses and local model executions are real.
+
+Extract [BackIntelDemoBusinessV4.zip](docs/demo/Packages/BackIntelDemoBusinessV4.zip), then run:
+
+```sh
+python3 RunDemo.py --check
+python3 RunDemo.py
+```
+
+Python 3.10+ is enough for the built React interface. The launcher prints its local URL. Opening the recorded package makes no new model calls. New reviews affect only the extracted copy.
+
+[Five-minute narration](docs/demo/SupportNarration.txt) · [Package instructions](docs/demo/DemoPackage.txt) · [Release assessment](docs/release/InitialReleaseAssessment.txt) · [GTM brief](docs/release/GoToMarketBrief.txt)
+
+BackIntel source is open source under [MIT](LICENSE). The recorded package retains dependency notices and its original run boundaries. Customer accuracy, commercial savings, full operating cost, and complete real-provider release acceptance remain unproven.
+
 ## Run the capability simulation
 
-The [active goal](docs/roadmap/v0.1.0-development-roadmap.md) requires real Jev interpretation and real CatBoost/TabICLv2 execution on synthetic data, followed by analysis, attention and useful stakeholder reports. Actual local predictors, durable follow-ups and report packaging now work with clearly labelled Jev fixtures. One actual Jev probe passed; the complete two-scenario Jev run remains unfinished. The command below is a development fixture; its simulated answers cannot satisfy final completion. Google TabFM is a separate model choice.
+The [active goal](docs/roadmap/v0.1.0-development-roadmap.md) requires real Jev interpretation and real CatBoost/TabICLv2 execution on synthetic data, followed by analysis, attention and useful stakeholder reports. Actual local predictors, durable follow-ups and report packaging now work with clearly labelled Jev fixtures. The business-v4 run completed both synthetic scenarios with 54 actual Jev responses and 90 completed jobs. The recorded package below opens those results without new model calls; exact-commit release acceptance remains blocked. The command below is a development fixture; its simulated answers cannot satisfy final completion. Google TabFM is a separate model choice.
 
 ```sh
 python3 -m scripts.simulate
@@ -41,7 +58,7 @@ Use a fresh demonstration ID for `--verify-recovery`. To resume or replay that s
 
 ## Approved local model and sandbox checks
 
-Real CatBoost and TabICLv2 now execute classification and regression on synthetic structured features. The full facts-plus-real-Jev comparison remains unfinished. Model use requires the matching local approval record and pinned weights; it never authorizes paid Jev calls. The original Olist runtime stays separate.
+Real CatBoost and TabICLv2 now execute classification and regression on synthetic structured features. The business-v4 run completed facts-only and facts-plus-real-Jev comparison; its six Support validation cases selected a method and do not establish customer accuracy. Model use requires the matching local approval record and pinned weights; it never authorizes paid Jev calls. The original Olist runtime stays separate.
 
 After preparing the approved `.venv`, model directory and a dedicated `test_` database, run:
 
@@ -64,7 +81,7 @@ Prepare committed synthetic histories through that service without spending mone
   --scenario support --demo-id real-demo-v1 --request-id history-preparation
 ```
 
-Repeat with `--scenario equipment` for the second domain. Reusing the same request and demonstration identities replays the completed stage. `interpret` requires the exact source hash, a separately approved provider authorization and an ephemeral runtime credential. `compare` rejects incomplete or simulated Jev history and unknown actual charges. The stages now include the durable follow-up path described below; the complete real-run driver remains unfinished. Receipts remain under `artifacts/validation/RealPipeline`.
+Repeat with `--scenario equipment` for the second domain. Reusing the same request and demonstration identities replays the completed stage. `interpret` requires the exact source hash, a separately approved provider authorization and an ephemeral runtime credential. `compare` rejects incomplete or simulated Jev history and unknown actual charges. The stages now include the durable follow-up path described below; the real-run driver completed business-v4. Live execution still requires its own exact-source approval and budget. Receipts remain under `artifacts/validation/RealPipeline`.
 
 Actual Linux model checks and file/checkpoint recovery passed in `artifacts/validation/RealPredictorsLinux` and `artifacts/validation/RealModelRecovery`. Recovery restored the approved files into a temporary directory and reproduced all 24 recorded predictions. That earlier check used the existing isolated evidence database. Combined recovery now reproduces 50 predictions and replays 90 completed jobs from restored database and model files, using Jev fixtures. Final actual-Jev recovery remains pending.
 
@@ -231,3 +248,7 @@ node scripts/validation/run.mjs --manifest tabellio.validation.json \
 ```
 
 Exact-commit validation requires a clean checkout. Preserve durable evidence outside the checkout. The manifest's offline pass does not substitute for the real recorded-data background run, recovery/cancellation checks, rendered review, or total-cost acceptance.
+
+## License
+
+BackIntel source is licensed under [MIT](LICENSE), copyright 2026 IntelIP. Third-party dependencies, fonts, datasets, model weights and hosted services retain their upstream terms. See [demo licensing](docs/demo/DemoLicensing.txt). Model weights and credentials are not included.

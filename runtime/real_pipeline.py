@@ -11,13 +11,20 @@ from runtime.simulation import digest
 from runtime.synthetic import history
 
 
-def prepare_history(store, scenario: str) -> dict:
+def prepare_history(store, scenario: str, *, history_data=None) -> dict:
+    if history_data is not None:
+        task, rows, labels = history_data
+        task = {**task, "id": store.task_id, "observation_provider": {"name": "openrouter-jev", "version": "jev-1.13", "implementation_mode": "real"}}
+        history_data = (task, rows, labels)
     existing = store.find("real_plan", "history-v1")
     if existing:
         if existing["body"]["scenario"] != scenario:
             raise ValueError("Real-model preparation identity conflicts with its scenario")
+        if history_data is not None and existing["body"].get("dataset_sha256") != digest(history_data):
+            raise ValueError("Prepared demonstration identity conflicts with its dataset")
         return existing
-    task, rows, labels = history(scenario)
+    task, rows, labels = history_data if history_data is not None else history(scenario)
+    task = dict(task)
     task["id"] = store.task_id
     task["observation_provider"] = {"name": "openrouter-jev", "version": "jev-1.13", "implementation_mode": "real"}
     task_record = register_task(store, task)
@@ -35,6 +42,8 @@ def prepare_history(store, scenario: str) -> dict:
             "at": at, "model_execution": "not_started", "provider_approval": "required", "provider_calls": 0,
             "unique_texts": len({r["body"]["content"] for r in sources}), "source_records": len(sources),
             "followup": "Separate approved interpretation jobs must finish before real comparison."}
+    if history_data is not None:
+        body["dataset_sha256"] = digest(history_data)
     return store.put("real_plan", "history-v1", body, at,
                      [task_record["sha256"], *[r["sha256"] for r in sources + outcomes]])
 
@@ -116,15 +125,17 @@ def prepare_arrival(store, task_record, scenario, payload):
     return store.put("real_plan",key,body,at,[task_record["sha256"],admission["sha256"]])
 
 
-def prepare_followups(store, history_plan):
+def prepare_followups(store, history_plan, *, event_data=None):
     previous = store.find("real_plan","followups-v1")
     if previous:
+        if event_data is not None and previous["body"].get("event_data_sha256") != digest(event_data):
+            raise ValueError("Prepared follow-up identity conflicts with its dataset")
         return previous
     from runtime.capability_pipeline import followup_events
     task_record = store.get(history_plan["body"]["task"])
     scenario = history_plan["body"]["scenario"]
     events, plans, sources = [], [], []
-    for _,kind,payload in followup_events(scenario):
+    for _,kind,payload in event_data if event_data is not None else followup_events(scenario):
         if payload["operation"] == "arrival":
             plan = prepare_arrival(store,task_record,scenario,payload)
             plans.append(plan)
@@ -141,6 +152,8 @@ def prepare_followups(store, history_plan):
             "scope":scope_for(task_record,sources),"at":at,"events":events,
             "arrival_plans":[r["sha256"] for r in plans],
             "mode":"synthetic_future_sources_with_cutoff_enforcement","provider_calls":0}
+    if event_data is not None:
+        body["event_data_sha256"] = digest(event_data)
     return store.put("real_plan","followups-v1",body,at,[history_plan["sha256"],*[r["sha256"] for r in plans]])
 
 

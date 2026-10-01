@@ -1,0 +1,73 @@
+BackIntel recorded business demo
+
+Purpose
+Show how a support lead's messages and measurements become an evidence-backed
+review packet. The saved run includes actual Jev responses, actual local
+prediction methods, arrivals, corrections, and a shared human review.
+
+Start the packaged React demo
+1. Extract BackIntelDemoBusinessV4.zip. It creates one BackIntelDemo folder.
+2. Open a terminal in BackIntelDemo.
+3. Run: python3 RunDemo.py --check
+4. Run: python3 RunDemo.py
+5. Open http://127.0.0.1:2053/
+Python 3.10 or later is enough. React is already built. No Node installation,
+database service, model download, provider key, or paid inference is needed.
+Stop with Ctrl-C. Use --port 2054 if 2053 is already occupied.
+
+What opening the package does
+It displays the completed business-v4 results. It serves only this package's
+frontend and its recorded decision packet on the local machine. Reviews are
+written to .demo-state/Reviews.sqlite3 inside the extracted folder. The seed
+review is preserved in Records/ReviewsSeed.sqlite3. Existing BackIntel services,
+original databases, provider receipts, and review history remain untouched.
+
+Python comparison, optional
+The Python template is included under PythonDemo. It reads the same review API.
+From the extracted folder, create its separate environment:
+python3 -m venv PythonDemo/.venv
+PythonDemo/.venv/bin/python -m pip install -r PythonDemo/requirements.txt
+cd PythonDemo
+BACKINTEL_WORKSPACE_API_ORIGIN=http://127.0.0.1:2053 .venv/bin/reflex run --env preview --backend-port 3003
+Open http://127.0.0.1:3003/. Installing Reflex needs access to the normal Python
+package registry. The saved-result API must remain running in the first terminal.
+For a custom API port, use that same port in BACKINTEL_WORKSPACE_API_ORIGIN.
+
+Try the five-minute showcase
+Use SupportNarration.txt. Show the manual preparation problem, original customer
+report, actual Jev finding, method comparison, corrected report, and shared
+human decision. Mark any recording-time review 'Synthetic demo review'.
+The saved Access review is under Reviewed. New notes affect only this copy.
+
+Verification
+Run --check before starting. It verifies every packaged file against Manifest.json.
+Workflow demo must show completed. Reviewed / Access must show the synthetic
+reason. The two scenarios recorded 54 provider calls and 90 completed jobs.
+Records/Replay.json proves unchanged evidence across replay of those 90 jobs.
+Records/Budget.json preserves measured charges and the three unknown older charges.
+The package itself makes zero new provider or prediction-model calls.
+
+Package contents
+Frontend: the built React application.
+PythonDemo: the Reflex template and its pinned direct dependency.
+Records: the completed run, original execution exports, verification, screenshots,
+budget, source packet, and copied review seed.
+SourceSnapshot: current source and dependency locks for review and later work.
+Manifest.json: per-file hashes and the source base commit. Source is uncommitted;
+the package is not an exact-commit release or a production deployment.
+DependencyLicenses: license texts available in the installed frontend packages.
+
+Business and licensing limits
+Inputs and future outcomes are synthetic. Six validation cases selected a method;
+they do not prove customer accuracy. Handling times, savings, revenue, local
+compute cost, and net benefit remain unmeasured. Read Licensing.txt before
+redistribution. The repository has not declared a source license.
+
+Rebuild from the working repository
+cd frontend
+npm run build
+cd ..
+python3 -m scripts.package_business_demo --build
+The build reads retained business-v4 files and a read-only SQLite backup. It
+does not run Jev, train models, or start the autonomous worker. Fresh engine
+execution is separate and retains its task-scoped authorizations and cost limits.

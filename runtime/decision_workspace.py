@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 import re
 from pathlib import Path
 import sqlite3
@@ -59,15 +60,28 @@ def simulated_cases():
 
 
 def issue_cases(source):
-    cohort = json.loads((source / "cohort.json").read_text())
+    cohort_bytes = (source / "cohort.json").read_bytes()
+    cohort = json.loads(cohort_bytes)
     predictions = json.loads((source / "predictions.json").read_text())
+    if predictions.get("cohort_sha256") != hashlib.sha256(cohort_bytes).hexdigest():
+        raise ValueError("Predictions do not belong to this retained issue cohort")
+    rows = cohort["holdout"]
+    scores = predictions.get("cases", [])
+    if [score["number"] for score in scores] != [row["number"] for row in rows]:
+        raise ValueError("Prediction case identities or order do not match the retained issues")
     cases = []
     probabilities = predictions["probabilities"]
-    for index, row in enumerate(cohort["holdout"]):
+    if not probabilities or any(len(values) != len(rows) for values in probabilities.values()):
+        raise ValueError("Each prediction method must score every retained issue")
+    for index, row in enumerate(rows):
         original = row["original"]
         text = original.get("body") or "No opening text was recorded."
         title = original["title"]
         estimates = {name: float(values[index]) for name, values in probabilities.items()}
+        if any(not math.isfinite(value) or not 0 <= value <= 1 for value in estimates.values()):
+            raise ValueError("Issue prediction probabilities must be finite values from zero to one")
+        if estimates != scores[index]["probabilities"]:
+            raise ValueError("Prediction vectors disagree with their issue records")
         url = row["url"]
         if not url.startswith("https://github.com/"):
             raise ValueError("Issue evidence must reference the retained public GitHub source")
@@ -106,8 +120,10 @@ def load_cases(source):
 
 
 class DecisionStore:
-    def __init__(self, database, cases):
+    def __init__(self, database, cases, packet_path=None):
         self.database = Path(database)
+        self.packet_path = Path(packet_path) if packet_path is not None else None
+        self.demo = None
         self.database.parent.mkdir(parents=True, exist_ok=True)
         self.cases = {case["id"]: deepcopy(case) for case in cases}
         with self.connect() as connection:
@@ -136,10 +152,36 @@ class DecisionStore:
             item["outcome"] = None
         return item
 
+    def refresh_packet(self):
+        if self.packet_path is None:
+            return
+        packet = json.loads(self.packet_path.read_text())
+        if packet.get("schema") != SCHEMA or not isinstance(packet.get("cases"), list):
+            raise ValueError("Invalid demonstration packet")
+        cases = {}
+        for case in packet["cases"]:
+            if case["id"] in cases or not re.fullmatch(r"[a-f0-9]{64}", case["evidence"]["sha256"]):
+                raise ValueError("Demonstration source identities must be unique and fingerprinted")
+            if any(type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1
+                   for value in case["prediction"]["estimates"].values()):
+                raise ValueError("Demonstration estimates must be finite probabilities")
+            cases[case["id"]] = deepcopy(case)
+        self.cases, self.demo = cases, packet.get("demo")
+
     def workspace(self, source_mode):
-        return {"schema": SCHEMA, "cases": [self.case(case_id) for case_id in self.cases], "source_mode": source_mode}
+        self.refresh_packet()
+        packet = {"schema": SCHEMA, "cases": [self.case(case_id) for case_id in self.cases], "source_mode": source_mode}
+        if self.demo is not None:
+            packet["demo"] = self.demo
+        return packet
 
     def decide(self, case_id, body):
+        try:
+            self.refresh_packet()
+        except (OSError, ValueError, KeyError) as error:
+            raise OSError("Source evidence unavailable. Refresh before saving.") from error
+        if self.demo and self.demo.get("status") == "unavailable":
+            raise OSError("Source evidence unavailable. Refresh before saving.")
         if case_id not in self.cases:
             raise KeyError("Case not found")
         if not isinstance(body, dict) or set(body) != {"decision", "reason", "expected_revision", "expected_source_sha256"}:
@@ -166,10 +208,11 @@ class DecisionStore:
 class WorkspaceServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, store, source_mode, port=2041):
+    def __init__(self, store, source_mode, port=2041, additional_origins=()):
         self.store, self.source_mode = store, source_mode
         super().__init__(("127.0.0.1", port), WorkspaceHandler)
         self.origins = {f"http://127.0.0.1:{self.server_port}", "http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:3001", "http://localhost:3001"}
+        self.origins.update(additional_origins)
 
 
 class WorkspaceHandler(BaseHTTPRequestHandler):
@@ -204,7 +247,12 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if urlsplit(self.path).path != "/api/workspace":
             self.send_json(404, {"error": "Not found"})
             return
-        self.send_json(200, self.server.store.workspace(self.server.source_mode))
+        try:
+            packet = self.server.store.workspace(self.server.source_mode)
+        except (OSError, ValueError, KeyError, sqlite3.Error):
+            self.send_json(503, {"error": "Workspace evidence unavailable. Try again."})
+        else:
+            self.send_json(200, packet)
 
     def do_OPTIONS(self):
         if not self.allowed():
@@ -240,6 +288,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": str(error)})
         except sqlite3.Error:
             self.send_json(503, {"error": "Review storage is unavailable. Try again."})
+        except OSError:
+            self.send_json(503, {"error": "Source evidence unavailable. Refresh before saving."})
         else:
             self.send_json(200, case)
 

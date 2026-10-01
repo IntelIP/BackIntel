@@ -13,3 +13,9 @@ reflex_demo/.venv/
 reflex_demo/.web/
 reflex_demo/assets/
 reflex_demo/__pycache__/
+
+.env.*
+!.env.example
+# Private tracker handoff stays local.
+docs/demo/Packages/AgentShiftReminder.json
+docs/release/AgentShiftReleaseAssessment.txt

@@ -1,0 +1,37 @@
+BackIntel go-to-market brief — initial demonstration
+Owner: Hudson | Prepared: 2026-10-01
+
+Positioning
+Background intelligence for the repeated work before an operational decision.
+One-line description: BackIntel prepares evidence, compares predictions and refreshes a decision packet when information changes, while people make the final call.
+
+First audience
+Support leads and operations analysts who repeatedly join messages, queue measurements and investigation notes. Equipment supervisors are an adjacent demonstration, not a proven customer segment.
+
+Pain
+The lead spends time finding records, interpreting text, checking numbers and assembling an explanation. Each new message or correction can invalidate that work. Evidence gets scattered, changes are missed and reviewing the result requires reconstructing it again. This is a problem hypothesis; prevalence and cost still need customer validation.
+
+Showcase story
+A synthetic customer cannot sign in. The system retains the message and measurements, obtains a typed Jev interpretation, compares CatBoost and TabICLv2 against a baseline, updates another case after a correction, and provides a packet for human review. Show the source before the prediction.
+
+What is real
+54 hosted Jev responses; actual local execution of both prediction methods; 90 completed background jobs; source corrections and refreshed reports; unchanged replay; React/Python shared review; verified recorded-package playback.
+
+What is simulated or unmeasured
+The customer reports, measurements, future outcomes and human demo review are synthetic. Six Support validation cases select a method, not customer accuracy. Saved time, revenue, net benefit, local compute and some earlier failed-request charges are unmeasured. The agent follows a predefined workflow and permission rules.
+
+Messaging
+Website headline: Less time assembling evidence. More time deciding.
+Short introduction: A new report arrives. The same evidence work starts again. BackIntel collects the records, interprets the notes and keeps a source-linked review packet current. Explore a completed synthetic support case, then choose one real workflow to measure.
+Showcase invitation: Walk through the five-minute recorded example with us. Bring one recurring review your team performs today. We will define the decision, the evidence and the comparison before proposing a pilot.
+
+Materials prepared
+One-page WEB-template website, recorded demo package, five-minute narration, demo guide, current release/story assessment and this brief. No public announcement or outreach has been sent.
+
+Pilot success measures
+Before: observe the same manual task, time its preparation, record errors and missed cases.
+After: use approved data and independent reviewer labels; compare preparation time, review quality, source traceability and missed-case rate.
+Economics: record provider, local compute and human review costs. Capacity freed is not automatically a cash saving. Agree on thresholds with the pilot owner before evaluation.
+
+Publication gate
+Rehearse and record feedback; select source licensing; authorize the committed candidate; pass exact-head release validation; approve the surfaces to publish and the deployment origin. Do not imply production readiness, public open-source availability, job replacement or realized financial benefit before the matching evidence exists.

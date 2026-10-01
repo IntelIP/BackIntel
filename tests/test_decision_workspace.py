@@ -1,4 +1,6 @@
 import json
+import hashlib
+from copy import deepcopy
 from pathlib import Path
 import tempfile
 from threading import Thread
@@ -19,6 +21,36 @@ class DecisionWorkspaceTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_unavailable_packet_blocks_writes_and_preserves_existing_review(self):
+        case_id = self.cases[0]["id"]
+        saved = self.store.decide(case_id, self.body)
+        packet_path = Path(self.tmp.name) / "packet.json"
+        packet_path.write_text(json.dumps({"schema": "backintel-decision-workspace/v1", "cases": self.cases, "demo": {"status": "unavailable"}}))
+        self.store.packet_path = packet_path
+        with self.assertRaises(OSError):
+            self.store.decide(case_id, {**self.body, "expected_revision": 1})
+        self.assertEqual(self.store.case(case_id)["review"], saved["review"])
+        packet_path.write_text("invalid json")
+        with self.assertRaises(OSError):
+            self.store.decide(case_id, self.body)
+
+    def test_corrupt_packet_returns_structured_service_error(self):
+        packet_path = Path(self.tmp.name) / "packet.json"
+        packet_path.write_text("invalid json")
+        self.store.packet_path = packet_path
+        server = WorkspaceServer(self.store, self.mode, port=0)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with self.assertRaises(HTTPError) as result:
+                urlopen(f"http://127.0.0.1:{server.server_port}/api/workspace", timeout=5)
+            self.assertEqual(result.exception.code, 503)
+            self.assertIn("unavailable", json.load(result.exception)["error"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
     def test_outcome_hidden_until_decision_and_review_survives_restart(self):
         case_id = self.cases[0]["id"]
@@ -58,16 +90,48 @@ class DecisionWorkspaceTests(unittest.TestCase):
         updated = changed.decide(case_id, dict(self.body, expected_source_sha256="b" * 64))
         self.assertEqual(updated["review"]["revision"], 2)
 
-    def test_public_adapter_preserves_text_and_keeps_label_out_of_facts(self):
+    def public_source(self):
         source = Path(self.tmp.name)
         row = {"number": 1, "original": {"title": "Example", "body": "<script>alert(1)</script>"}, "created_at": "2024-01-01T00:00:00Z", "original_sha256": "a"*64, "url": "https://github.com/example/project/issues/1", "state_at_deadline": "closed", "qualifying_comments": [], "outcome_available_at": "2024-01-08T00:00:00Z"}
-        (source / "cohort.json").write_text(json.dumps({"holdout": [row]}))
-        (source / "predictions.json").write_text(json.dumps({"probabilities": {"baseline": [0.25]}}))
+        cohort = json.dumps({"holdout": [row]}).encode()
+        predictions = {"cohort_sha256": hashlib.sha256(cohort).hexdigest(), "probabilities": {"baseline": [0.25]}, "cases": [{"number": 1, "probabilities": {"baseline": 0.25}}]}
+        (source / "cohort.json").write_bytes(cohort)
+        (source / "predictions.json").write_text(json.dumps(predictions))
+        return source, row, predictions
+
+    def test_public_adapter_preserves_text_and_keeps_label_out_of_facts(self):
+        source, row, _ = self.public_source()
         cases = issue_cases(source)
         self.assertEqual(cases[0]["evidence"]["text"], row["original"]["body"])
         self.assertNotIn("closed", json.dumps(cases[0]["facts"]))
         self.assertFalse(cases[0]["simulated"])
         self.assertEqual(cases[0]["prediction"]["estimates"], {"baseline": 0.25})
+
+    def test_public_adapter_rejects_predictions_from_another_cohort(self):
+        source, row, _ = self.public_source()
+        row["original"]["body"] = "Changed opening report"
+        (source / "cohort.json").write_text(json.dumps({"holdout": [row]}))
+        with self.assertRaisesRegex(ValueError, "cohort"):
+            issue_cases(source)
+
+    def test_public_adapter_rejects_misaligned_or_invalid_scores(self):
+        source, _, valid = self.public_source()
+        invalid = []
+        for mutation in ("identity", "count", "score", "nan", "range"):
+            predictions = deepcopy(valid)
+            if mutation == "identity":
+                predictions["cases"][0]["number"] = 2
+            elif mutation == "count":
+                predictions["probabilities"]["baseline"] = []
+            elif mutation == "score":
+                predictions["probabilities"]["baseline"] = [0.75]
+            else:
+                predictions["probabilities"]["baseline"] = [float("nan") if mutation == "nan" else 1.1]
+            invalid.append((mutation, predictions))
+        for mutation, predictions in invalid:
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                (source / "predictions.json").write_text(json.dumps(predictions))
+                issue_cases(source)
 
     def test_http_contract_origin_body_conflict_and_no_outcome_leak(self):
         server = WorkspaceServer(self.store, self.mode, port=0)

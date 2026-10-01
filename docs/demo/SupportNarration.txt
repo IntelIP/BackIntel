@@ -1,0 +1,147 @@
+BackIntel: a support lead's reports become a reviewable decision packet
+
+Business objective
+A support lead repeatedly reads customer messages, checks queue measurements,
+collects evidence, and prepares a follow-up decision. Corrections force them to
+repeat that preparation. BackIntel performs the approved preparation and keeps
+the evidence current. A person still decides what action to take.
+
+Current demonstration
+Use business-v4. Its customer reports, measurements, and future outcomes are
+synthetic. The interpretation and prediction executions are real. This recording
+walks through saved execution evidence; navigating the report makes no model calls.
+The earlier business-v3 run used short messages and remains an engine rehearsal.
+
+Open these existing services:
+React: http://127.0.0.1:5174/
+Python / Reflex: http://127.0.0.1:3002/
+Shared report and review API: http://127.0.0.1:2043/
+Use a desktop browser window and record at 1080p. Keep business-v4 visible as the
+run identity. Preserve the existing Olist services and other demo ports.
+
+Verified result
+- Both scenarios completed: Support and Equipment.
+- Jev returned 54 actual responses: 27 per scenario. No fixture responses were used.
+- All 90 scheduled jobs completed. No pending triggers remain.
+- CatBoost, TabICLv2, and the baseline actually ran. Support compared facts alone
+  with facts plus Jev, using 18 earlier training records and six later validation
+  records. These six records support selection, not an independent accuracy claim.
+- Support selected CatBoost with Jev: probability error 0.1086. Baseline: 0.2531;
+  CatBoost facts: 0.1264; TabICLv2 facts: 0.1671; TabICLv2 with Jev: 0.1575.
+  Lower error is better on this synthetic validation set.
+- Three source updates refreshed the Support packet. Superseded predictions lost
+  authority. The corrected Accounts report says the service works; its current
+  estimate is about 26.4%. Access still reports a login failure; its estimate is
+  about 78.7%. These experimental estimates are not business outcomes.
+- A labelled synthetic Access review was saved in React and read in Reflex.
+- Explicit replay reused all 90 jobs without changing the stored domain result
+  or making new paid calls.
+
+Five-minute recording and narration
+
+0:00-0:40: The problem and the manual process
+Open Workflow demo. Show 'The work being automated' and expand 'How the work is
+done today'. Verify completed and synthetic business case.
+Say: "A support lead receives messages about customers being unable to sign in.
+Today, they read the messages, check queue measurements, join investigation
+notes, and prepare a decision. New information means repeating that work.
+BackIntel prepares and refreshes the evidence so the lead can review it."
+
+0:40-1:20: The input and Jev's interpretation
+Show SUPPORT-ACCESS under All cases or Reviewed. Read the original evidence,
+source identity, recorded queue load, and actual Jev finding.
+Optionally insert ReactInterpretationRunning.png, labelled as an earlier capture
+of this same run while interpretation was still in progress.
+Say: "These are synthetic reports. Their text, measurements, source versions, and
+availability times are checked and retained. Jev answers a defined question:
+does this message report a service failure? It returned actual typed answers.
+The software controls permission, limits, and the sequence of work."
+
+1:20-2:05: Why two prediction models
+Return to Workflow demo. Show all five comparison rows, the selected row, and
+the baseline. Verify their shared training and validation counts in Workspace.json.
+Say: "CatBoost and TabICLv2 compete to make the same prediction. We also compare
+measurements alone with measurements plus Jev's interpretation. For this run,
+CatBoost with Jev had the lowest validation error. Both models executed locally.
+Six synthetic validation cases cannot prove customer accuracy."
+
+2:05-2:50: The autonomous work and changed information
+Show all six observed stages and three recorded refreshes. Show the corrected
+Accounts report and its current experimental estimate.
+Say: "The approved workflow continues in the background. LangGraph runs defined
+steps. Aegra schedules the work; PostgreSQL retains jobs and evidence. Later
+reports and corrections trigger new preparation. Earlier predictions remain as
+evidence but lose authority when their source changes. This is the autonomous
+preparation demonstrated here. The human owns the business decision."
+
+2:50-3:40: The human decision and shared interfaces
+Open Access under Reviewed. Show Follow up and its saved reason. In Reflex,
+select Reviewed and confirm that same Access reason.
+For an interaction during recording, label any new note 'Synthetic demo review',
+save it in React, then select Refresh workspace in Reflex.
+Say: "The reviewer records a proposed investigation and explains why. The review
+belongs to this evidence version. React and the Python Reflex interface read the
+same decision through one API. This saved note is an internal demo review.
+No customer action or message was sent. No later business outcome is available."
+
+3:40-4:25: Intended value and actual execution charges
+Show Value assumptions and execution cost. Keep Unknown and Not measured visible.
+Say: "If 600 reports a week take eight minutes manually and three with assistance,
+the capacity difference would be fifty hours. At an assumed forty dollars an
+hour, that capacity is worth two thousand dollars. We have not measured those
+handling times, cash savings, or revenue. Support's recorded provider charge is
+0.000369306 dollars. The full two-scenario run recorded 0.000877758 dollars.
+Compute cost and net benefit remain unknown."
+
+4:25-5:00: The result and the next business test
+Show Technology components and their roles, completed stages, and the saved review.
+Say: "The result is a source-backed decision packet prepared and refreshed by a
+bounded workflow, with model comparisons and a preserved human decision.
+Next, measure preparation time, decision quality, operating cost, and customer
+outcomes with a real support team."
+
+Deterministic verification before recording
+1. Open both URLs. Require completed in their Workflow demo views.
+2. Read Integration.json below. Require status=passed, paid_provider_calls=54,
+   workflow.status=passed, pending_triggers=0, and 45 completed jobs per scenario.
+   Read Package.json: provider_fixture_requests must be zero.
+3. Read Workspace.json. Require business-v4 and actual Jev responses. Support
+   stages show 26 source records, 27 interpretations, one comparison, 18 active
+   predictions, nine preparation records, and three refreshes.
+4. Require train_count=18 and holdout_count=6 for each comparison. Selected must
+   be CatBoost / semantic, with probability error about 0.1085705.
+5. Accounts must say Service working and estimate about 0.2643072. Access still
+   reports a failure and estimates about 0.7868495. Earlier source versions and
+   predictions remain in the retained evidence.
+6. Read Replay.json: require status=passed and jobs=90. It records unchanged
+   domain evidence across replay. Use the receipt without repeating inference.
+7. Open Reviewed / Access in React. Require the synthetic reason and saved
+   revision 1. Open Reviewed in Reflex and require the same reason. Later
+   outcome remains unavailable; a saved decision does not invent an outcome.
+8. Read Budget.json. Authorization is $15. Total measured provider charges across
+   retained attempts are $0.001740144. Three older rejected requests have unknown
+   charges. The $0.15 reservation is an allowance, not a measured bill.
+9. AuthorizationClosure.Resumed.json must show zero approved authorizations.
+   The successful receipt records removal of the temporary provider credential.
+10. NumericRoundingChecks.json must say passed. An Equipment response summed to
+    0.99 after hundredth rounding. Bounded normalization fixed processing while
+    retaining the raw receipt. Invalid weights remain rejected. Resume reused
+    48 completed requests and made only six additional calls.
+
+Evidence paths (relative to this repository)
+artifacts/validation/RealDemo/business-v4/Attemptc605b91b38e3/Integration.json
+artifacts/validation/RealDemo/business-v4/Attemptc605b91b38e3/Package/Package.json
+artifacts/validation/BusinessDemo/business-v4/Workspace.json
+artifacts/validation/BusinessDemo/business-v4/Replay.json
+artifacts/validation/BusinessDemo/business-v4/Budget.json
+artifacts/validation/BusinessDemo/business-v4/ResumeApproval.json
+artifacts/validation/BusinessDemo/business-v4/AuthorizationClosure.Resumed.json
+artifacts/validation/BusinessDemo/business-v4/NumericRoundingChecks.json
+artifacts/validation/BusinessDemo/business-v4/ReactInterpretationRunning.png
+artifacts/validation/BusinessDemo/business-v4/ReactReviewed.png
+artifacts/validation/BusinessDemo/business-v4/ReflexReviewed.png
+
+Delivery boundary
+This is a completed local demonstration on synthetic business data. Work remains
+uncommitted. Exact-commit readiness, publication, production operation, real
+customer accuracy, measured savings, and revenue remain unestablished.
