@@ -1,5 +1,11 @@
 # BackIntel
 
+BackIntel source is open source under the [MIT license](LICENSE).
+
+[Latest synthetic business demo](https://github.com/IntelIP/BackIntel/tree/codex/decision-workspace) · [Website and SEO source](https://github.com/IntelIP/BackIntelWebsite) · [Five-minute narration](https://github.com/IntelIP/BackIntel/blob/codex/decision-workspace/docs/demo/SupportNarration.txt)
+
+The working demo is published on `codex/decision-workspace`. It remains a development candidate; full release acceptance is blocked by missing visual, operational and security validators. Source publication does not establish customer accuracy, measured savings or complete operating cost.
+
 Local Olist Seller Performance PoC: reconciled facts, background review enrichment, versioned semantic changes, and a source-linked manager review. This checkout is the integration home. The website remains a separate project.
 
 - [Current repository map](docs/architecture/repository-map.md)
