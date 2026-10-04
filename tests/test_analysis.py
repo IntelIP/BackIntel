@@ -18,6 +18,12 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_timestamp_offsets_preserve_the_same_instant(self):
+        from runtime.analysis_data import timestamp
+        for value in ('2024-01-01T00:00:00Z', '2024-01-01T02:00:00+02:00', '2023-12-31T19:00:00-05:00', '2024-01-01T00:00:00'):
+            with self.subTest(value=value):
+                self.assertEqual(timestamp(value), 1704067200)
+
     def test_support_excludes_later_outcomes(self):
         with tempfile.TemporaryDirectory() as d:
             p=csv_file(d,'support.csv',[{'ticket_id':'one','customer_id':'customer','created_at':'2024-01-01T00:00:00Z',
