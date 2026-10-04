@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { createRoot } from 'react-dom/client';
 import './style.css';
 
 type Principal = {id: string; role: string; domains: string[]; budget: {suite_usd: number}};
@@ -13,7 +12,7 @@ type Model = {id: string; promoted: boolean; body: {methods: {route: string; fea
 type Review = {id: number; actor: string; body: {text: string; kind: string}};
 const format = (n: number|null|undefined) => n == null ? 'Unavailable' : Intl.NumberFormat(undefined,{maximumFractionDigits:3}).format(n);
 
-function App() {
+export default function App() {
   const [token,setToken] = useState(() => new URLSearchParams(location.hash.slice(1)).get('access') || sessionStorage.getItem('backintel-access') || '');
   const [entry,setEntry] = useState('');
   const [me,setMe] = useState<Principal|null>(null);
@@ -119,4 +118,3 @@ function App() {
     </main>
   </div>;
 }
-createRoot(document.getElementById('root')!).render(<App/>);

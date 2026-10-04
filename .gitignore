@@ -7,6 +7,7 @@ __pycache__/
 .env
 /apps/web/node_modules/
 /apps/web/dist/
+/apps/web/coverage/
 # Graphify generates a graph in the working directory and a cache beside scanned files.
 **/graphify-out/
 frontend/node_modules/

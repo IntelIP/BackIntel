@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import httpx
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Depends, Request, HTTPException
@@ -17,6 +18,7 @@ from runtime import analysis_store as db
 from runtime import analysis_service as service
 from runtime.analysis_data import CONFIG, digest
 from runtime.jobs import cancel
+from runtime.analysis_errors import safe_error
 
 app = FastAPI(title='BackIntel analysis workspace')
 
@@ -67,6 +69,7 @@ class CorrectionInput(Input):
 class GrantInput(Input):
     domains: list[str]
     enabled: bool = True
+    expires_at: datetime | None = None
 
 
 def access(request: Request):
@@ -79,17 +82,17 @@ def access(request: Request):
 
 @app.exception_handler(PermissionError)
 async def denied(request, error):
-    return JSONResponse({'detail':str(error)},status_code=403)
+    return JSONResponse({'detail':safe_error(error)},status_code=403)
 
 
 @app.exception_handler(ValueError)
 async def invalid(request, error):
-    return JSONResponse({'detail':str(error)},status_code=400)
+    return JSONResponse({'detail':safe_error(error)},status_code=400)
 
 
 @app.exception_handler(RuntimeError)
 async def blocked(request,error):
-    return JSONResponse({'detail':str(error)},status_code=409)
+    return JSONResponse({'detail':safe_error(error)},status_code=409)
 
 
 @app.get('/api/v1/me')
@@ -304,7 +307,18 @@ def grants(identity:str,body:GrantInput,p=Depends(access)):
     db.authorize(p,roles=('manager',))
     if set(body.domains)-set(CONFIG['sources']) or identity=='worker':
         raise ValueError('Invalid application grant')
-    db.write('UPDATE backintel.analysis_principals SET domains=%s,enabled=%s WHERE id=%s',(body.domains,body.enabled,identity))
+    target = db.query('SELECT domains FROM backintel.analysis_principals WHERE id=%s', (identity,), one=True)
+    if target is None:
+        raise ValueError('Unknown application grant')
+    if (set(body.domains) | set(target['domains'])) - set(p['domains']):
+        raise PermissionError('Grant changes require access to every affected source')
+    if body.expires_at is not None and body.expires_at.tzinfo is None:
+        raise ValueError('Credential expiry requires a timezone')
+    if 'expires_at' in body.model_fields_set:
+        db.write('UPDATE backintel.analysis_principals SET domains=%s,enabled=%s,expires_at=%s WHERE id=%s',
+                 (body.domains,body.enabled,body.expires_at,identity))
+    else:
+        db.write('UPDATE backintel.analysis_principals SET domains=%s,enabled=%s WHERE id=%s',(body.domains,body.enabled,identity))
     return {'saved':True}
 
 

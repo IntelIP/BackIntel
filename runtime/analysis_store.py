@@ -32,15 +32,15 @@ def write(sql, params=()):
 def principal(token):
     if not token or len(token) > 512:
         raise PermissionError('A local access credential is required')
-    p = query('SELECT id,role,domains FROM backintel.analysis_principals WHERE token_hash=%s AND enabled',
+    p = query('SELECT id,role,domains FROM backintel.analysis_principals WHERE token_hash=%s AND enabled AND (expires_at IS NULL OR expires_at>now())',
               (hashlib.sha256(token.encode()).hexdigest(),), one=True)
     if p is None:
-        raise PermissionError('Access credential is invalid or revoked')
+        raise PermissionError('Access credential is invalid, revoked, or expired')
     return p
 
 
 def authorize(p, domain=None, roles=('manager', 'analyst', 'viewer')):
-    current = query('SELECT id,role,domains FROM backintel.analysis_principals WHERE id=%s AND enabled', (p['id'],), one=True)
+    current = query('SELECT id,role,domains FROM backintel.analysis_principals WHERE id=%s AND enabled AND (expires_at IS NULL OR expires_at>now())', (p['id'],), one=True)
     if not current or current['role'] not in roles or (domain and domain not in current['domains']):
         raise PermissionError('Role or source access is denied')
     return current

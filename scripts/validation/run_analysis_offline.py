@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import resource
+import socket
 import subprocess
 import sys
 import time
@@ -65,6 +66,29 @@ def ready(server, base):
     raise RuntimeError('Fixture runtime did not become ready within 60 seconds')
 
 
+def local_docker(*arguments):
+    env = os.environ.copy()
+    for key in ('DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH'):
+        env.pop(key, None)
+    result = subprocess.run(['docker', '--host=unix:///var/run/docker.sock', *arguments],
+                            env=env, capture_output=True, text=True, timeout=30)
+    if result.returncode:
+        raise RuntimeError('Owned validation broker operation failed: ' + arguments[0])
+    return result.stdout.strip()
+
+
+def broker_ready(uri):
+    import redis
+    for _ in range(100):
+        try:
+            if redis.Redis.from_url(uri, socket_connect_timeout=.2, socket_timeout=.2).ping():
+                return
+        except redis.RedisError:
+            pass
+        time.sleep(.1)
+    raise RuntimeError('Owned validation broker did not become ready')
+
+
 def backup_restore(admin_url, test_url, database, output, settings):
     container = os.environ.get('BACKINTEL_VALIDATION_POSTGRES_CONTAINER')
     if not container:
@@ -115,6 +139,7 @@ def main():
     parser.add_argument('--mode', choices=('unit', 'e2e'), required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--port', type=int, default=2028)
+    parser.add_argument('--broker-recovery', action='store_true', help='Use an owned disposable Redis container and stop/restart it')
     args = parser.parse_args()
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -128,6 +153,7 @@ def main():
     env = os.environ.copy()
     env.update(BACKINTEL_APP_DATABASE_URL=test_url, BACKINTEL_TEST_DATABASE_URL=test_url,
                BACKINTEL_ANALYSIS_CHECK_DB=test_url, PYTHONPATH=str(ROOT),
+               BACKINTEL_VALIDATION_OUTPUT=str(output),
                BACKINTEL_ANALYST_CREDENTIAL_FILE=str(output / 'no-provider-credential.json'))
     for key in ('OPENROUTER_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY'):
         env[key] = ''
@@ -136,23 +162,32 @@ def main():
                'dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
                'started_at': datetime.now(timezone.utc).isoformat(), 'database': database,
                'provider_calls': 0, 'new_provider_spend_usd': 0, 'status': 'blocked'}
-    receipt['dependencies'] = {name: version(name) for name in ('aegra-api', 'httpx', 'psycopg', 'langgraph')}
+    receipt['dependencies'] = {name: version(name) for name in ('aegra-api', 'httpx', 'psycopg', 'langgraph', 'coverage')}
     env['BACKINTEL_CANDIDATE_SHA'] = receipt['candidate_commit']
     receipt['dependencies'].update(python=sys.version.split()[0], node=subprocess.check_output(['node', '--version'], text=True).strip())
     tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0')
     receipt['candidate_files'] = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in tracked if name and (ROOT / name).is_file()}
     server = None
+    owned_broker = None
     with psycopg.connect(admin_url, autocommit=True) as connection:
         connection.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(database)))
     try:
         if args.mode == 'unit':
-            code = '''import httpx,sys,unittest
+            code = '''import coverage,httpx,os,sys,unittest
+from pathlib import Path
+out=Path(os.environ['BACKINTEL_VALIDATION_OUTPUT'])
+cov=coverage.Coverage(branch=True,include=['*/runtime/analysis_*.py'],data_file=str(out/'.coverage'))
+cov.start()
 original=httpx.Client.send
 def guarded(self,request,*args,**kwargs):
     if request.url.host not in ('testserver','localhost','127.0.0.1','::1'):raise RuntimeError('External provider transport forbidden')
     return original(self,request,*args,**kwargs)
 httpx.Client.send=guarded
 result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.discover('tests',pattern='test_analysis*.py'))
+cov.stop()
+cov.save()
+cov.json_report(outfile=str(out/'backend-coverage.json'))
+with (out/'backend-coverage.log').open('w') as report:cov.report(file=report)
 sys.exit(0 if result.wasSuccessful() else 1)
 '''
             result = subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=env, capture_output=True, text=True, timeout=240)
@@ -163,11 +198,24 @@ sys.exit(0 if result.wasSuccessful() else 1)
             access.write_text(json.dumps({role: 'offline-fixture-' + role for role in ('manager', 'analyst', 'viewer', 'worker')}))
             access.chmod(0o600)
             marker = uuid.uuid4().hex
+            redis_url = os.environ.get('BACKINTEL_VALIDATION_REDIS_URL')
+            if args.broker_recovery:
+                owned_broker = 'backintel-validation-' + marker + '-redis'
+                with socket.socket() as listener:
+                    listener.bind(('127.0.0.1', 0))
+                    port = listener.getsockname()[1]
+                local_docker('run', '--detach', '--pull=never', '--name', owned_broker,
+                             '--publish', '127.0.0.1:' + str(port) + ':6379', '--memory=128m', '--cpus=.5', '--pids-limit=64',
+                             'redis:7.2.5-alpine')
+                redis_url = 'redis://127.0.0.1:' + str(port) + '/0'
+                broker_ready(redis_url)
+            if not redis_url:
+                raise RuntimeError('Provide BACKINTEL_VALIDATION_REDIS_URL or --broker-recovery')
             env.update(DATABASE_URL=test_url, AEGRA_CONFIG=str(ROOT / 'aegra.analysis.json'), AUTH_TYPE='custom',
                        BACKINTEL_VALIDATION_MODE='fixture', BACKINTEL_DATASET_DIR=str(data),
                        BACKINTEL_ACCESS_CREDENTIAL_FILE=str(access), BACKINTEL_VALIDATION_PORT=str(args.port),
                        BACKINTEL_AEGRA_URL=f'http://127.0.0.1:{args.port}', REDIS_BROKER_ENABLED='true',
-                       REDIS_URL=os.environ['BACKINTEL_VALIDATION_REDIS_URL'],
+                       REDIS_URL=redis_url,
                        REDIS_CHANNEL_PREFIX='aegra:validation:' + marker + ':run:', WORKER_QUEUE_KEY='aegra:validation:' + marker + ':jobs',
                        WORKER_COUNT='1', N_JOBS_PER_WORKER='1', CRON_POLL_INTERVAL_SECONDS='1',
                        OTEL_TARGETS='', OTEL_CONSOLE_EXPORT='false')
@@ -212,6 +260,39 @@ sys.exit(0 if result.wasSuccessful() else 1)
                     raise AssertionError('Worker recovery duplicated admission or attempted provider work')
                 receipt['hard_worker_restart'] = {'status': 'passed', 'mode': 'fixture import with real process kill/restart',
                                                    'same_run_id': identity, 'attempts': attempts, 'provider_calls': requests}
+                if owned_broker:
+                    local_docker('stop', '--time=3', owned_broker)
+                    try:
+                        with httpx.Client(base_url=base, headers=headers, timeout=40) as client:
+                            admitted = client.post('/api/v1/sources/commerce/refresh', json={})
+                            admitted.raise_for_status()
+                            interrupted = admitted.json()
+                            state = client.get('/api/v1/runs/' + interrupted['id']).json()
+                        if state['status'] != 'queued':
+                            raise AssertionError('Broker outage did not retain the durable queued job')
+                    finally:
+                        local_docker('start', owned_broker)
+                        broker_ready(redis_url)
+                    with httpx.Client(base_url=base, headers=headers, timeout=20) as client:
+                        resumed = client.post('/api/v1/sources/commerce/refresh', json={})
+                        resumed.raise_for_status()
+                        if resumed.json()['id'] != interrupted['id']:
+                            raise AssertionError('Broker recovery duplicated the accepted job')
+                        for _ in range(100):
+                            state = client.get('/api/v1/runs/' + interrupted['id']).json()
+                            if state['status'] == 'succeeded':
+                                break
+                            time.sleep(.1)
+                        else:
+                            raise AssertionError('Durable job did not recover after broker restart')
+                    with psycopg.connect(test_url) as connection:
+                        provider_count = connection.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s', (interrupted['id'],)).fetchone()[0]
+                        pending_events = connection.execute("SELECT count(*) FROM backintel.analysis_events WHERE run_id=%s AND kind='dispatch_pending'", (interrupted['id'],)).fetchone()[0]
+                    if provider_count or not pending_events:
+                        raise AssertionError('Broker failure receipt or zero-provider boundary is missing')
+                    receipt['broker_restart'] = {'status': 'passed', 'mode': 'owned Redis process stop/restart',
+                                                 'same_run_id': interrupted['id'], 'durable_status_during_outage': 'queued',
+                                                 'provider_calls': provider_count, 'existing_broker_untouched': True}
                 server.terminate()
                 server.wait(timeout=15)
                 receipt['database_backup_restore'] = backup_restore(admin_url, test_url, database, output, settings)
@@ -229,7 +310,7 @@ sys.exit(0 if result.wasSuccessful() else 1)
         (output / 'fixture-ledger.json').write_text(json.dumps({'mode': 'fixture', 'paid_provider_calls': 0, 'requests': ledger}, indent=2) + '\n')
         receipt['fixture_requests_retained'] = len(ledger)
     except Exception as error:
-        receipt.update(status='blocked', reason=type(error).__name__ + ': ' + str(error).replace(settings.get('password', '\0'), '[redacted]'))
+        receipt.update(status='failed' if isinstance(error, AssertionError) else 'blocked', reason=type(error).__name__ + ': ' + str(error).replace(settings.get('password', '\0'), '[redacted]'))
     finally:
         if server:
             server.terminate()
@@ -242,13 +323,24 @@ sys.exit(0 if result.wasSuccessful() else 1)
             if settings.get('password'):
                 path = output / 'runtime.log'
                 path.write_text(path.read_text().replace(settings['password'], '[redacted]'))
-            access.unlink()
-            import redis
-            broker = redis.Redis.from_url(env['REDIS_URL'])
-            keys = list(broker.scan_iter(match='aegra:validation:' + marker + ':*'))
-            if keys:
-                broker.delete(*keys)
-            receipt['broker_cleanup'] = 'removed only campaign prefix'
+            access.unlink(missing_ok=True)
+            if not owned_broker:
+                import redis
+                try:
+                    broker = redis.Redis.from_url(env['REDIS_URL'], socket_timeout=2, socket_connect_timeout=2)
+                    keys = list(broker.scan_iter(match='aegra:validation:' + marker + ':*'))
+                    if keys:
+                        broker.delete(*keys)
+                    receipt['broker_cleanup'] = 'removed only campaign prefix'
+                except redis.RedisError:
+                    receipt.update(status='failed', broker_cleanup='failed', reason='Existing Redis unreachable during prefix cleanup')
+        if owned_broker:
+            try:
+                local_docker('rm', '--force', owned_broker)
+                receipt['owned_broker_container_cleanup'] = 'removed'
+                receipt['broker_cleanup'] = 'removed owned fixture broker'
+            except RuntimeError:
+                receipt.update(status='failed', owned_broker_container_cleanup='failed', reason='Owned broker removal failed')
         with psycopg.connect(admin_url, autocommit=True) as connection:
             connection.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(database)))
         receipt.update(database_cleanup='removed', finished_at=datetime.now(timezone.utc).isoformat())

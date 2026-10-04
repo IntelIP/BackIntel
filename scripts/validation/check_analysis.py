@@ -58,7 +58,7 @@ print(json.dumps({'domains':result,'costs':db.query('SELECT status,charge,reserv
 
 
 def static(output):
-    commands=[['npm','--prefix','apps/web','run','build'],['npm','--prefix','apps/web','run','deadcode'],
+    commands=[['npm','--prefix','apps/web','run','build'],['npm','--prefix','apps/web','run','test:receipt'],['npm','--prefix','apps/web','run','deadcode'],
               [sys.executable,'-m','vulture',*[str(p.relative_to(ROOT)) for folder in ('runtime','scripts') for p in (ROOT/folder).glob('analysis_*.py')],'--min-confidence','100'],
               [sys.executable,'-m','compileall','-q','runtime','scripts','tests']]
     results=[]
@@ -76,7 +76,12 @@ def schema(output):
 
 
 def security(output):
-    return functional(output,('-k','role_and_domain_denials','-k','revocation_and_cross_goal_evidence','-k','duplicate_snapshot_run_and_budget','-k','unapproved_provider_response_is_rejected','-k','correction_invalidates_test_member_and_promotion','-k','lower_budget_and_partial_resume'))
+    names=('role_and_domain_denials','revocation_and_cross_goal_evidence','duplicate_snapshot_run_and_budget',
+           'unapproved_provider_response_is_rejected','correction_invalidates_test_member_and_promotion',
+           'lower_budget_and_partial_resume','expired_grant','grant_expiry','private_run_evidence',
+           'credentials_are_redacted','scoped_manager','ambiguous_provider_timeout','hostile_tool',
+           'environment_file_uri_and_bearer')
+    return functional(output,tuple(item for name in names for item in ('-k',name)))
 
 
 def semantic(output):

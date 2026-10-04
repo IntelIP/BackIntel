@@ -2,12 +2,13 @@
 import copy
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
 import uuid
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -149,10 +150,9 @@ class RealBoundaryTests(unittest.TestCase):
 
     def test_missing_credential_preserves_approved_request_slot(self):
         self.approve_fixture()
-        with patch.dict(os.environ, {}, clear=True):
-            # Preserve database addressing without allowing any credential into this check.
-            os.environ["BACKINTEL_APP_DATABASE_URL"] = self.conn.info.dsn
-            os.environ["BACKINTEL_TEST_DATABASE_URL"] = self.conn.info.dsn
+        test_dsn = dsn()
+        with patch.dict(os.environ, {"BACKINTEL_APP_DATABASE_URL": test_dsn, "BACKINTEL_TEST_DATABASE_URL": test_dsn}, clear=True):
+            # Preserve local database authentication; every provider credential is absent.
             with self.assertRaisesRegex(RuntimeError, "ephemeral credential"):
                 extract_real(self.store,self.task,self.sources[0],3,authorization_id=self.authorization)
         self.assertEqual(usage_for(self.store)["provider_calls"], 0)
@@ -313,8 +313,12 @@ class RealBoundaryTests(unittest.TestCase):
                 _allow_model_use("catboost")
             with self.assertRaisesRegex(RuntimeError,"not been downloaded"):
                 checkpoint("classification")
-            with patch("tabicl.TabICLClassifier") as constructor:
+            constructor = MagicMock()
+            thread_limit = MagicMock()
+            with patch.dict(sys.modules, {"tabicl": SimpleNamespace(TabICLClassifier=constructor, TabICLRegressor=MagicMock()),
+                                          "torch": SimpleNamespace(set_num_threads=thread_limit)}):
                 _tabicl("classification",Path(directory)/"absent.ckpt")
+                thread_limit.assert_called_once_with(2)
                 self.assertFalse(constructor.call_args.kwargs["allow_auto_download"])
                 self.assertEqual(constructor.call_args.kwargs["device"],"cpu")
                 self.assertEqual(constructor.call_args.kwargs["n_estimators"],1)

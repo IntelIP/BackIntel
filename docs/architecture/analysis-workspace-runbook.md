@@ -1,6 +1,6 @@
 # Local continuous analysis workspace
 
-Current measured results and remaining blockers are recorded in [analysis acceptance](analysis-acceptance.md).
+Current measured results and remaining blockers are recorded in [the current validation campaign](analysis-validation-campaign.md). Earlier benchmark evidence remains in [historical analysis acceptance](analysis-acceptance.md).
 
 The application lets a manager confirm a question, select permitted data, compare prediction methods, and inspect updated answers. The hosted analyst is `openai/gpt-6.1-sol` through OpenRouter Responses, restricted to OpenAI with fallback disabled. Local Decide handles classification; CatBoost and TabICLv2 handle predictions. No local planning language model is used.
 
@@ -69,12 +69,13 @@ The analysis validation manifest covers static, schema, semantic, workflow, visu
 
 ## Portable offline campaign
 
-Use Python 3.12, Node 22 or newer, and local disposable PostgreSQL/Redis services. Install the pinned test/runtime dependencies, build the web app, and install the pinned browser:
+Use Python 3.12, Node 22.22.2 or Node 24.15.0 or newer, and local disposable PostgreSQL/Redis services. Install the pinned test/runtime dependencies, build the web app, and install the pinned browser:
 
 ```bash
 python -m pip install -r requirements.testing.txt
 npm ci --prefix apps/web
 npm run build --prefix apps/web
+npm run test:receipt --prefix apps/web
 (cd apps/web && npx playwright install chromium)
 ```
 
@@ -84,11 +85,22 @@ Set `BACKINTEL_VALIDATION_POSTGRES_CONTAINER` to that local PostgreSQL container
 
 ```bash
 python scripts/validation/run_analysis_offline.py --mode unit --output artifacts/AnalysisValidation/local-unit
-python scripts/validation/run_analysis_offline.py --mode e2e --output artifacts/AnalysisValidation/local-e2e
+BACKINTEL_UNIT_OUTPUT=artifacts/AnalysisValidation/local-regression python scripts/validation/check_units.py
+python scripts/validation/run_analysis_offline.py --mode e2e --broker-recovery --output artifacts/AnalysisValidation/local-e2e
 ```
 
-Each output directory must be new so failures are preserved. Each invocation creates its own `backintel_*_test` database and removes it afterward. E2E uses port 2028 by default (`--port` changes the listen port); browser writes currently allow origins at port 2028, so use the default for the rendered journey. E2E creates synthetic inputs for all five adapters and substitutes only provider/model responses. It runs the real Aegra API, PostgreSQL, Redis worker, and native scheduler. Receipt `mode: fixture` and synthetic source caveats prevent this evidence from qualifying as a live model benchmark. Unit execution rejects external provider transport and does not discover provider credentials.
+The component suite uses pinned Vitest, React Testing Library, jsdom, and V8 coverage. It writes `apps/web/coverage/test-results.json` and `coverage-summary.json`. This report supplements the browser matrix; a broad coverage percentage alone is not acceptance. Build before starting E2E and keep the built assets stable for the entire run.
 
-The E2E receipt records the five import/goal/answer/evidence/follow-up paths and independent group/count/mean oracles, a failed answer, model approval and prediction fixtures, source correction and internal notification, six desktop/mobile role journeys, keyboard evidence inspection, and a bounded native-clock cron. It also kills the fixture runtime during a running import, restarts it, and verifies that the same job completes in its second attempt with no provider requests. When configured, it dumps the fixture database, restores it into a fresh database, compares evidence/results/provider identities, and removes that database. It removes its server, access file, owned Redis prefix, native cron, and primary test database. Receipts contain candidate commit, dirty state, dependency/configuration fingerprints, fixture ledger, timings, memory boundary, cleanup, and artifact hashes. Keep evidence from a dirty tree identified as such.
+`--broker-recovery` creates a uniquely named Redis container from the locally available `redis:7.2.5-alpine` image, binds a random loopback port, and enforces 128MB, half a CPU, and 64 PIDs. It stops and restarts only that owned container, proves durable admission through the outage, and removes it afterward. The existing Redis service is preserved. Docker settings are unchanged; no image is pulled by this check. Omit the flag to use the provided Redis URL and record broker interruption as untested.
+
+Each output directory must be new so failures are preserved. Each invocation creates its own `backintel_*_test` database and removes it afterward. E2E uses port 2028 by default (`--port` changes the listen port); browser writes currently allow origins at port 2028, so use the default for the rendered journey. E2E creates synthetic inputs for all five adapters and substitutes only provider/model responses. It runs the real Aegra API, PostgreSQL, Redis worker, and native scheduler. Receipt `mode: fixture` and synthetic source caveats prevent this evidence from qualifying as a live model benchmark. Unit execution rejects external provider transport and does not discover provider credentials. The all-module regression runner uses the same local admin binding, creates a separate database per Python test module, clears provider bindings, records test/skip counts, and removes each owned database. Analysis modules receive their required analysis database flag rather than silently skipping their database cases.
+
+The E2E receipt records the five import/goal/answer/evidence/follow-up paths and independent group/count/mean oracles, a failed answer, model approval and prediction fixtures, source correction and internal notification, six desktop/mobile role journeys, keyboard evidence inspection, and a bounded native-clock cron. It also kills the fixture runtime during a running import, restarts it, and verifies that the same job completes in its second attempt with no provider requests. The owned-broker case stops Redis during admission, observes the queued PostgreSQL job and dispatch-pending event, restarts Redis, and resumes the same accepted job without provider calls. When configured, it dumps the fixture database, restores it into a fresh database, compares evidence/results/provider identities, and removes that database. It removes its server, access file, owned Redis prefix, native cron, and primary test database. Receipts contain candidate commit, dirty state, dependency/configuration fingerprints, fixture ledger, timings, memory boundary, cleanup, and artifact hashes. Keep evidence from a dirty tree identified as such.
 
 The `analysis-quality.yml` workflow runs static checks and these offline campaigns on pull requests. Hosted CI has not been run by this local campaign. Paid campaigns require their recorded authorization, actual permitted source files and model weights, current pricing, and an injected analyst credential. Ordinary CI does not receive provider secrets.
+
+## Expiry and error privacy
+
+A manager can set `expires_at` with a timezone through `PATCH /api/v1/principals/{id}`. The API and queued-work admission recheck expiry using the database clock. Omitted expiry preserves the existing setting; explicit null removes it. Existing local grants remain without expiry until configured. Managers can change grants only for sources within their own scope; worker grants are excluded from this endpoint.
+
+Configured analyst, access-file, database URI, and bearer credentials are redacted before errors are written to API responses, source errors, run results, events, or append-only application evidence. Synthetic-secret regression checks verify these paths. General host logs and live-provider echo behavior still require review in the real campaign.

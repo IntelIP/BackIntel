@@ -14,6 +14,7 @@ import httpx
 from psycopg.types.json import Jsonb
 
 from runtime.analysis_data import CONFIG, digest
+from runtime.analysis_errors import safe_error
 from runtime import analysis_store as db
 
 TOOL_SPECS = {
@@ -268,6 +269,6 @@ def analyze(identity):
                     results.append(result)
                 db.event(identity, 'tool_completed', {'tool': call['name'], 'evidence_id': result['evidence_id']})
             except (ValueError, RuntimeError) as error:
-                result = {'limitation': str(error), 'tool': call['name']}
+                result = {'limitation': safe_error(error), 'tool': call['name']}
             inputs.append({'type': 'function_call_output', 'call_id': call['call_id'], 'output': json.dumps(result)})
     raise RuntimeError('Analysis call limit reached before a supported answer')

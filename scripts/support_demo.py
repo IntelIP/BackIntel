@@ -130,10 +130,15 @@ def prepare_frontends(output):
     owned = output / "ReflexApp"
     owned.mkdir(parents=True, exist_ok=True)
     for name in ("reflex_demo", "assets"):
-        shutil.copytree(ROOT / "reflex_demo" / name, owned / name, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
+        source = ROOT / "reflex_demo" / name
+        if name == 'assets' and not source.exists():
+            (owned / name).mkdir(exist_ok=True)
+        else:
+            shutil.copytree(source, owned / name, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
     css = (ROOT / "frontend/src/styles.css").read_text()
     asset = owned / "assets/workspace.css"
-    asset.write_text(asset.read_text().split(".demo-content", 1)[0] + css[css.index(".demo-content"):])
+    prior = asset.read_text() if asset.exists() else css
+    asset.write_text(prior.split(".demo-content", 1)[0] + css[css.index(".demo-content"):])
     (owned / "rxconfig.py").write_text('import reflex as rx\nconfig = rx.Config(app_name="reflex_demo", frontend_port=3002, backend_port=3002, api_url="http://127.0.0.1:3002", backend_host="127.0.0.1", show_built_with_reflex=False)\n')
     return owned
 

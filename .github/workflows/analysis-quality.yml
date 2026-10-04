@@ -16,6 +16,8 @@ jobs:
         run: npm ci --prefix apps/web
       - name: Build frontend
         run: npm run build --prefix apps/web
+      - name: Frontend component checks and coverage
+        run: npm run test:receipt --prefix apps/web
       - name: Pinned frontend dead code check
         run: npm run deadcode --prefix apps/web
       - name: Pinned Python dead code check
@@ -24,6 +26,11 @@ jobs:
           python -m vulture runtime/analysis_*.py scripts/analysis_*.py --min-confidence 100
       - name: Compile backend
         run: python -m compileall -q runtime scripts tests
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: analysis-component-evidence
+          path: apps/web/coverage/
   offline:
     runs-on: ubuntu-latest
     services:
@@ -62,10 +69,14 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Unit, database, budget, and recovery checks
         run: python scripts/validation/run_analysis_offline.py --mode unit --output artifacts/AnalysisValidation/ci-unit
+      - name: Existing runtime and all Python unit regressions
+        env:
+          BACKINTEL_UNIT_OUTPUT: artifacts/AnalysisValidation/ci-regression
+        run: python scripts/validation/check_units.py
       - name: Five-domain simulated browser and native-clock checks
         env:
           BACKINTEL_VALIDATION_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
-        run: python scripts/validation/run_analysis_offline.py --mode e2e --output artifacts/AnalysisValidation/ci-e2e
+        run: python scripts/validation/run_analysis_offline.py --mode e2e --broker-recovery --output artifacts/AnalysisValidation/ci-e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:

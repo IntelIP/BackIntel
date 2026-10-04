@@ -12,6 +12,7 @@ from psycopg.types.json import Jsonb
 
 from runtime import analysis_store as db
 from runtime.analysis_data import CONFIG, adapt, digest, fingerprint, source_files
+from runtime.analysis_errors import safe_error
 from runtime.evidence import Evidence
 from runtime.jobs import enqueue, execute, runnable
 
@@ -40,7 +41,7 @@ def import_source(domain, actor):
         result = _import_source(domain, actor)
     except (OSError, ValueError, PermissionError, RuntimeError) as error:
         db.write('UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s',
-                 (Jsonb({'last_refresh_error':str(error)[:1500],'last_checked_at':time.time()}),domain))
+                 (Jsonb({'last_refresh_error':safe_error(error),'last_checked_at':time.time()}),domain))
         raise
     db.write("UPDATE backintel.analysis_sources SET body=(body-'last_refresh_error') || %s WHERE id=%s",
              (Jsonb({'last_checked_at':time.time()}),domain))
@@ -142,7 +143,7 @@ def model_job(identity):
     child = subprocess.run([sys.executable, '-m', 'runtime.analysis_models', '--domain', g['domain'], '--snapshot', r['snapshot_id']],
                            capture_output=True, text=True, timeout=CONFIG['limits']['model_seconds']-20)
     if child.returncode:
-        raise RuntimeError('Model comparison failed: '+child.stderr[-1200:])
+        raise RuntimeError('Model comparison failed: '+safe_error(child.stderr[-1200:]))
     manifest = json.loads(child.stdout)
     db.check_run(identity)
     candidate = digest([g['id'], manifest['id']])
@@ -216,9 +217,10 @@ def handle(store, payload):
     except Exception as error:
         # No failed refresh replaces last_success; no response is disguised as real success.
         status = 'cancelled' if isinstance(error, (InterruptedError, PermissionError)) else 'partial'
-        result = {'status': status, 'summary': 'This run did not complete.', 'limitations': [str(error)[:2000]], 'usage': db.usage(identity)}
-        db.write('UPDATE backintel.analysis_runs SET status=%s,result=%s,error=%s,updated_at=now() WHERE id=%s', (status, Jsonb(result), str(error)[:2000], identity))
-        db.event(identity, 'completed', {'status': status, 'reason': str(error)[:2000]})
+        reason = safe_error(error)
+        result = {'status': status, 'summary': 'This run did not complete.', 'limitations': [reason], 'usage': db.usage(identity)}
+        db.write('UPDATE backintel.analysis_runs SET status=%s,result=%s,error=%s,updated_at=now() WHERE id=%s', (status, Jsonb(result), reason, identity))
+        db.event(identity, 'completed', {'status': status, 'reason': reason})
     attempt=db.query('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s',(r['job_id'],),one=True)['attempts']
     return store.put('analysis_result', f'{identity}:{attempt}', result, int(time.time()))
 
@@ -265,7 +267,7 @@ def refresh():
     results = []
     for source in db.query('SELECT * FROM backintel.analysis_sources'):
         domain = source['domain']
-        owner = db.query("SELECT id FROM backintel.analysis_principals WHERE enabled AND role='manager' AND %s=ANY(domains) ORDER BY id LIMIT 1", (domain,), one=True)
+        owner = db.query("SELECT id FROM backintel.analysis_principals WHERE enabled AND (expires_at IS NULL OR expires_at>now()) AND role='manager' AND %s=ANY(domains) ORDER BY id LIMIT 1", (domain,), one=True)
         if not owner:
             results.append({'domain': domain, 'status': 'blocked', 'reason': 'No manager has permission to refresh this source'})
             continue
@@ -274,7 +276,7 @@ def refresh():
             schedule_snapshot(domain, update)
             results.append({'domain': domain, **update})
         except (ValueError, PermissionError, RuntimeError, OSError) as error:
-            results.append({'domain': domain, 'status': 'blocked', 'reason': str(error)[:1000]})
+            results.append({'domain': domain, 'status': 'blocked', 'reason': safe_error(error)})
     return {'sources': results, 'dispatch': dispatch()}
 
 

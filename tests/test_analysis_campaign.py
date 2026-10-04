@@ -194,6 +194,149 @@ class CampaignChecks(unittest.TestCase):
         self.assertEqual(db.usage(self.run['id'])['provider_calls'], 1)
         self.assertEqual(db.usage(self.run['id'])['provider_usd'], .001)
 
+    def test_expired_grant_blocks_api_and_already_accepted_work(self):
+        from fastapi.testclient import TestClient
+        from runtime.analysis_api import app
+        db.write("UPDATE backintel.analysis_principals SET expires_at=now()-interval '1 second' WHERE id='campaign-manager'")
+        try:
+            self.assertEqual(TestClient(app).get('/api/v1/me', headers={'Authorization': 'Bearer campaign-manager'}).status_code, 403)
+            with self.assertRaises(PermissionError):
+                db.authorize(self.actor, 'commerce')
+            with self.assertRaises(PermissionError):
+                db.reserve(self.run['id'], 'expired-admission', .01)
+            with patch('runtime.analysis_agent.analyze', side_effect=lambda identity: db.check_run(identity)):
+                service.dispatch()
+            self.assertEqual(db.run(self.run['id'])['status'], 'cancelled')
+            self.assertEqual(db.query('SELECT count(*) AS n FROM backintel.analysis_requests', one=True)['n'], 0)
+        finally:
+            db.write("UPDATE backintel.analysis_principals SET expires_at=NULL WHERE id='campaign-manager'")
+
+    def test_grant_expiry_changes_require_manager_and_aware_time(self):
+        from fastapi.testclient import TestClient
+        from runtime.analysis_api import app
+        client = TestClient(app)
+        body = {'domains': ['commerce'], 'expires_at': '2099-01-01T00:00:00Z'}
+        headers = {'Authorization': 'Bearer campaign-manager'}
+        try:
+            self.assertEqual(client.patch('/api/v1/principals/campaign-viewer', headers={'Authorization': 'Bearer campaign-analyst'}, json=body).status_code, 403)
+            self.assertEqual(client.patch('/api/v1/principals/campaign-viewer', headers=headers, json={**body, 'expires_at': '2099-01-01T00:00:00'}).status_code, 400)
+            self.assertEqual(client.patch('/api/v1/principals/campaign-viewer', headers=headers, json=body).status_code, 200)
+            before = db.query("SELECT expires_at FROM backintel.analysis_principals WHERE id='campaign-viewer'", one=True)['expires_at']
+            self.assertEqual(client.patch('/api/v1/principals/campaign-viewer', headers=headers, json={'domains': ['commerce']}).status_code, 200)
+            self.assertEqual(db.query("SELECT expires_at FROM backintel.analysis_principals WHERE id='campaign-viewer'", one=True)['expires_at'], before)
+            self.assertEqual(client.patch('/api/v1/principals/campaign-viewer', headers=headers, json={**body, 'expires_at': '2000-01-01T00:00:00Z'}).status_code, 200)
+            self.assertEqual(client.get('/api/v1/me', headers={'Authorization': 'Bearer campaign-viewer'}).status_code, 403)
+        finally:
+            db.write("UPDATE backintel.analysis_principals SET expires_at=NULL,domains=ARRAY['commerce','support'] WHERE id='campaign-viewer'")
+
+    def test_real_private_run_evidence_and_events_are_domain_restricted(self):
+        from fastapi.testclient import TestClient
+        from runtime.analysis_api import app
+        private_actor = {'id': 'campaign-private'}
+        db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
+                 (private_actor['id'], hashlib.sha256(b'campaign-private').hexdigest(), 'manager', ['credit']))
+        snapshot = digest(['private-credit', self.rows])
+        db.save_snapshot('credit', snapshot, {'files': [], 'rows': 1, 'mode': 'fixture'}, self.rows)
+        goal = service.create_goal(private_actor, 'credit', 'Private credit fixture')['id']
+        service.revise_goal(goal, private_actor, confirmed=True)
+        run = service.submit(goal, private_actor)
+        evidence = db.evidence(run['id'], 'calculation', 'private', {'tool': 'summarize', 'mode': 'fixture'})
+        client = TestClient(app)
+        for route in ('/api/v1/runs/' + run['id'], '/api/v1/runs/' + run['id'] + '/events',
+                      '/api/v1/runs/' + run['id'] + '/requests', '/api/v1/evidence/' + evidence,
+                      '/api/v1/goals/' + goal + '/findings'):
+            with self.subTest(route=route):
+                self.assertEqual(client.get(route, headers={'Authorization': 'Bearer campaign-manager'}).status_code, 403)
+        self.assertEqual(client.get('/api/v1/evidence/' + evidence, headers={'Authorization': 'Bearer campaign-private'}).status_code, 200)
+        with db.connect() as connection:
+            from runtime.jobs import cancel
+            cancel(connection, run['job_id'])
+
+    def test_credentials_are_redacted_from_failure_and_append_only_evidence(self):
+        from fastapi.testclient import TestClient
+        from runtime.analysis_api import app
+        secret = 'validation-fake-provider-secret'
+        with patch.dict(os.environ, {'OPENROUTER_API_KEY': secret}), patch('runtime.analysis_agent.analyze', side_effect=RuntimeError('Provider failure echoed ' + secret + ' and Bearer other-fixture-token')):
+            service.dispatch()
+            result = TestClient(app).get('/api/v1/runs/' + self.run['id'], headers={'Authorization': 'Bearer campaign-manager'})
+        self.assertNotIn(secret, result.text)
+        self.assertNotIn('other-fixture-token', result.text)
+        self.assertIn('[redacted]', result.text)
+        stored = db.query('SELECT body::text AS body FROM backintel.capability_evidence WHERE task_id=%s', ('analysis-job-' + self.run['id'],))
+        events = db.query('SELECT body::text AS body FROM backintel.analysis_events WHERE run_id=%s', (self.run['id'],))
+        for row in stored + events:
+            self.assertNotIn(secret, row['body'])
+            self.assertNotIn('other-fixture-token', row['body'])
+
+    def test_ambiguous_provider_timeout_is_not_retried(self):
+        from unittest.mock import MagicMock
+        from runtime import analysis_agent as agent
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.get.return_value.json.return_value = {'data': [{'id': CONFIG['analyst']['model'], 'pricing': {'prompt': '0', 'completion': '0'}}]}
+        client.post.side_effect = TimeoutError('Fixture ambiguous timeout')
+        with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client):
+            with self.assertRaises(TimeoutError):
+                agent.request(self.run['id'], 0, [])
+            with self.assertRaisesRegex(RuntimeError, 'reconcile'):
+                agent.request(self.run['id'], 0, [])
+        self.assertEqual(client.post.call_count, 1)
+        request = db.query('SELECT status,charge FROM backintel.analysis_requests WHERE run_id=%s', (self.run['id'],), one=True)
+        self.assertEqual(request['status'], 'uncertain')
+        self.assertIsNone(request['charge'])
+
+    def test_scoped_manager_cannot_expand_grants_outside_own_sources(self):
+        from fastapi.testclient import TestClient
+        from runtime.analysis_api import app
+        client = TestClient(app)
+        response = client.patch('/api/v1/principals/campaign-viewer',
+                                headers={'Authorization': 'Bearer campaign-manager'},
+                                json={'domains': ['commerce', 'credit']})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(db.query("SELECT domains FROM backintel.analysis_principals WHERE id='campaign-viewer'", one=True)['domains'], ['commerce', 'support'])
+
+    def test_malformed_analyst_output_is_partial_without_replacing_answer(self):
+        from runtime import analysis_agent as agent
+        with patch.object(agent, 'analyze', return_value={'mode': 'fixture', 'summary': 'standing fixture', 'tables': []}):
+            service.dispatch()
+        standing = db.goal(self.goal)['last_success']
+        changed = [{**self.rows[0], 'target': 0}]
+        db.save_snapshot('commerce', digest(changed), {'mode': 'fixture'}, changed)
+        run = service.submit(self.goal, self.actor)
+        response = {'_backintel_fixture': True, 'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': '{malformed fixture'}]}]}
+        with patch.object(agent, 'request', return_value=response):
+            service.dispatch()
+        self.assertEqual(db.run(run['id'])['status'], 'partial')
+        self.assertEqual(db.goal(self.goal)['last_success'], standing)
+
+    def test_hostile_tool_request_is_rejected_and_calls_are_bounded(self):
+        from runtime import analysis_agent as agent
+        response = {'_backintel_fixture': True, 'output': [{'type': 'function_call', 'name': 'execute_sql',
+                     'arguments': '{"query":"SELECT secret FROM private_table"}', 'call_id': 'hostile-fixture'}]}
+        with patch.object(agent, 'request', return_value=response) as requests, patch.object(agent, 'tool') as tools:
+            with self.assertRaisesRegex(RuntimeError, 'call limit'):
+                agent.analyze(self.run['id'])
+        self.assertEqual(requests.call_count, 6)
+        tools.assert_not_called()
+        self.assertEqual(db.query('SELECT count(*) AS n FROM backintel.analysis_steps WHERE run_id=%s', (self.run['id'],), one=True)['n'], 0)
+
+    def test_valid_tool_loop_stops_before_thirteenth_execution(self):
+        from runtime import analysis_agent as agent
+        response = {'_backintel_fixture': True, 'output': [{'type': 'function_call', 'name': 'inspect_source',
+                     'arguments': '{}', 'call_id': 'fixture-' + str(i)} for i in range(7)]}
+        with patch.object(agent, 'request', return_value=response) as requests, patch.object(agent, 'tool', wraps=agent.tool) as tools:
+            with self.assertRaisesRegex(RuntimeError, 'tool limit'):
+                agent.analyze(self.run['id'])
+        self.assertEqual(requests.call_count, 2)
+        self.assertEqual(tools.call_count, 12)
+
+    def test_elapsed_analysis_limit_stops_before_provider_dispatch(self):
+        from runtime import analysis_agent as agent
+        with patch.object(agent.time, 'monotonic', side_effect=[0, 601]), patch.object(agent, 'request') as requests:
+            with self.assertRaisesRegex(TimeoutError, 'time limit'):
+                agent.analyze(self.run['id'])
+        requests.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

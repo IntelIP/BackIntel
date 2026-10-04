@@ -119,7 +119,7 @@
       "metricThresholds": {},
       "costPolicy": {
         "requiredTelemetry": true,
-        "maxUsd": 25
+        "maxUsd": 10
       }
     },
     {
@@ -165,7 +165,7 @@
       "metricThresholds": {},
       "costPolicy": {
         "requiredTelemetry": true,
-        "maxUsd": 25
+        "maxUsd": 10
       }
     },
     {
