@@ -63,6 +63,8 @@ jobs:
       - name: Unit, database, budget, and recovery checks
         run: python scripts/validation/run_analysis_offline.py --mode unit --output artifacts/AnalysisValidation/ci-unit
       - name: Five-domain simulated browser and native-clock checks
+        env:
+          BACKINTEL_VALIDATION_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: python scripts/validation/run_analysis_offline.py --mode e2e --output artifacts/AnalysisValidation/ci-e2e
       - uses: actions/upload-artifact@v4
         if: always()

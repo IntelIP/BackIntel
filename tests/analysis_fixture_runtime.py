@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 import types
 from pathlib import Path
 
@@ -72,14 +73,22 @@ def main():
     db.catalog()
     values = json.loads(Path(os.environ['BACKINTEL_ACCESS_CREDENTIAL_FILE']).read_text())
     for role, token in values.items():
-        db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s)',
+        db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
                  (role, hashlib.sha256(token.encode()).hexdigest(), role, list(CONFIG['sources'])))
     for source in db.query('SELECT * FROM backintel.analysis_sources'):
+        if source['body'].get('mode') == 'fixture':
+            continue
         db.write('UPDATE backintel.analysis_sources SET body=%s WHERE id=%s',
                  (Jsonb({**source['body'], 'mode': 'fixture', 'caveat': 'Synthetic validation fixture. ' + source['body']['caveat']}), source['id']))
     agent.credential = lambda: 'offline-fixture-no-provider-credential'
     httpx.Client.send = fixture_send
     service.model_job = fixture_models
+    original_import = service._import_source
+    def fixture_import(domain, actor):
+        # A bounded fixture delay exposes the running import for a hard-kill test.
+        time.sleep(1)
+        return original_import(domain, actor)
+    service._import_source = fixture_import
     sys.modules['runtime.analysis_models'] = types.SimpleNamespace(
         predict=lambda model, rows: {row['id']: .25 for row in rows},
         decide=lambda rows, domain: ([], [{'mode': 'fixture'} for _ in rows]))
