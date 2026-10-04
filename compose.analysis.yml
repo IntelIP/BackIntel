@@ -1,0 +1,60 @@
+name: backintel-analysis
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: analysis_demo
+      POSTGRES_DB: test_backintel_analysis
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports: ["127.0.0.1:55438:5432"]
+    volumes: ["analysis_db:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analysis_demo -d test_backintel_analysis"]
+      interval: 2s
+      retries: 20
+  redis:
+    image: redis:7.2.5-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["analysis_broker:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 20
+  runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.analysis
+    environment:
+      DATABASE_URL: postgresql://analysis_demo@postgres:5432/test_backintel_analysis
+      BACKINTEL_APP_DATABASE_URL: postgresql://analysis_demo@postgres:5432/test_backintel_analysis
+      BACKINTEL_TEST_DATABASE_URL: postgresql://analysis_demo@postgres:5432/test_backintel_analysis
+      REDIS_URL: redis://redis:6379/0
+      REDIS_BROKER_ENABLED: "true"
+      AEGRA_CONFIG: /app/aegra.analysis.json
+      BACKINTEL_MODEL_DIR: /models
+      BACKINTEL_DATASET_DIR: /datasets
+      WORKER_COUNT: "1"
+      N_JOBS_PER_WORKER: "1"
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      HF_HUB_OFFLINE: "1"
+      OTEL_TARGETS: ""
+      OTEL_CONSOLE_EXPORT: "false"
+    cpus: 2.0
+    mem_limit: 5g
+    tmpfs: ["/run/backintel-credentials:mode=0700,size=1m"]
+    ports: ["127.0.0.1:2028:2026"]
+    volumes:
+      - ./artifacts/Models:/models
+      - ${BACKINTEL_DATASET_DIR:-/Users/hudson/Library/Application Support/BackIntel/Datasets}:/datasets:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:2026/health',timeout=2)"]
+      interval: 3s
+      retries: 30
+volumes:
+  analysis_db:
+  analysis_broker:

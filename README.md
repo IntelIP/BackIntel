@@ -252,3 +252,7 @@ Exact-commit validation requires a clean checkout. Preserve durable evidence out
 ## License
 
 BackIntel source is licensed under [MIT](LICENSE), copyright 2026 IntelIP. Third-party dependencies, fonts, datasets, model weights and hosted services retain their upstream terms. See [demo licensing](docs/demo/DemoLicensing.txt). Model weights and credentials are not included.
+
+## Continuous analysis workspace
+
+The five-domain enhancement adds saved goals, a hosted GPT-6.1 Sol analyst, local Decide classification, predictor comparisons, and a React workspace. See [setup and evidence boundaries](docs/architecture/analysis-workspace-runbook.md). Local working-tree implementation is not a release or real five-domain acceptance.

@@ -1,0 +1,320 @@
+"""Thin authenticated application routes mounted by Aegra."""
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import httpx
+from pathlib import Path
+
+from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict, Field
+from psycopg.types.json import Jsonb
+
+from runtime import analysis_store as db
+from runtime import analysis_service as service
+from runtime.analysis_data import CONFIG, digest
+from runtime.jobs import cancel
+
+app = FastAPI(title='BackIntel analysis workspace')
+
+
+class Input(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+
+class GoalInput(Input):
+    domain: str
+    question: str = Field(min_length=1,max_length=2000)
+
+
+class GoalUpdate(Input):
+    question: str | None = Field(default=None,min_length=1,max_length=2000)
+    paused: bool | None = None
+    confirmed: bool | None = None
+    threshold: float | None = Field(default=None,ge=0,le=100000)
+    budget_usd: float | None = Field(default=None,gt=0,le=1)
+
+
+class RunInput(Input):
+    question: str | None = Field(default=None,min_length=1,max_length=2000)
+    operation: str = 'analysis'
+
+
+class TermsInput(Input):
+    acknowledged: bool
+
+
+class PromotionInput(Input):
+    route: str = 'catboost-facts'
+
+
+class ReviewInput(Input):
+    text: str = Field(min_length=1,max_length=4000)
+    kind: str = 'comment'
+    run_id: str | None = None
+
+
+class CorrectionInput(Input):
+    record_id: str
+    features: dict[str,str | float | None] = Field(default_factory=dict)
+    target: float | None = None
+    explanation: str = Field(min_length=1,max_length=2000)
+
+
+class GrantInput(Input):
+    domains: list[str]
+    enabled: bool = True
+
+
+def access(request: Request):
+    if request.method not in ('GET','HEAD'):
+        origin=request.headers.get('origin')
+        if origin and origin not in ('http://127.0.0.1:2028','http://localhost:2028'):
+            raise HTTPException(403,'Cross-origin writes are denied')
+    return db.principal(request.headers.get('authorization','').removeprefix('Bearer '))
+
+
+@app.exception_handler(PermissionError)
+async def denied(request, error):
+    return JSONResponse({'detail':str(error)},status_code=403)
+
+
+@app.exception_handler(ValueError)
+async def invalid(request, error):
+    return JSONResponse({'detail':str(error)},status_code=400)
+
+
+@app.exception_handler(RuntimeError)
+async def blocked(request,error):
+    return JSONResponse({'detail':str(error)},status_code=409)
+
+
+@app.get('/api/v1/me')
+def me(p=Depends(access)):
+    return p
+
+
+@app.get('/api/v1/notifications')
+def notifications(p=Depends(access)):
+    db.authorize(p)
+    return db.query("SELECT e.id,e.run_id,e.body,e.created_at,g.id AS goal_id,g.domain FROM backintel.analysis_events e JOIN backintel.analysis_runs r ON r.id=e.run_id JOIN backintel.analysis_goals g ON g.id=r.goal_id WHERE e.kind='material_change' AND g.domain=ANY(%s) ORDER BY e.id DESC LIMIT 30",(p['domains'],))
+
+
+@app.get('/api/v1/sources')
+def sources(p=Depends(access)):
+    db.authorize(p)
+    return db.query('SELECT * FROM backintel.analysis_sources WHERE domain=ANY(%s) ORDER BY domain',(p['domains'],))
+
+
+@app.post('/api/v1/sources/{domain}/terms')
+def terms(domain:str,body:TermsInput,p=Depends(access)):
+    db.authorize(p,domain,('manager',))
+    source=db.source(domain)
+    updated={**source['body'],'terms_acknowledged':body.acknowledged,'terms_actor':p['id']}
+    db.write('UPDATE backintel.analysis_sources SET body=%s WHERE id=%s',(Jsonb(updated),domain))
+    return db.source(domain)
+
+
+@app.post('/api/v1/sources/{domain}/refresh',status_code=202)
+async def refresh_source(domain:str,p=Depends(access)):
+    r=service.submit_import(domain,p)
+    try:
+        await asyncio.to_thread(service.wake,r['id'])
+    except (OSError,httpx.HTTPError):
+        db.event(r['id'],'dispatch_pending',{'message':'Import queued durably.'})
+    return r
+
+
+@app.get('/api/v1/goals')
+def goals(p=Depends(access)):
+    db.authorize(p)
+    result=db.query('SELECT * FROM backintel.analysis_goals WHERE domain=ANY(%s) ORDER BY created_at DESC',(p['domains'],))
+    for g in result:
+        source=db.source(g['domain'])
+        previous=db.run(g['last_success']) if g['last_success'] else None
+        g['freshness']='refresh_failed' if source['body'].get('last_refresh_error') else 'current' if previous and previous['snapshot_id']==source['latest_snapshot'] and previous['goal_version']==g['version'] else 'stale' if previous else 'unanswered'
+    return result
+
+
+@app.post('/api/v1/goals',status_code=201)
+async def create(body:GoalInput,p=Depends(access)):
+    from runtime.analysis_graphs import goal_graph
+    g=await asyncio.to_thread(service.create_goal,p,body.domain,body.question)
+    proposal=await goal_graph.ainvoke({'goal_id':g['id']})
+    return {**g,'proposal':proposal['result']}
+
+
+@app.patch('/api/v1/goals/{identity}')
+def update(identity:str,body:GoalUpdate,p=Depends(access)):
+    return service.revise_goal(identity,p,**body.model_dump())
+
+
+@app.post('/api/v1/goals/{identity}/runs',status_code=202)
+def start(identity:str,body:RunInput,p=Depends(access)):
+    if body.operation not in ('analysis','training'):
+        raise ValueError('Unsupported operation')
+    r=service.submit(identity,p,body.question,body.operation)
+    try:
+        service.wake(r['id'])
+    except (OSError,httpx.HTTPError):
+        db.event(r['id'],'dispatch_pending',{'message':'Queued durably; the next dispatcher will resume it.'})
+    return r
+
+
+@app.get('/api/v1/runs')
+def runs(goal_id:str,p=Depends(access)):
+    db.authorize(p,db.goal(goal_id)['domain'])
+    return db.query('SELECT * FROM backintel.analysis_runs WHERE goal_id=%s ORDER BY created_at DESC LIMIT 50',(goal_id,))
+
+
+@app.get('/api/v1/runs/{identity}')
+def run(identity:str,p=Depends(access)):
+    r=db.run(identity)
+    db.authorize(p,db.run_domain(r))
+    return r
+
+
+@app.post('/api/v1/runs/{identity}/cancel')
+def cancel_run(identity:str,p=Depends(access)):
+    r=db.run(identity)
+    db.authorize(p,db.run_domain(r),('manager',))
+    with db.connect() as c:
+        state=cancel(c,r['job_id'])
+    db.write("UPDATE backintel.analysis_runs SET status='cancelled',updated_at=now() WHERE id=%s AND status='queued'",(identity,))
+    return {'status':state}
+
+
+@app.post('/api/v1/requests/{identity}/reconcile')
+def reconcile(identity:str,p=Depends(access)):
+    from runtime.analysis_agent import reconcile_charge
+    return reconcile_charge(identity,p)
+
+
+@app.get('/api/v1/runs/{identity}/requests')
+def requests(identity:str,p=Depends(access)):
+    db.authorize(p,db.run_domain(db.run(identity)),('manager',))
+    return db.query('SELECT id,status,reserved,charge,created_at FROM backintel.analysis_requests WHERE run_id=%s ORDER BY created_at',(identity,))
+
+
+@app.get('/api/v1/runs/{identity}/events')
+def events(identity:str,after:int=0,p=Depends(access)):
+    r=db.run(identity)
+    db.authorize(p,db.run_domain(r))
+    async def stream():
+        cursor=after
+        for _ in range(60):
+            db.authorize(p,db.run_domain(r))
+            rows=db.query('SELECT * FROM backintel.analysis_events WHERE run_id=%s AND sequence>%s ORDER BY sequence',(identity,cursor))
+            for row in rows:
+                cursor=row['sequence']
+                yield f"id: {cursor}\nevent: {row['kind']}\ndata: {json.dumps(row['body'])}\n\n"
+            if db.run(identity)['status'] in ('succeeded','partial','cancelled','failed'):
+                break
+            await asyncio.sleep(1)
+    return StreamingResponse(stream(),media_type='text/event-stream',headers={'Cache-Control':'no-store'})
+
+
+@app.get('/api/v1/goals/{identity}/findings')
+def findings(identity:str,p=Depends(access)):
+    g=db.goal(identity)
+    db.authorize(p,g['domain'])
+    return db.run(g['last_success']) if g['last_success'] else None
+
+
+@app.get('/api/v1/evidence/{identity}')
+def evidence(identity:str,p=Depends(access)):
+    r=db.query('SELECT * FROM backintel.capability_evidence WHERE sha256=%s',(identity,),one=True)
+    if not r or not r['task_id'].startswith('analysis-goal-'):
+        raise ValueError('Unknown application evidence')
+    g=db.goal(r['task_id'].removeprefix('analysis-goal-'))
+    db.authorize(p,g['domain'])
+    if p['role']=='viewer' and r['kind']=='calculation' and r['body'].get('tool')=='interpret_text':
+        raise PermissionError('Raw interpretation evidence requires analyst access')
+    return r
+
+
+@app.get('/api/v1/goals/{identity}/models')
+def models(identity:str,p=Depends(access)):
+    db.authorize(p,db.goal(identity)['domain'])
+    return db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC',(identity,))
+
+
+@app.post('/api/v1/models/{identity}/promote',status_code=202)
+def promote(identity:str,body:PromotionInput,p=Depends(access)):
+    r=service.promote(identity,p,body.route)
+    try:
+        service.wake(r['id'])
+    except (OSError,httpx.HTTPError):
+        pass
+    return r
+
+
+@app.get('/api/v1/goals/{identity}/reviews')
+def reviews(identity:str,p=Depends(access)):
+    db.authorize(p,db.goal(identity)['domain'])
+    return db.query('SELECT * FROM backintel.analysis_reviews WHERE goal_id=%s ORDER BY id DESC',(identity,))
+
+
+@app.post('/api/v1/goals/{identity}/reviews',status_code=201)
+def review(identity:str,body:ReviewInput,p=Depends(access)):
+    db.authorize(p,db.goal(identity)['domain'],('manager','analyst'))
+    if body.kind not in ('comment','correction') or (body.run_id and db.run(body.run_id)['goal_id']!=identity):
+        raise ValueError('Invalid review context')
+    db.write('INSERT INTO backintel.analysis_reviews(goal_id,run_id,actor,body) VALUES(%s,%s,%s,%s)',(identity,body.run_id,p['id'],Jsonb(body.model_dump())))
+    return {'saved':True}
+
+
+@app.post('/api/v1/sources/{domain}/corrections',status_code=201)
+def correction(domain:str,body:CorrectionInput,p=Depends(access)):
+    db.authorize(p,domain,('manager',))
+    source=db.source(domain)
+    rows=db.records(source['latest_snapshot'])
+    row=next((r for r in rows if r['id']==body.record_id),None)
+    if not row or set(body.features)-set(row['features']):
+        raise ValueError('Unknown record or feature')
+    row['features'].update(body.features)
+    for name in row['groups'].keys() & body.features.keys():
+        row['groups'][name] = row['features'][name]
+    if body.target is not None:
+        if CONFIG['sources'][domain]['kind']=='classification' and body.target not in (0,1):
+            raise ValueError('Classification target must be 0 or 1')
+        row['target']=body.target
+        row['split']='unlabeled'  # A late correction never contaminates a historical benchmark.
+    prior=db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s',(source['latest_snapshot'],),one=True)['body']
+    updated={**prior,'corrected_from':source['latest_snapshot'],'correction':{**body.model_dump(),'actor':p['id']},'record_hash':digest(rows)}
+    identity=digest(updated)
+    db.save_snapshot(domain,identity,updated,rows)
+    for model in db.query('SELECT m.id,m.body FROM backintel.analysis_models m JOIN backintel.analysis_goals g ON g.id=m.goal_id WHERE g.domain=%s',(domain,)):
+        splits=model['body'].get('splits',{})
+        if body.record_id in splits.get('train',[])+splits.get('calibration',[])+splits.get('test',[]):
+            db.write('UPDATE backintel.analysis_models SET body=%s WHERE id=%s',(Jsonb({**model['body'],'invalidated_by':identity}),model['id']))
+            db.write('UPDATE backintel.analysis_goals SET active_model=NULL WHERE active_model=%s',(model['id'],))
+    for g in db.query('SELECT * FROM backintel.analysis_goals WHERE domain=%s AND confirmed AND NOT paused',(domain,)):
+        run=service.submit(g['id'],{'id':g['owner']})
+        try:service.wake(run['id'])
+        except (OSError,httpx.HTTPError):db.event(run['id'],'dispatch_pending',{'message':'Correction queued durably.'})
+    return {'snapshot':identity,'changed':True,'message':'Previous findings remain available and are stale.'}
+
+
+@app.patch('/api/v1/principals/{identity}')
+def grants(identity:str,body:GrantInput,p=Depends(access)):
+    db.authorize(p,roles=('manager',))
+    if set(body.domains)-set(CONFIG['sources']) or identity=='worker':
+        raise ValueError('Invalid application grant')
+    db.write('UPDATE backintel.analysis_principals SET domains=%s,enabled=%s WHERE id=%s',(body.domains,body.enabled,identity))
+    return {'saved':True}
+
+
+web=Path(os.getenv('BACKINTEL_WEB_DIR',str(Path(__file__).resolve().parents[1]/'apps/web/dist')))
+if (web/'assets').is_dir():
+    app.mount('/assets',StaticFiles(directory=web/'assets'),name='assets')
+
+
+@app.get('/')
+def shell():
+    if not (web/'index.html').is_file():
+        return JSONResponse({'detail':'Build apps/web before opening the workspace.'},status_code=503)
+    return FileResponse(web/'index.html',headers={'Content-Security-Policy':"default-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'"})

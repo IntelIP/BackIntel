@@ -87,13 +87,15 @@ def cancel(connection, job_id: str) -> str:
         return row[0] if row else "unchanged"
 
 
-def claim(connection, job_id: str) -> dict | None:
+def claim(connection, job_id: str, lease_seconds=30) -> dict | None:
+    if type(lease_seconds) is not int or not 30 <= lease_seconds <= 1830:
+        raise ValueError("Invalid job lease")
     with connection.transaction():
         row = connection.execute("""UPDATE backintel.capability_jobs SET state='running',attempts=attempts+1,
-            lease_until=now()+interval '30 seconds',updated_at=now()
+            lease_until=now()+%s*interval '1 second',updated_at=now()
             WHERE job_id=%s AND cancel_requested=false AND attempts<max_attempts AND due_at<=now()
             AND (state IN ('queued','retry') OR (state='running' AND lease_until<now()))
-            RETURNING task_id,payload,attempts,max_attempts""",(job_id,)).fetchone()
+            RETURNING task_id,payload,attempts,max_attempts""",(lease_seconds,job_id)).fetchone()
         if row:
             Evidence(connection,row[0]).put("job_attempt_start",f"{job_id}:{row[2]}",
                 {"job_id":job_id,"attempt":row[2],"status":"running"},int(time.time()))
@@ -117,13 +119,15 @@ class JobCancelled(Exception):
     pass
 
 
-def execute(job_id: str, handler=None) -> dict:
+def execute(job_id: str, handler=None, *, max_wall_seconds=25, usage_reader=None) -> dict:
+    if type(max_wall_seconds) is not int or not 25 <= max_wall_seconds <= 1800:
+        raise ValueError("Invalid job duration")
     if handler is None:
         from runtime.capability_pipeline import handle
         handler = handle
     with psycopg.connect(dsn(),autocommit=True) as connection:
         connection.execute("SET statement_timeout='30s'")
-        job = claim(connection,job_id)
+        job = claim(connection,job_id, max(30,max_wall_seconds+5))
         if job is None:
             row = connection.execute("SELECT state,result_sha256 FROM backintel.capability_jobs WHERE job_id=%s",(job_id,)).fetchone()
             if row is None:
@@ -141,7 +145,7 @@ def execute(job_id: str, handler=None) -> dict:
                     raise TimeoutError("Injected synthetic transient failure")
                 result = handler(store,job["payload"])
                 wall_ms = (time.perf_counter()-started)*1000
-                if wall_ms > 25000:
+                if wall_ms > max_wall_seconds*1000:
                     raise TimeoutError("Job wall-time budget exceeded")
                 current = connection.execute("SELECT cancel_requested,attempts FROM backintel.capability_jobs WHERE job_id=%s FOR UPDATE",(job_id,)).fetchone()
                 if current[0] or current[1] != job["attempt"]:
@@ -150,13 +154,13 @@ def execute(job_id: str, handler=None) -> dict:
                     lease_until=NULL,error=NULL,wall_ms=%s,updated_at=now() WHERE job_id=%s""",(result["sha256"],wall_ms,job_id))
                 store.put("job_attempt_result",f"{job_id}:{job['attempt']}",
                     {"job_id":job_id,"attempt":job["attempt"],"status":"completed","wall_ms":wall_ms,
-                     **usage_for(store, excluding=previous_requests)},int(time.time()),[result["sha256"]])
+                     **(usage_reader() if usage_reader else usage_for(store, excluding=previous_requests))},int(time.time()),[result["sha256"]])
                 connection.execute("SELECT pg_notify('backintel_capability_jobs',%s)",(job_id,))
             return {"job_id":job_id,"state":"completed","result":result["sha256"],"reused":False}
         except Exception as error:
             state = "cancelled" if isinstance(error,JobCancelled) else "retry" if job["attempt"] < job["max_attempts"] else "failed"
             with connection.transaction():
-                usage = usage_for(Evidence(connection,job["task_id"]), excluding=previous_requests, strict=False) if previous_requests is not None else {
+                usage = usage_reader() if usage_reader else usage_for(Evidence(connection,job["task_id"]), excluding=previous_requests, strict=False) if previous_requests is not None else {
                     "provider_calls":0,"provider_usd":0,"local_compute_usd":None,"provider_fixture_requests":0,
                     "provider_requests_admitted":0,"provider_request_keys":[]}
                 connection.execute("""UPDATE backintel.capability_jobs SET state=%s,error=%s,lease_until=NULL,

@@ -17,3 +17,10 @@
 !data/profiles/**
 **/__pycache__/
 **/*.pyc
+
+!aegra.analysis.json
+!apps/
+!apps/web/
+!apps/web/dist/
+!apps/web/dist/**
+/apps/web/node_modules/

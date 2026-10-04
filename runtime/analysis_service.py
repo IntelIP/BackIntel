@@ -1,0 +1,291 @@
+"""Saved goals and refreshes reuse the capability job queue, not a second scheduler."""
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import time
+import uuid
+
+import httpx
+from psycopg.types.json import Jsonb
+
+from runtime import analysis_store as db
+from runtime.analysis_data import CONFIG, adapt, digest, fingerprint, source_files
+from runtime.evidence import Evidence
+from runtime.jobs import enqueue, execute, runnable
+
+
+def _import_source(domain, actor):
+    db.authorize(actor, domain, ('manager',))
+    source = db.source(domain)
+    if not source['body'].get('terms_acknowledged'):
+        raise PermissionError('Source access and terms must be confirmed before import')
+    paths = source_files(domain)
+    if source['latest_snapshot']:
+        prior = db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s', (source['latest_snapshot'],), one=True)
+        if prior['body']['files'] == [fingerprint(p) for p in paths] and (domain!='maintenance' or prior['body'].get('unit_mapping')=='dataset-qualified-engine-v2'):
+            return {'snapshot': source['latest_snapshot'], 'changed': False}
+    identity, body, rows = adapt(domain, paths)
+    if domain=='maintenance':
+        body['unit_mapping']='dataset-qualified-engine-v2'
+        identity=digest(body)
+    db.save_snapshot(domain, identity, body, rows)
+    return {'snapshot': identity, 'changed': source['latest_snapshot'] != identity}
+
+
+def import_source(domain, actor):
+    db.authorize(actor, domain, ('manager',))
+    try:
+        result = _import_source(domain, actor)
+    except (OSError, ValueError, PermissionError, RuntimeError) as error:
+        db.write('UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s',
+                 (Jsonb({'last_refresh_error':str(error)[:1500],'last_checked_at':time.time()}),domain))
+        raise
+    db.write("UPDATE backintel.analysis_sources SET body=(body-'last_refresh_error') || %s WHERE id=%s",
+             (Jsonb({'last_checked_at':time.time()}),domain))
+    return result
+
+
+def create_goal(actor, domain, question):
+    db.authorize(actor, domain, ('manager',))
+    db.source(domain)
+    if not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000:
+        raise ValueError('Question must contain 1–2000 characters')
+    identity = str(uuid.uuid4())
+    spec = CONFIG['sources'][domain]
+    body = {'question': question, 'definitions': {'target': spec['target'], 'kind': spec['kind'], 'group': spec['group'],
+            'population': 'registered source snapshot', 'caveat': spec['caveat']},
+            'notification_delta': .05 if spec['kind'] == 'classification' else 5., 'refresh_seconds': 3600, 'budget_usd': 1.}
+    with db.connect() as c, c.transaction():
+        c.execute('INSERT INTO backintel.analysis_goals(id,owner,domain,version,body) VALUES(%s,%s,%s,1,%s)', (identity, actor['id'], domain, Jsonb(body)))
+        c.execute('INSERT INTO backintel.analysis_goal_versions(goal_id,version,body,actor) VALUES(%s,1,%s,%s)', (identity, Jsonb(body), actor['id']))
+    return db.goal(identity)
+
+
+def revise_goal(identity, actor, question=None, paused=None, confirmed=None, threshold=None, budget_usd=None):
+    g = db.goal(identity)
+    db.authorize(actor, g['domain'], ('manager',))
+    body = dict(g['body'])
+    if budget_usd is not None:
+        if isinstance(budget_usd,bool) or not isinstance(budget_usd,(int,float)) or not 0 < budget_usd <= CONFIG['budget']['run_usd']:
+            raise ValueError('Goal budget must be positive and within the approved run cap')
+        body['budget_usd']=budget_usd
+    if question is not None:
+        if not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000:
+            raise ValueError('Invalid question')
+        body['question'] = question
+    if threshold is not None:
+        if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 100000:
+            raise ValueError('Invalid notification threshold')
+        body['notification_delta'] = threshold
+    version = g['version'] + int(body != g['body'])
+    with db.connect() as c, c.transaction():
+        c.execute('UPDATE backintel.analysis_goals SET body=%s,version=%s,paused=%s,confirmed=%s WHERE id=%s',
+                  (Jsonb(body), version, g['paused'] if paused is None else paused,
+                   False if version != g['version'] else g['confirmed'] if confirmed is None else confirmed, identity))
+        c.execute('INSERT INTO backintel.analysis_goal_versions(goal_id,version,body,actor) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING', (identity, version, Jsonb(body), actor['id']))
+    return db.goal(identity)
+
+
+def submit(identity, actor, question=None, operation='analysis'):
+    g = db.goal(identity)
+    db.authorize(actor, g['domain'], ('manager',) if operation == 'training' else ('manager', 'analyst'))
+    if not g['confirmed'] or g['paused']:
+        raise ValueError('Confirm the goal definitions and enable the goal first')
+    snapshot = db.source(g['domain'])['latest_snapshot']
+    if not snapshot:
+        raise ValueError('Import the selected source first')
+    if question is not None and (not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000):
+        raise ValueError('Invalid follow-up question')
+    question = question or g['body']['question']
+    run_id = digest([identity, g['version'], snapshot, operation, question, g['active_model']])
+    payload = {'run_id': run_id, 'operation': operation}
+    with db.connect() as c, c.transaction():
+        c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
+                  (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model']})))
+        store = Evidence(c, 'analysis-job-'+run_id)
+        job_id = enqueue(store, payload, run_id)
+        c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, run_id))
+        partial = c.execute('SELECT status FROM backintel.analysis_runs WHERE id=%s', (run_id,)).fetchone()[0]=='partial'
+        if partial:
+            unresolved = c.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s AND charge IS NULL', (run_id,)).fetchone()[0]
+            if unresolved:
+                raise RuntimeError('Reconcile uncertain charges before resuming this run')
+            resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL WHERE job_id=%s AND state='completed' AND attempts<max_attempts RETURNING job_id", (job_id,)).fetchone()
+            if resumed:
+                c.execute("UPDATE backintel.analysis_runs SET status='queued',error=NULL,updated_at=now() WHERE id=%s", (run_id,))
+    return db.run(run_id)
+
+
+def submit_import(domain, actor):
+    actor = db.authorize(actor, domain, ('manager',))
+    if not db.source(domain)['body'].get('terms_acknowledged'):
+        raise PermissionError('Confirm source access and terms before importing')
+    with db.connect() as c, c.transaction():
+        c.execute('SELECT pg_advisory_xact_lock(81827029)')
+        pending = c.execute("SELECT id FROM backintel.analysis_runs WHERE body->>'operation'='import' AND body->>'domain'=%s AND owner=%s AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1", (domain, actor['id'])).fetchone()
+        if pending:
+            return db.run(pending[0])
+        identity = digest(['source-import', domain, actor['id'], time.time_ns()])
+        payload = {'run_id': identity, 'operation': 'import'}
+        c.execute('INSERT INTO backintel.analysis_runs(id,owner,body) VALUES(%s,%s,%s)',
+                  (identity, actor['id'], Jsonb({'operation': 'import', 'domain': domain})))
+        job_id = enqueue(Evidence(c, 'analysis-job-'+identity), payload, identity)
+        c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, identity))
+    return db.run(identity)
+
+
+def model_job(identity):
+    r, g = db.check_run(identity)
+    # A subprocess enforces wall time and releases predictor/Decide memory between jobs.
+    child = subprocess.run([sys.executable, '-m', 'runtime.analysis_models', '--domain', g['domain'], '--snapshot', r['snapshot_id']],
+                           capture_output=True, text=True, timeout=CONFIG['limits']['model_seconds']-20)
+    if child.returncode:
+        raise RuntimeError('Model comparison failed: '+child.stderr[-1200:])
+    manifest = json.loads(child.stdout)
+    db.check_run(identity)
+    candidate = digest([g['id'], manifest['id']])
+    db.write('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
+             (candidate, g['id'], r['snapshot_id'], Jsonb(manifest)))
+    ref = db.evidence(identity, 'model_comparison', candidate, manifest)
+    return {'status': 'succeeded', 'summary': 'Real predictor comparison completed. Manager approval is required before use.',
+            'candidate_id': candidate, 'evidence_id': ref, 'comparison': manifest, 'usage': db.usage(identity)}
+
+
+def promote(identity, actor, route='catboost-facts'):
+    m = db.query('SELECT * FROM backintel.analysis_models WHERE id=%s', (identity,), one=True)
+    if not m:
+        raise ValueError('Unknown candidate')
+    g = db.goal(m['goal_id'])
+    db.authorize(actor, g['domain'], ('manager',))
+    if m['body'].get('invalidated_by'):
+        raise ValueError('This candidate was invalidated by a source correction')
+    if route not in ('catboost-facts', 'tabiclv2-facts', 'catboost-facts-decide', 'tabiclv2-facts-decide') or not any(a['file'] == route+'.joblib' for a in m['body']['artifacts']):
+        raise ValueError('Requested predictor was not validated in this comparison')
+    with db.connect() as c, c.transaction():
+        locked = c.execute('SELECT body,promoted FROM backintel.analysis_models WHERE id=%s FOR UPDATE', (identity,)).fetchone()
+        if locked[1] and locked[0].get('approved_route') != route:
+            raise ValueError('A promoted candidate has an immutable predictor route')
+        if not locked[1]:
+            body = {**locked[0], 'approved_route': route, 'approved_by': actor['id']}
+            c.execute('UPDATE backintel.analysis_models SET promoted=true,body=%s WHERE id=%s', (Jsonb(body), identity))
+        c.execute('UPDATE backintel.analysis_goals SET active_model=%s WHERE id=%s', (identity, g['id']))
+    return submit(g['id'], actor)
+
+
+def threshold_crossed(previous, current, threshold):
+    """Compare the same table and group; record counts are not target estimates."""
+    def means(result):
+        return {(table['title'], row['group']): row['mean']
+                for table in result.get('tables', []) for row in table.get('rows', [])
+                if isinstance(row.get('mean'), (int, float))}
+    before, after = means(previous), means(current)
+    return any(abs(after[key] - before[key]) >= threshold and after[key] != before[key]
+               for key in before.keys() & after.keys())
+
+
+def handle(store, payload):
+    from runtime.analysis_agent import analyze
+    identity = payload['run_id']
+    r = db.run(identity)
+    if r['status'] == 'succeeded':
+        return store.put('analysis_result', identity, r['result'], int(time.time())) if not store.find('analysis_result', identity) else store.find('analysis_result', identity)
+    db.write("UPDATE backintel.analysis_runs SET status='running',updated_at=now() WHERE id=%s", (identity,))
+    db.event(identity, 'started', {'operation': payload['operation']})
+    try:
+        if payload['operation'] == 'import':
+            db.check_run(identity)
+            result = import_source(r['body']['domain'], {'id': r['owner']})
+            db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s',(result['snapshot'],identity))
+            schedule_snapshot(r['body']['domain'], result)
+        else:
+            result = model_job(identity) if payload['operation'] == 'training' else analyze(identity)
+        db.check_run(identity)
+        db.write("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
+        if payload['operation'] == 'analysis':
+            g = db.goal(r['goal_id'])
+            previous = db.run(g['last_success']) if g['last_success'] else None
+            standing = r['body']['question'] == g['body']['question'] and r['goal_version'] == g['version']
+            changed = standing and previous and threshold_crossed(previous['result'], result, g['body']['notification_delta'])
+            if standing:
+                db.write('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s AND version=%s', (identity, g['id'], r['goal_version']))
+            if changed:
+                db.event(identity, 'material_change', {'message': 'A saved goal threshold was crossed.'})
+        db.event(identity, 'completed', {'status': 'succeeded'})
+    except Exception as error:
+        # No failed refresh replaces last_success; no response is disguised as real success.
+        status = 'cancelled' if isinstance(error, (InterruptedError, PermissionError)) else 'partial'
+        result = {'status': status, 'summary': 'This run did not complete.', 'limitations': [str(error)[:2000]], 'usage': db.usage(identity)}
+        db.write('UPDATE backintel.analysis_runs SET status=%s,result=%s,error=%s,updated_at=now() WHERE id=%s', (status, Jsonb(result), str(error)[:2000], identity))
+        db.event(identity, 'completed', {'status': status, 'reason': str(error)[:2000]})
+    attempt=db.query('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s',(r['job_id'],),one=True)['attempts']
+    return store.put('analysis_result', f'{identity}:{attempt}', result, int(time.time()))
+
+
+def dispatch(run_id=None):
+    # One process owns model work. Drain new arrivals before releasing the worker.
+    results = []
+    with db.connect() as c:
+        if not c.execute('SELECT pg_try_advisory_lock(81827028)').fetchone()[0]:
+            return {'status': 'worker_busy'}
+        # The exclusive worker lock proves any remaining running analysis job is orphaned.
+        c.execute("UPDATE backintel.capability_jobs SET lease_until=now() WHERE state='running' AND task_id LIKE %s", ('analysis-job-%',))
+        while True:
+            task_ids = [r['task_id'] for r in db.query("SELECT DISTINCT task_id FROM backintel.capability_jobs WHERE task_id LIKE 'analysis-job-%' AND state IN ('queued','retry','running')")]
+            c.execute("UPDATE backintel.capability_jobs SET state='failed',error='Worker lease expired at attempt limit',lease_until=NULL WHERE task_id=ANY(%s) AND state='running' AND lease_until<now() AND attempts>=max_attempts", (task_ids,))
+            available = runnable(c, task_ids)
+            if not available:
+                break
+            for job_id in available:
+                r = db.query('SELECT id,body FROM backintel.analysis_runs WHERE job_id=%s', (job_id,), one=True)
+                if r:
+                    results.append(execute(job_id, handle, max_wall_seconds=1800 if r['body']['operation']=='training' else 600,
+                                           usage_reader=lambda identity=r['id']: db.usage(identity)))
+    return {'status': 'completed', 'jobs': results}
+
+
+def schedule_snapshot(domain, update):
+    if not update['changed']:
+        return
+    for g in db.query('SELECT * FROM backintel.analysis_goals WHERE domain=%s AND confirmed AND NOT paused', (domain,)):
+        actor = {'id': g['owner']}
+        submit(g['id'], actor)
+        latest = db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC LIMIT 1', (g['id'],), one=True)
+        if latest:
+            old = {r['id'] for r in db.records(latest['snapshot_id']) if r['target'] is not None and r['split']=='train'}
+            new = {r['id'] for r in db.records(update['snapshot']) if r['target'] is not None and r['split']=='train'}
+            attempt = db.query("SELECT created_at FROM backintel.analysis_runs WHERE goal_id=%s AND body->>'operation'='training' ORDER BY created_at DESC LIMIT 1", (g['id'],), one=True)
+            interval = time.time()-(attempt or latest)['created_at'].timestamp()
+            if len(new-old)>=CONFIG['limits']['new_labels'] and interval>=CONFIG['limits']['candidate_interval_seconds']:
+                submit(g['id'], actor, operation='training')
+
+
+def refresh():
+    results = []
+    for source in db.query('SELECT * FROM backintel.analysis_sources'):
+        domain = source['domain']
+        owner = db.query("SELECT id FROM backintel.analysis_principals WHERE enabled AND role='manager' AND %s=ANY(domains) ORDER BY id LIMIT 1", (domain,), one=True)
+        if not owner:
+            results.append({'domain': domain, 'status': 'blocked', 'reason': 'No manager has permission to refresh this source'})
+            continue
+        try:
+            update = import_source(domain, owner)
+            schedule_snapshot(domain, update)
+            results.append({'domain': domain, **update})
+        except (ValueError, PermissionError, RuntimeError) as error:
+            results.append({'domain': domain, 'status': 'blocked', 'reason': str(error)[:1000]})
+    return {'sources': results, 'dispatch': dispatch()}
+
+
+def wake(run_id):
+    from pathlib import Path
+    import os
+    token = json.loads(Path('/run/backintel-credentials/access.json').read_text())['worker']
+    base = os.getenv('BACKINTEL_AEGRA_URL','http://127.0.0.1:2026')
+    with httpx.Client(timeout=15,headers={'Authorization':'Bearer '+token}) as client:
+        thread = client.post(base+'/threads',json={'metadata':{'analysis_run':run_id}})
+        thread.raise_for_status()
+        response = client.post(base+f"/threads/{thread.json()['thread_id']}/runs",json={'assistant_id':'analysis_run','input':{'run_id':run_id}})
+        response.raise_for_status()
+    return {'submitted': True,'thread_id':thread.json()['thread_id'],'native_run_id':response.json()['run_id']}
