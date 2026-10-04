@@ -24,3 +24,48 @@ jobs:
           python -m vulture runtime/analysis_*.py scripts/analysis_*.py --min-confidence 100
       - name: Compile backend
         run: python -m compileall -q runtime scripts tests
+  offline:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: validation
+          POSTGRES_PASSWORD: local-validation-only
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd 'pg_isready -U validation -d postgres'
+          --health-interval 2s --health-retries 20
+      redis:
+        image: redis:7.2.5-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd 'redis-cli ping'
+          --health-interval 2s --health-retries 20
+    env:
+      BACKINTEL_VALIDATION_ADMIN_URL: postgresql://validation:local-validation-only@127.0.0.1:5432/postgres
+      BACKINTEL_VALIDATION_REDIS_URL: redis://127.0.0.1:6379/15
+      NODE_PATH: ${{ github.workspace }}/apps/web/node_modules
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.testing.txt
+      - run: npm ci --prefix apps/web
+      - run: npm run build --prefix apps/web
+      - name: Install pinned browser
+        run: |
+          cd apps/web
+          npx playwright install --with-deps chromium
+      - name: Unit, database, budget, and recovery checks
+        run: python scripts/validation/run_analysis_offline.py --mode unit --output artifacts/AnalysisValidation/ci-unit
+      - name: Five-domain simulated browser and native-clock checks
+        run: python scripts/validation/run_analysis_offline.py --mode e2e --output artifacts/AnalysisValidation/ci-e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: analysis-offline-evidence
+          path: artifacts/AnalysisValidation/

@@ -1,0 +1,6 @@
+# Offline runtime and test boundary; model dependencies remain separate.
+-r requirements.txt
+aegra-api==0.10.5
+httpx==0.28.1
+uvicorn==0.54.0
+vulture==2.14

@@ -128,7 +128,7 @@ def schedule():
         existing.raise_for_status()
         crons=existing.json()
         if not any(c.get('metadata',{}).get('backintel_analysis') for c in crons):
-            response=client.post('/runs/crons',json={'assistant_id':'analysis_refresh','schedule':'0 * * * *','input':{},'metadata':{'backintel_analysis':True}})
+            response=client.post('/runs/crons',json={'assistant_id':'analysis_refresh','schedule':'0 * * * *','input':{'run_id':'scheduled-refresh'},'metadata':{'backintel_analysis':True}})
             response.raise_for_status()
     print('Native hourly refresh schedule registered; unchanged sources make no analyst calls.')
 

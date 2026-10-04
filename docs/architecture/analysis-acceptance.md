@@ -1,5 +1,7 @@
 # Continuous analysis acceptance
 
+This is the recovered October 2 historical record. Its measurements and local receipts were not transferred into the cloud environment or revalidated there. Use [the October 4 validation campaign](analysis-validation-campaign.md) for current evidence and blockers. The owner subsequently authorized all five datasets for benchmark/testing use.
+
 Recorded October 2, 2026. Overall result: **blocked**. This is a local working-tree demonstration on `codex/poc-foundation-20260929`, based on commit `c4565a00f4e073d09f626fbdda134feffed5cb14`. It is not exact-commit acceptance, publication, or deployment.
 
 Managers can register sources, confirm goals, request analysis, inspect calculations, compare predictors, approve a predictor route, and review history in the local React workspace. Follow-ups preserve the standing answer. The isolated runtime is available at `http://127.0.0.1:2028`; use the role launcher described in the [runbook](analysis-workspace-runbook.md).

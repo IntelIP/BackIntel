@@ -153,6 +153,13 @@ def request(identity, index, inputs):
     if size > config['input_bytes']:
         raise RuntimeError('Analyst input context limit exceeded')
     call_id = digest([identity, index, payload])
+    cached = db.query('SELECT status,response FROM backintel.analysis_requests WHERE id=%s', (call_id,), one=True)
+    if cached:
+        if cached['status'] != 'complete':
+            raise RuntimeError('Unresolved provider request; reconcile before any retry')
+        if not cached['response'] or cached['response'].get('model') not in config['served_models']:
+            raise ValueError('Cached response served an unapproved model')
+        return cached['response']
     key = credential()
     with httpx.Client(timeout=30) as client:
         catalogue = client.get('https://openrouter.ai/api/v1/models', headers={'Authorization': 'Bearer '+key})
@@ -161,10 +168,11 @@ def request(identity, index, inputs):
     if not approved:
         raise RuntimeError('Approved analyst identity is unavailable; no fallback is permitted')
     prices = [Decimal(approved['pricing'][name]) for name in ('prompt','completion')]
-    if any(not price.is_finite() or price < 0 for price in prices):
+    request_price = Decimal(approved['pricing'].get('request', '0'))
+    if any(not price.is_finite() or price < 0 for price in [*prices, request_price]):
         raise RuntimeError('Provider pricing is unavailable; no paid call is permitted')
     # Bytes conservatively bound input tokens; reserve maximum output before calling.
-    estimate = Decimal(size+2000)*prices[0] + Decimal(config['max_output_tokens'])*prices[1]
+    estimate = Decimal(size+2000)*prices[0] + Decimal(config['max_output_tokens'])*prices[1] + request_price
     prior = db.reserve(identity, call_id, estimate)
     if prior is not None:
         if prior.get('model') not in config['served_models']:
@@ -224,11 +232,14 @@ def analyze(identity):
               {'role': 'user', 'content': json.dumps({'question': r['body']['question'], 'definitions': r['body']['definitions'], 'domain': g['domain'], 'caveat': CONFIG['sources'][g['domain']]['caveat']})}]
     results = []
     count = 0
+    mode = 'real'
     started = time.monotonic()
     for index in range(CONFIG['analyst']['max_calls']):
         if time.monotonic()-started > CONFIG['analyst']['seconds']:
             raise TimeoutError('Analysis time limit reached')
         response = request(identity, index, inputs)
+        if response.get('_backintel_fixture'):
+            mode = 'fixture'
         outputs = response.get('output', [])
         inputs.extend(outputs)
         calls = [item for item in outputs if item.get('type') == 'function_call']
@@ -241,7 +252,7 @@ def analyze(identity):
             answer.update({'tables': [{'title': res['tool'], 'rows': res['table'], 'evidence_id': res['evidence_id']} for res in results if 'table' in res],
                            'charts': [{'type': 'bar', 'title': res['tool'], 'rows': res['table']} for res in results if 'table' in res],
                            'sources': {'snapshot': r['snapshot_id'], 'domain': g['domain']}, 'usage': db.usage(identity),
-                           'model': CONFIG['analyst']['model'], 'status': 'succeeded'})
+                           'model': CONFIG['analyst']['model'], 'mode': mode, 'status': 'succeeded'})
             db.evidence(identity, 'finding', identity, answer)
             return answer
         for call in calls:

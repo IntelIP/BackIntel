@@ -35,7 +35,7 @@ python3 -m scripts.analysis_demo acquire --domain support --acknowledge-terms
 python3 -m scripts.analysis_demo acquire --domain maintenance --acknowledge-terms
 ```
 
-Churn requires confirmation of the original-author rights. Credit requires accepted Kaggle Home Credit competition rules and locally downloaded `application_train.csv` and `bureau.csv`. A blocked source stays blocked. Dataset attribution and terms are retained in source receipts.
+The owner authorized the five named datasets for benchmarking and testing on October 4. Retain that scope and dataset attribution in the source receipts. Home Credit downloads still require the Kaggle account's competition access and the files `application_train.csv` and `bureau.csv`; the acquisition helper does not provide account access.
 
 The source screen confirms terms and imports registered files. Original archives are preserved. Source changes create new hashed snapshots; duplicate imports reuse the same snapshot. Records retain domain-specific features and source hashes instead of being converted to review records. Text-rich sources use a bounded 10,000-record cohort selected by stable identity hash. Original row counts and cohort counts are distinct. Credit uses a bounded deterministic applicant cohort and streamed bureau histories. FD001 keeps engine boundaries and official test labels.
 
@@ -47,7 +47,7 @@ Hourly Aegra scheduling checks registered sources, starts affected goals, and di
 
 New questions and notification thresholds create goal versions and require reconfirmation. Default change thresholds are five percentage points for classification targets and five target units for regression. Failed refreshes preserve the last completed answer. Findings distinguish observations, estimates, and hypotheses. Static arrivals and synthetic tickets are simulations, not proof of a live business connection.
 
-The suite enforces $25 total, $5 per domain, and $1 per run. A run is limited to six frontier calls, twelve tool calls, and ten minutes. Reservations are durable before requests; actual provider charges replace reservations. An interrupted or unresolved paid request blocks further paid work until reconciled. CPU model comparisons have a thirty-minute limit. Unmeasured local compute cost remains explicitly unavailable.
+The assigned validation campaign enforces $10 total, $5 per domain, $1 per run, and $0.25 per request. At most 200 requests may be admitted, with one request in flight. A run is limited to six frontier calls, twelve tool calls, and ten minutes. Reservations are durable before requests; actual provider charges replace reservations. An interrupted or unresolved paid request blocks further paid work until reconciled. CPU model comparisons have a thirty-minute limit. Unmeasured local compute cost remains explicitly unavailable.
 
 ## Evidence and readiness
 
@@ -65,4 +65,28 @@ Source refresh requests return a durable run ID. Read `/api/v1/runs/{id}` and it
 
 Managers can read `/api/v1/runs/{id}/requests` and reconcile an uncertain charge through `POST /api/v1/requests/{request_id}/reconcile`. This reads provider telemetry and never repeats inference. A missing provider response identity remains blocked. Budget admission uses the approved model catalog pricing before a paid request.
 
-The analysis validation manifest covers static, schema, semantic, workflow, visual, operational, and security checks. Each invocation saves durable evidence outside Git and can write its manifest sidecar with `--evidence-path`. Working-tree checks never establish exact-commit readiness. Credit and churn remain blocked until their source permissions are confirmed.
+The analysis validation manifest covers static, schema, semantic, workflow, visual, operational, and security checks. Each invocation saves durable evidence outside Git and can write its manifest sidecar with `--evidence-path`. Working-tree checks never establish exact-commit readiness. The current campaign record distinguishes verified offline workflows from stages needing live inputs and credentials.
+
+## Portable offline campaign
+
+Use Python 3.12, Node 22 or newer, and local disposable PostgreSQL/Redis services. Install the pinned test/runtime dependencies, build the web app, and install the pinned browser:
+
+```bash
+python -m pip install -r requirements.testing.txt
+npm ci --prefix apps/web
+npm run build --prefix apps/web
+(cd apps/web && npx playwright install chromium)
+```
+
+Set `BACKINTEL_VALIDATION_ADMIN_URL` to the local PostgreSQL admin URL and `BACKINTEL_VALIDATION_REDIS_URL` to the local Redis URL through the environment. Set `NODE_PATH` to the absolute `apps/web/node_modules` directory. For a system Chromium installation, optionally set `BACKINTEL_CHROMIUM_EXECUTABLE` to its absolute executable path.
+
+```bash
+python scripts/validation/run_analysis_offline.py --mode unit --output artifacts/AnalysisValidation/local-unit
+python scripts/validation/run_analysis_offline.py --mode e2e --output artifacts/AnalysisValidation/local-e2e
+```
+
+Each output directory must be new so failures are preserved. Each invocation creates its own `backintel_*_test` database and removes it afterward. E2E uses port 2028 by default (`--port` changes the listen port); browser writes currently allow origins at port 2028, so use the default for the rendered journey. E2E creates synthetic inputs for all five adapters and substitutes only provider/model responses. It runs the real Aegra API, PostgreSQL, Redis worker, and native scheduler. Receipt `mode: fixture` and synthetic source caveats prevent this evidence from qualifying as a live model benchmark. Unit execution rejects external provider transport and does not discover provider credentials.
+
+The E2E receipt records the five import/goal/answer/evidence/follow-up paths, a failed answer, model approval and prediction fixtures, source correction and internal notification, six desktop/mobile role journeys, keyboard evidence inspection, and a bounded native-clock cron. It removes its server, access file, owned Redis prefix, native cron, and test database. Receipts contain candidate commit, dirty state, timings, cleanup, and artifact hashes. Keep evidence from a dirty tree identified as such.
+
+The `analysis-quality.yml` workflow runs static checks and these offline campaigns on pull requests. Hosted CI has not been run by this local campaign. Paid campaigns require their recorded authorization, actual permitted source files and model weights, current pricing, and an injected analyst credential. Ordinary CI does not receive provider secrets.

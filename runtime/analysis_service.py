@@ -273,7 +273,7 @@ def refresh():
             update = import_source(domain, owner)
             schedule_snapshot(domain, update)
             results.append({'domain': domain, **update})
-        except (ValueError, PermissionError, RuntimeError) as error:
+        except (ValueError, PermissionError, RuntimeError, OSError) as error:
             results.append({'domain': domain, 'status': 'blocked', 'reason': str(error)[:1000]})
     return {'sources': results, 'dispatch': dispatch()}
 
@@ -281,7 +281,8 @@ def refresh():
 def wake(run_id):
     from pathlib import Path
     import os
-    token = json.loads(Path('/run/backintel-credentials/access.json').read_text())['worker']
+    path = Path(os.getenv('BACKINTEL_ACCESS_CREDENTIAL_FILE', '/run/backintel-credentials/access.json'))
+    token = json.loads(path.read_text())['worker']
     base = os.getenv('BACKINTEL_AEGRA_URL','http://127.0.0.1:2026')
     with httpx.Client(timeout=15,headers={'Authorization':'Bearer '+token}) as client:
         thread = client.post(base+'/threads',json={'metadata':{'analysis_run':run_id}})

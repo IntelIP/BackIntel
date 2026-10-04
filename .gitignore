@@ -1,4 +1,5 @@
 /artifacts/validation/
+/artifacts/AnalysisValidation/
 /artifacts/Models/
 __pycache__/
 .venv/

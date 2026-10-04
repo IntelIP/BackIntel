@@ -94,13 +94,13 @@ async def blocked(request,error):
 
 @app.get('/api/v1/me')
 def me(p=Depends(access)):
-    return p
+    return {**p, 'budget': CONFIG['budget']}
 
 
 @app.get('/api/v1/notifications')
 def notifications(p=Depends(access)):
     db.authorize(p)
-    return db.query("SELECT e.id,e.run_id,e.body,e.created_at,g.id AS goal_id,g.domain FROM backintel.analysis_events e JOIN backintel.analysis_runs r ON r.id=e.run_id JOIN backintel.analysis_goals g ON g.id=r.goal_id WHERE e.kind='material_change' AND g.domain=ANY(%s) ORDER BY e.id DESC LIMIT 30",(p['domains'],))
+    return db.query("SELECT e.sequence AS id,e.run_id,e.body,e.created_at,g.id AS goal_id,g.domain FROM backintel.analysis_events e JOIN backintel.analysis_runs r ON r.id=e.run_id JOIN backintel.analysis_goals g ON g.id=r.goal_id WHERE e.kind='material_change' AND g.domain=ANY(%s) ORDER BY e.sequence DESC LIMIT 30",(p['domains'],))
 
 
 @app.get('/api/v1/sources')

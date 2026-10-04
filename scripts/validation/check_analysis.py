@@ -17,13 +17,13 @@ def docker(*args,**kw):
 
 
 def functional(output, filters=()):
-    name='test_analysis_checks_'+uuid.uuid4().hex[:12]
+    name='backintel_analysis_checks_'+uuid.uuid4().hex[:12]+'_test'
     created=docker('exec','-T','postgres','psql','-U','analysis_demo','-d','postgres','-c',f'CREATE DATABASE {name}')
     if created.returncode:
         return {'status':'blocked','reason':'Isolated check database unavailable','diagnostic':created.stderr[-1500:]}
     uri='postgresql://analysis_demo@postgres:5432/'+name
     try:
-        checked=docker('exec','-T','-e','BACKINTEL_ANALYSIS_CHECK_DB='+uri,'runtime','python','-m','unittest','discover','-s','tests','-p','test_analysis.py','-v',*filters,timeout=180)
+        checked=docker('exec','-T','-e','BACKINTEL_ANALYSIS_CHECK_DB='+uri,'runtime','python','-m','unittest','discover','-s','tests','-p','test_analysis*.py','-v',*filters,timeout=180)
         (output/'functional.log').write_text(checked.stdout+checked.stderr)
         status='passed' if checked.returncode==0 else 'failed' if 'Ran ' in checked.stderr else 'blocked'
         return {'status':status,'returncode':checked.returncode,'log':str(output/'functional.log'),'provider_calls':0,'provider_usd':0,'mode':'deterministic fixtures and control checks'}
@@ -42,7 +42,7 @@ for domain in CONFIG['sources']:
  models=db.query('SELECT m.id,m.body FROM backintel.analysis_models m JOIN backintel.analysis_goals g ON g.id=m.goal_id WHERE g.domain=%s',(domain,))
  runs=db.query("SELECT r.id,r.result FROM backintel.analysis_runs r JOIN backintel.analysis_goals g ON g.id=r.goal_id WHERE g.domain=%s AND r.status='succeeded' AND r.body->>'operation'='analysis'",(domain,))
  valid_models=[m['id'] for m in models if m['body'].get('mode')=='real' and {'catboost','tabiclv2'}.issubset({p['route'] for p in m['body']['methods']})]
- valid_runs=[r['id'] for r in runs if r['result'].get('model')==CONFIG['analyst']['model'] and r['result'].get('usage',{}).get('charge_status')=='measured']
+ valid_runs=[r['id'] for r in runs if r['result'].get('mode')=='real' and r['result'].get('model')==CONFIG['analyst']['model'] and r['result'].get('usage',{}).get('charge_status')=='measured']
  result.append({'domain':domain,'snapshot':s['latest_snapshot'],'real_comparisons':valid_models,'frontier_answers':valid_runs,'status':'passed' if s['latest_snapshot'] and valid_models and len(valid_runs)>=3 else 'blocked'})
 print(json.dumps({'domains':result,'costs':db.query('SELECT status,charge,reserved FROM backintel.analysis_requests')},default=str))
 """

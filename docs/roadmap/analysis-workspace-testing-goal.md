@@ -2,6 +2,8 @@
 
 Drafted October 3, 2026. This is a proposed execution goal. The budget below applies when the owner assigns the goal for execution; drafting it starts no paid tests.
 
+Execution update, October 4: the owner assigned this goal and authorized all five named datasets for benchmarking and testing. The $10 campaign cap is active. The development source has been recovered into the isolated `codex/backintel-analysis-validation` branch. Dataset downloads, model artifacts, and live analyst execution depend on the cloud environment's network and credential availability. See [the current campaign record](../architecture/analysis-validation-campaign.md) for fresh evidence; the historical handoff below describes the starting state.
+
 **Goal to assign**
 
 Complete and validate BackIntel's goal-driven analysis workspace from the latest saved implementation. Demonstrate that a user can admit permitted data, save a business question, receive a correct source-backed analysis, compare eligible predictors, ask a follow-up, and receive an updated result after a source change. Work must survive interruption, enforce roles and spending limits, and retain inspectable evidence. Deliver reviewable implementation commits, a reproducible operator runbook, and an acceptance report identifying what passed, failed, and remains blocked.

@@ -86,7 +86,7 @@ class AdapterChecks(unittest.TestCase):
         client=MagicMock();client.__enter__.return_value=client
         client.get.return_value.json.return_value={'data':[{'id':agent.CONFIG['analyst']['model'],'pricing':{'prompt':'0.000001','completion':'0.000001'}}]}
         client.post.return_value.json.return_value={'id':'fixture-response','model':'unapproved/model','usage':{'cost':.001},'output':[]}
-        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
+        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',return_value=None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
             with self.assertRaisesRegex(ValueError,'unapproved'):agent.request('fixture-run',0,[])
         payload=client.post.call_args.kwargs['json']
         self.assertEqual(payload['provider']['order'],['OpenAI'])
@@ -232,11 +232,12 @@ class ApplicationChecks(unittest.TestCase):
         db.save_snapshot('commerce',identity,body,cases)
         db.save_snapshot('commerce',identity,body,cases)
         self.assertEqual(len(db.records(identity)),1)
-        goal=self.goal();service.revise_goal(goal,{'id':'manager'},confirmed=True)
+        goal=self.goal();service.revise_goal(goal,{'id':'manager'},budget_usd=.25)
+        service.revise_goal(goal,{'id':'manager'},confirmed=True)
         a=service.submit(goal,{'id':'manager'});b=service.submit(goal,{'id':'manager'})
         self.assertEqual(a['job_id'],b['job_id'])
-        db.reserve(a['id'],'fixture-reservation',.75)
-        with self.assertRaises(RuntimeError):db.reserve(a['id'],'fixture-over-budget',.5)
+        db.reserve(a['id'],'fixture-reservation',.20)
+        with self.assertRaises(RuntimeError):db.reserve(a['id'],'fixture-over-budget',.10)
         db.write("UPDATE backintel.analysis_requests SET status='uncertain' WHERE id='fixture-reservation'")
         with self.assertRaises(RuntimeError):db.reserve(a['id'],'fixture-retry',.01)
     def test_lower_budget_and_partial_resume(self):

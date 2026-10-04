@@ -139,11 +139,18 @@ def evidence(identity, kind, key, body):
 
 def reserve(identity, call_id, amount):
     """The suite lock makes simultaneous domain/run limits one admission decision."""
+    if isinstance(amount, bool):
+        raise ValueError('Reservation must be a finite nonnegative cost')
     amount = Decimal(str(amount))
+    if not amount.is_finite() or amount < 0:
+        raise ValueError('Reservation must be a finite nonnegative cost')
+    if amount > Decimal(str(CONFIG['budget']['request_usd'])):
+        raise RuntimeError('Provider request reservation limit exceeded')
     r = run(identity)
     domain = goal(r['goal_id'])['domain']
     with connect() as c, c.transaction(), c.cursor(row_factory=dict_row) as cur:
         cur.execute('SELECT pg_advisory_xact_lock(81827027)')
+        _, current_goal = check_run(identity)
         cur.execute('SELECT * FROM backintel.analysis_requests WHERE id=%s', (call_id,))
         prior = cur.fetchone()
         if prior:
@@ -153,11 +160,20 @@ def reserve(identity, call_id, amount):
         cur.execute("SELECT count(*) FROM backintel.analysis_requests WHERE status IN ('sent','uncertain')")
         if cur.fetchone()['count']:
             raise RuntimeError('Suite has an unresolved provider charge')
+        cur.execute("SELECT count(*) FROM backintel.analysis_requests WHERE status='reserved'")
+        if cur.fetchone()['count'] >= CONFIG['budget']['max_concurrent']:
+            raise RuntimeError('Provider request concurrency limit reached')
+        cur.execute('SELECT count(*) FROM backintel.analysis_requests')
+        if cur.fetchone()['count'] >= CONFIG['budget']['max_attempts']:
+            raise RuntimeError('Campaign provider attempt limit reached')
+        cur.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s', (identity,))
+        if cur.fetchone()['count'] >= CONFIG['analyst']['max_calls']:
+            raise RuntimeError('Investigation provider call limit reached')
         for scope, cap in (('suite', 'suite_usd'), ('domain', 'domain_usd'), ('run', 'run_usd')):
             clause, args = ('', ()) if scope == 'suite' else (' WHERE domain=%s', (domain,)) if scope == 'domain' else (' WHERE run_id=%s', (identity,))
             cur.execute('SELECT COALESCE(sum(COALESCE(charge,reserved)),0) AS spent FROM backintel.analysis_requests'+clause, args)
             limit=CONFIG['budget'][cap]
-            if scope=='run':limit=min(limit,goal(r['goal_id'])['body'].get('budget_usd',limit))
+            if scope=='run':limit=min(limit,current_goal['body'].get('budget_usd',limit))
             if cur.fetchone()['spent'] + amount > Decimal(str(limit)):
                 raise RuntimeError(f'{scope} inference budget exhausted')
         cur.execute('INSERT INTO backintel.analysis_requests(id,run_id,domain,reserved,status) VALUES(%s,%s,%s,%s,\'reserved\')', (call_id, identity, domain, amount))
