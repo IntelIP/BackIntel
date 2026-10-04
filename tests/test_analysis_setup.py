@@ -4,6 +4,8 @@ import io
 import json
 import os
 import stat
+import ssl
+import subprocess
 import tempfile
 import unittest
 import zipfile
@@ -27,6 +29,19 @@ def churn_csv(directory):
 
 
 class SetupChecks(unittest.TestCase):
+    def test_weight_metadata_trusts_configured_ca_with_tls_verification_enabled(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary); certificate = base / 'ca.pem'; key = base / 'synthetic-ca.key'
+            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                            '-keyout', str(key), '-out', str(certificate), '-subj', '/CN=BackIntel setup test CA'],
+                           capture_output=True, check=True, timeout=15)
+            with patch.dict(os.environ, {'SSL_CERT_FILE': str(certificate)}):
+                context = demo.context()
+            expected = ssl.PEM_cert_to_DER_cert(certificate.read_text())
+            self.assertIn(expected, context.get_ca_certs(binary_form=True))
+            self.assertTrue(context.check_hostname)
+            self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+
     def test_valid_import_is_atomic_fingerprinted_and_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary); incoming = base / 'incoming'; incoming.mkdir()

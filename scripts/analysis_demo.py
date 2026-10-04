@@ -39,8 +39,8 @@ def seed():
 
 
 def context():
-    import certifi
-    return ssl.create_default_context(cafile=certifi.where())
+    # Python's default trust paths honor the platform's SSL_CERT_FILE binding.
+    return ssl.create_default_context()
 
 
 def download(url,path):
