@@ -41,6 +41,8 @@ def fingerprint(path):
 
 
 def number(value):
+    if isinstance(value, str):
+        value = value.strip()
     if value in (None, '', 'NA', 'NaN', 'nan'):
         return None
     n = float(value)
@@ -92,8 +94,11 @@ def support(paths):
 def churn(paths):
     numeric = ('tenure', 'MonthlyCharges', 'TotalCharges', 'SeniorCitizen')
     for r in csv_rows(paths[0]):
+        outcome = r['Churn'].strip()
+        if outcome not in ('Yes', 'No'):
+            raise ValueError('Telco Churn requires Yes or No outcomes')
         features = {k: number(v) if k in numeric else v for k, v in r.items() if k not in ('customerID', 'Churn')}
-        yield record(r['customerID'], features, float(r['Churn'] == 'Yes'),
+        yield record(r['customerID'], features, float(outcome == 'Yes'),
                      {'contract': r.get('Contract', ''), 'internet_service': r.get('InternetService', '')})
 
 

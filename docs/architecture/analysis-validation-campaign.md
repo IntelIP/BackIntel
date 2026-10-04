@@ -49,3 +49,6 @@ Enable the required source/model/provider hosts in the cloud network settings an
 The repository's required `graphify update .` could not run: no compatible executable was installed, and the available `graphify-cli==0.1.0` lacks `update`. Current Python callers, dependencies, 24 application routes, and the three Aegra graph registrations were inspected directly and recorded in `dependency-inspection.json`. The missing graphify check remains an explicit tooling limitation.
 
 See [the phase-by-phase goal](../roadmap/analysis-workspace-testing-goal.md) and [the portable operator runbook](analysis-workspace-runbook.md). No public push, PR, publication, or deployment was performed.
+## Subsequent setup work
+
+The offline results above describe their recorded candidate and remain historical evidence. The later owner-authorized cloud portability fixes, actual IBM Telco baseline/CatBoost comparison, and user-only access steps are documented in [setup and benchmark unblocking](analysis-unblock-report.md). Full live acceptance remains incomplete.

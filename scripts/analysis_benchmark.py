@@ -7,6 +7,7 @@ import json
 import os
 import re
 import statistics
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -16,26 +17,33 @@ from psycopg.types.json import Jsonb
 from runtime import analysis_store as db
 from runtime import analysis_service as service
 from runtime.analysis_data import CONFIG,root
+from runtime.analysis_errors import safe_error
+from scripts.analysis_demo import access_path
 
 
 def execute(run):
     if db.run(run['id'])['status']=='succeeded':
         return db.run(run['id'])
     service.wake(run['id'])
-    token=json.loads(Path('/run/backintel-credentials/access.json').read_text())['manager']
+    token=json.loads(access_path().read_text())['manager']
+    deadline=time.monotonic()+CONFIG['limits']['model_seconds']+CONFIG['analyst']['seconds']
+    base=os.getenv('BACKINTEL_AEGRA_URL','http://127.0.0.1:2026')
     with httpx.Client(timeout=75,headers={'Authorization':'Bearer '+token}) as client:
         while db.run(run['id'])['status'] in ('queued','running'):
-            with client.stream('GET','http://127.0.0.1:2026'+f"/api/v1/runs/{run['id']}/events") as response:
+            if time.monotonic()>deadline:
+                raise TimeoutError('Benchmark run exceeded the configured model and analyst deadline')
+            with client.stream('GET',base+f"/api/v1/runs/{run['id']}/events") as response:
                 response.raise_for_status()
                 for _ in response.iter_lines():
-                    pass
+                    if time.monotonic()>deadline:
+                        raise TimeoutError('Benchmark event stream exceeded its deadline')
     return db.run(run['id'])
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--domains',nargs='+',choices=CONFIG['sources'],default=list(CONFIG['sources']))
-    parser.add_argument('--output',default='/models/Analysis/benchmark-evidence.json')
+    parser.add_argument('--output',default=str(Path(os.getenv('BACKINTEL_MODEL_DIR','/models'))/'Analysis/benchmark-evidence.json'))
     args=parser.parse_args()
     receipt={'status':'blocked','domains':[],'simulations':['support tickets and FD001 trajectories; static-source arrivals'],'promotion':'manager approval remains required'}
     try:
@@ -46,7 +54,7 @@ def main():
                 actor=db.authorize({'id':'manager'},domain,('manager',))
                 s=db.source(domain)
                 source_receipt=root()/domain.title()/'source-receipt.json'
-                if source_receipt.exists() and json.loads(source_receipt.read_text()).get('terms_acknowledged') and not CONFIG['sources'][domain].get('competition'):
+                if source_receipt.exists() and json.loads(source_receipt.read_text()).get('terms_acknowledged'):
                     db.write('UPDATE backintel.analysis_sources SET body=%s WHERE id=%s',(Jsonb({**s['body'],'terms_acknowledged':True,'terms_actor':'manager','terms_basis':'operator download receipt'}),domain))
                 service.import_source(domain,actor)
                 question=CONFIG['sources'][domain]['question']
@@ -81,7 +89,7 @@ def main():
                 result['status']='passed'
             except Exception as error:
                 result['status']='failed' if isinstance(error,ValueError) else 'blocked'
-                result['reason']=type(error).__name__+': '+str(error)[:1500]
+                result['reason']=type(error).__name__+': '+safe_error(error)
         receipt['status']='failed' if any(r['status']=='failed' for r in receipt['domains']) else 'passed' if all(r['status']=='passed' for r in receipt['domains']) else 'blocked'
     finally:
         output=Path(args.output);output.parent.mkdir(parents=True,exist_ok=True)

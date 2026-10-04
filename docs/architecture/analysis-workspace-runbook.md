@@ -2,6 +2,8 @@
 
 Current measured results and remaining blockers are recorded in [the current validation campaign](analysis-validation-campaign.md). Earlier benchmark evidence remains in [historical analysis acceptance](analysis-acceptance.md).
 
+For the subsequent cloud setup fixes, actual IBM Telco comparison, prepared import/acquisition commands, and exact user-only configuration steps, see [setup and benchmark unblocking](analysis-unblock-report.md).
+
 The application lets a manager confirm a question, select permitted data, compare prediction methods, and inspect updated answers. The hosted analyst is `openai/gpt-6.1-sol` through OpenRouter Responses, restricted to OpenAI with fallback disabled. Local Decide handles classification; CatBoost and TabICLv2 handle predictions. No local planning language model is used.
 
 ## Setup
@@ -27,7 +29,7 @@ python3 -m scripts.analysis_demo open --role manager
 
 ## Sources
 
-Original files live under `~/Library/Application Support/BackIntel/Datasets/{Commerce,Support,Churn,Credit,Maintenance}`. Model weights and prepared artifacts live under ignored `artifacts/Models`. Source access and terms must be acknowledged before ingestion. No command accepts competition rules on behalf of the user.
+Original files use `BACKINTEL_DATASET_DIR` with domain subdirectories `{Commerce,Support,Churn,Credit,Maintenance}`; the Mac default is `~/Library/Application Support/BackIntel/Datasets`. Compose's portable default is ignored `private/Datasets`. Model weights and prepared artifacts use `BACKINTEL_MODEL_DIR` (Compose defaults to ignored `artifacts/Models`). Source access and terms must be acknowledged before ingestion. No command accepts competition rules on behalf of the user.
 
 ```sh
 python3 -m scripts.analysis_demo acquire --domain commerce --acknowledge-terms

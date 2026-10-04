@@ -3,26 +3,33 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import io
 import json
 import os
 import secrets
 import ssl
 import subprocess
+import sys
+import tempfile
 import urllib.request
-import zipfile
+from urllib.parse import quote
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def access_path():
+    return Path(os.getenv('BACKINTEL_ACCESS_CREDENTIAL_FILE', '/run/backintel-credentials/access.json'))
 
 
 def seed():
     from runtime.analysis_data import CONFIG
     from runtime import analysis_store as db
     db.catalog()
-    directory=Path('/run/backintel-credentials')
+    path=access_path()
+    directory=path.parent
     directory.mkdir(parents=True,exist_ok=True,mode=0o700)
-    path=directory/'access.json'
+    if path.is_symlink():
+        raise ValueError('Access credential file must not be a symbolic link')
     values=json.loads(path.read_text()) if path.exists() else {role:secrets.token_urlsafe(32) for role in ('manager','analyst','viewer','worker')}
     for role,token in values.items():
         db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s) ON CONFLICT(id) DO UPDATE SET token_hash=excluded.token_hash',
@@ -39,7 +46,7 @@ def context():
 def download(url,path):
     path.parent.mkdir(parents=True,exist_ok=True)
     temporary=path.with_suffix(path.suffix+'.partial')
-    result=subprocess.run(['curl','--silent','--show-error','--fail','--location','--retry','2',
+    result=subprocess.run(['curl','--silent','--show-error','--fail','--location','--proto','=https','--proto-redir','=https','--retry','2',
                            '--connect-timeout','30','--max-time','600','--continue-at','-',
                            '--output',str(temporary),url],capture_output=True,text=True)
     if result.returncode:
@@ -48,40 +55,23 @@ def download(url,path):
 
 
 def acquire(domain,acknowledge):
-    from runtime.analysis_data import CONFIG,root
+    from runtime.analysis_data import CONFIG
+    from scripts.analysis_setup import import_data
     spec=CONFIG['sources'][domain]
     if spec.get('competition'):
-        raise RuntimeError('Home Credit requires human Kaggle rule acceptance. Place application_train.csv and bureau.csv in the Credit dataset directory.')
+        raise RuntimeError('Home Credit needs an account with competition access for download. Import an existing ZIP or directory with scripts.analysis_setup import-data --domain credit --input PATH.')
     if not acknowledge:
         raise RuntimeError('Confirm the linked source terms before downloading with --acknowledge-terms')
-    directory=root()/domain.title()
-    archive=directory/'original.zip'
-    if not archive.exists():
+    with tempfile.TemporaryDirectory(prefix='backintel-kaggle-') as temporary:
+        archive=Path(temporary)/'original.zip'
         download('https://www.kaggle.com/api/v1/datasets/download/'+spec['kaggle'],archive)
-    needed=set(spec['files'])
-    def extract(z):
-        for member in z.infolist():
-            name=Path(member.filename).name
-            if name in needed:
-                target=directory/name
-                if not target.exists():
-                    with z.open(member) as stream,target.open('xb') as output:
-                        for chunk in iter(lambda:stream.read(1048576),b''):
-                            output.write(chunk)
-                needed.remove(name)
-            elif name.lower().endswith('.zip') and member.file_size<200_000_000:
-                extract(zipfile.ZipFile(io.BytesIO(z.read(member))))
-    with zipfile.ZipFile(archive) as z:
-        extract(z)
-    if needed:
-        raise RuntimeError('Expected source files are missing: '+', '.join(sorted(needed)))
-    (directory/'source-receipt.json').write_text(json.dumps({'kaggle':spec['kaggle'],'license':spec['license'],'terms_acknowledged':True,'attribution':spec['name']}))
-    print(json.dumps({'domain':domain,'status':'downloaded','directory':str(directory)}))
+        receipt=import_data(domain,archive,{'kind':'Kaggle dataset download','source_url':'https://www.kaggle.com/datasets/'+spec['kaggle']})
+    print(json.dumps({'domain':domain,'status':'downloaded-and-validated','snapshot_id':receipt['snapshot_id']}))
 
 
 def weights():
     from runtime.analysis_data import CONFIG, fingerprint
-    directory=ROOT/'artifacts/Models/Decide'
+    directory=Path(os.getenv('BACKINTEL_MODEL_DIR', str(ROOT/'artifacts/Models')))/'Decide'
     spec=CONFIG['decide']
     req=urllib.request.Request('https://huggingface.co/api/models/'+spec['repository']+'/revision/'+spec['revision'])
     with urllib.request.urlopen(req,context=context(),timeout=30) as stream:
@@ -89,15 +79,20 @@ def weights():
     paths=[item['rfilename'] for item in meta['siblings'] if item['rfilename'].endswith(('.json','.safetensors','.model'))]
     receipts=[]
     for name in paths:
+        if Path(name).is_absolute() or '..' in Path(name).parts or '\\' in name:
+            raise ValueError('Model metadata contains an unsafe path')
         path=directory/name
         if not path.exists():
-            download('https://huggingface.co/'+spec['repository']+'/resolve/'+spec['revision']+'/'+name+'?download=true',path)
+            download('https://huggingface.co/'+spec['repository']+'/resolve/'+spec['revision']+'/'+quote(name, safe='/')+'?download=true',path)
         receipts.append({**fingerprint(path),'file':name})
     (directory/'backintel-weights.json').write_text(json.dumps({**spec,'files':receipts}))
     print('Pinned Decide weights prepared; receipt contains hashes and provenance limitations.')
 
 
 def runtime_access():
+    path=access_path()
+    if os.getenv('BACKINTEL_ACCESS_CREDENTIAL_FILE') or path.is_file():
+        return json.loads(path.read_text())
     value=subprocess.run(['docker','compose','-f','compose.analysis.yml','exec','-T','runtime','python','-c',"from pathlib import Path;print(Path('/run/backintel-credentials/access.json').read_text())"],cwd=ROOT,capture_output=True,text=True,check=True)
     return json.loads(value.stdout)
 
@@ -111,6 +106,11 @@ def keychain(action,role,value=None):
 
 def provision():
     values=runtime_access()
+    if sys.platform!='darwin':
+        if not os.getenv('OPENROUTER_API_KEY'):
+            raise RuntimeError('Inject OPENROUTER_API_KEY through environment Secrets; portable provisioning needs no Keychain.')
+        print('Local role credentials are ready. The analyst uses the injected environment binding; live authentication is unverified.')
+        return
     for role in ('manager','analyst','viewer'):
         keychain('set',role,values[role])
     result=subprocess.run(['security','find-generic-password','-s','BackIntel OpenRouter','-a','runtime','-w'],capture_output=True,text=True,check=True)
@@ -123,7 +123,7 @@ def provision():
 def schedule():
     import httpx
     token=runtime_access()['worker']
-    with httpx.Client(base_url='http://127.0.0.1:2028',headers={'Authorization':'Bearer '+token},timeout=30) as client:
+    with httpx.Client(base_url=os.getenv('BACKINTEL_AEGRA_URL','http://127.0.0.1:2028'),headers={'Authorization':'Bearer '+token},timeout=30) as client:
         existing=client.post('/runs/crons/search',json={'limit':100})
         existing.raise_for_status()
         crons=existing.json()

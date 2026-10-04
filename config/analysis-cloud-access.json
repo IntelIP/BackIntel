@@ -1,0 +1,12 @@
+{
+  "purpose": "BackIntel approved benchmark/test campaign",
+  "network": {
+    "preserve_package_manager_preset": true,
+    "initial_hosts": ["www.kaggle.com", "kaggle.com", "storage.googleapis.com", "huggingface.co", "hf.co", "cdn-lfs.huggingface.co", "cdn-lfs-us-1.hf.co", "cas-bridge.xethub.hf.co", "cas-server.xethub.hf.co", "transfer.xethub.hf.co", "openrouter.ai"],
+    "redirect_hosts": "Add any additional artifact host reported by the approved download; keep the managed proxy and TLS verification."
+  },
+  "secrets": {"required_variable": "OPENROUTER_API_KEY", "value": "Inject the existing credential through cloud environment Secrets; never put it in this file."},
+  "home_credit": {"option": "Supply application_train.csv and bureau.csv, or a previously downloaded competition ZIP, through the local importer.", "download_access": "If acquiring from Kaggle, the account must already have competition access. Importing existing files needs no Kaggle token."},
+  "limits": {"new_provider_spend_usd": 10, "concurrent_provider_requests": 1, "request_usd": 0.25},
+  "configuration_application": "Apply using the cloud environment configuration UI/workflow. This file is a request, not an effective policy."
+}

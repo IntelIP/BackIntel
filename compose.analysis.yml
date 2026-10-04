@@ -38,6 +38,7 @@ services:
       OMP_NUM_THREADS: "2"
       MKL_NUM_THREADS: "2"
       OPENBLAS_NUM_THREADS: "2"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       HF_HUB_OFFLINE: "1"
       OTEL_TARGETS: ""
       OTEL_CONSOLE_EXPORT: "false"
@@ -46,8 +47,8 @@ services:
     tmpfs: ["/run/backintel-credentials:mode=0700,size=1m"]
     ports: ["127.0.0.1:2028:2026"]
     volumes:
-      - ./artifacts/Models:/models
-      - ${BACKINTEL_DATASET_DIR:-/Users/hudson/Library/Application Support/BackIntel/Datasets}:/datasets:ro
+      - ${BACKINTEL_MODEL_DIR:-./artifacts/Models}:/models
+      - ${BACKINTEL_DATASET_DIR:-./private/Datasets}:/datasets:ro
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}

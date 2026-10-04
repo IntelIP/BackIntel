@@ -1,6 +1,7 @@
 /artifacts/validation/
 /artifacts/AnalysisValidation/
 /artifacts/Models/
+/private/
 __pycache__/
 .venv/
 *.py[cod]
@@ -20,6 +21,7 @@ reflex_demo/__pycache__/
 
 .env.*
 !.env.example
+!.env.analysis.example
 # Private tracker handoff stays local.
 docs/demo/Packages/AgentShiftReminder.json
 docs/release/AgentShiftReleaseAssessment.txt
