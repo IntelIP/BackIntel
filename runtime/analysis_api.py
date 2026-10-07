@@ -72,10 +72,13 @@ class GrantInput(Input):
     expires_at: datetime | None = None
 
 
+WRITE_ORIGINS = frozenset(('http://127.0.0.1:2028', 'http://localhost:2028'))
+
+
 def access(request: Request):
     if request.method not in ('GET','HEAD'):
         origin=request.headers.get('origin')
-        if origin and origin not in ('http://127.0.0.1:2028','http://localhost:2028'):
+        if origin and origin not in WRITE_ORIGINS:
             raise HTTPException(403,'Cross-origin writes are denied')
     return db.principal(request.headers.get('authorization','').removeprefix('Bearer '))
 

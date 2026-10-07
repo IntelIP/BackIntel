@@ -134,6 +134,20 @@ def backup_restore(admin_url, test_url, database, output, settings):
             connection.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(restore)))
 
 
+def accepted_result(connection, state, job_id):
+    """Identify the one accepted completion after an interrupted import."""
+    if state['job_id'] != job_id:
+        raise AssertionError('Recovery changed the admitted job identity')
+    row = connection.execute('SELECT result_sha256 FROM backintel.capability_jobs WHERE job_id=%s AND state=%s',
+                             (job_id, 'completed')).fetchone()
+    completions = connection.execute("SELECT count(*) FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'",
+                                     (state['id'],)).fetchone()[0]
+    if not row or not row[0] or completions != 1:
+        raise AssertionError('Recovery did not retain exactly one accepted completion')
+    return {'same_run_id': state['id'], 'same_job_id': job_id, 'accepted_result_sha256': row[0],
+            'completed_events': completions, 'snapshot_id': state['result']['snapshot']}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', choices=('unit', 'e2e'), required=True)
@@ -161,7 +175,7 @@ def main():
                'candidate_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                'dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
                'started_at': datetime.now(timezone.utc).isoformat(), 'database': database,
-               'provider_calls': 0, 'new_provider_spend_usd': 0, 'status': 'blocked'}
+               'provider_calls': 0, 'new_provider_spend_usd': 0, 'scenarios': [], 'status': 'blocked'}
     receipt['dependencies'] = {name: version(name) for name in ('aegra-api', 'httpx', 'psycopg', 'langgraph', 'coverage')}
     env['BACKINTEL_CANDIDATE_SHA'] = receipt['candidate_commit']
     receipt['dependencies'].update(python=sys.version.split()[0], node=subprocess.check_output(['node', '--version'], text=True).strip())
@@ -225,12 +239,26 @@ sys.exit(0 if result.wasSuccessful() else 1)
             ready(server, base)
             result = subprocess.run(['node', 'scripts/validation/check_analysis_offline_browser.cjs', str(output), base, str(access)],
                                     cwd=ROOT, env=env, capture_output=True, text=True, timeout=180)
+            browser_path = output / 'browser-evidence.json'
+            browser_receipt = json.loads(browser_path.read_text()) if browser_path.exists() else {}
+            receipt['scenarios'].extend(browser_receipt.get('scenarios', []))
             if result.returncode == 0:
+                with psycopg.connect(test_url) as connection:
+                    for scenario in browser_receipt['scenarios']:
+                        if scenario['id'] in ('BI-REFRESH-001', 'BI-DURABLE-001'):
+                            identity = scenario.get('import_run_id', scenario.get('run_id'))
+                            count = connection.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s', (identity,)).fetchone()[0]
+                            expected = 0 if scenario['id'] == 'BI-REFRESH-001' else 2
+                            if count != expected:
+                                raise AssertionError('Unchanged/duplicate work changed fixture request count')
+                            scenario['fixture_requests'] = count
+                (output / 'browser-evidence.json').write_text(json.dumps(browser_receipt, indent=2) + '\n')
                 headers = {'Authorization': 'Bearer offline-fixture-manager'}
                 with httpx.Client(base_url=base, headers=headers, timeout=20) as client:
                     queued = client.post('/api/v1/sources/commerce/refresh', json={})
                     queued.raise_for_status()
                     identity = queued.json()['id']
+                    admitted_job_id = queued.json()['job_id']
                     for _ in range(100):
                         state = client.get('/api/v1/runs/' + identity).json()
                         if state['status'] == 'running':
@@ -256,10 +284,12 @@ sys.exit(0 if result.wasSuccessful() else 1)
                 with psycopg.connect(test_url) as connection:
                     attempts = connection.execute('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s', (state['job_id'],)).fetchone()[0]
                     requests = connection.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s', (identity,)).fetchone()[0]
+                    accepted = accepted_result(connection, state, admitted_job_id)
                 if attempts != 2 or requests != 0:
                     raise AssertionError('Worker recovery duplicated admission or attempted provider work')
                 receipt['hard_worker_restart'] = {'status': 'passed', 'mode': 'fixture import with real process kill/restart',
-                                                   'same_run_id': identity, 'attempts': attempts, 'provider_calls': requests}
+                                                   **accepted, 'attempts': attempts, 'provider_calls': requests}
+                receipt['scenarios'].append({'id':'BI-RECOVERY-001', 'domain':'commerce', **receipt['hard_worker_restart'], 'mode':'fixture', 'execution':receipt['hard_worker_restart']['mode']})
                 if owned_broker:
                     local_docker('stop', '--time=3', owned_broker)
                     try:
@@ -288,11 +318,13 @@ sys.exit(0 if result.wasSuccessful() else 1)
                     with psycopg.connect(test_url) as connection:
                         provider_count = connection.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s', (interrupted['id'],)).fetchone()[0]
                         pending_events = connection.execute("SELECT count(*) FROM backintel.analysis_events WHERE run_id=%s AND kind='dispatch_pending'", (interrupted['id'],)).fetchone()[0]
+                        accepted = accepted_result(connection, state, interrupted['job_id'])
                     if provider_count or not pending_events:
                         raise AssertionError('Broker failure receipt or zero-provider boundary is missing')
                     receipt['broker_restart'] = {'status': 'passed', 'mode': 'owned Redis process stop/restart',
-                                                 'same_run_id': interrupted['id'], 'durable_status_during_outage': 'queued',
+                                                 **accepted, 'durable_status_during_outage': 'queued',
                                                  'provider_calls': provider_count, 'existing_broker_untouched': True}
+                    receipt['scenarios'].append({'id':'BI-RECOVERY-002', 'domain':'commerce', **receipt['broker_restart'], 'mode':'fixture', 'execution':receipt['broker_restart']['mode']})
                 server.terminate()
                 server.wait(timeout=15)
                 receipt['database_backup_restore'] = backup_restore(admin_url, test_url, database, output, settings)

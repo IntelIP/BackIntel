@@ -5,12 +5,14 @@ const {chromium, request} = require('playwright');
 (async () => {
   const [out, base, accessPath] = process.argv.slice(2);
   const access = JSON.parse(fs.readFileSync(accessPath, 'utf8'));
-  const receipt = {status: 'failed', mode: 'fixture', provider_calls: 0, provider_usd: 0, domains: [], views: [], screenshots: []};
+  const receipt = {status: 'failed', mode: 'fixture', provider_calls: 0, provider_usd: 0, domains: [], scenarios: [], views: [], screenshots: []};
   // Fixed answers follow directly from the CSV fixture definitions, independent of adapters/tools.
   const oracles = {commerce:{group:'B',count:20,mean:0},support:{group:'silver',count:20,mean:1},
     churn:{group:'Yearly',count:20,mean:0},credit:{group:'Working',count:40,mean:.5},maintenance:{group:'train-1',count:2,mean:.5}};
-  let browser, worker, manager, cronId;
+  let browser, worker, manager, cronId, activeScenario;
+  function begin(id, domain) {activeScenario = {id, domain, mode:'fixture'};}
   const check = (condition, message) => {if (!condition) throw Error(message);};
+  function passed(id, domain, evidence) {receipt.scenarios.push({id, domain, status:'passed', mode:'fixture', ...evidence});activeScenario=null;}
   async function api(client, method, route, data) {
     const response = await client.fetch(route, {method, data});
     if (!response.ok()) throw Error(route + ': HTTP ' + response.status() + ' ' + (await response.text()).slice(0,500));
@@ -36,6 +38,7 @@ const {chromium, request} = require('playwright');
     await page.goto(base + '/#access=' + access.manager);
     await page.getByRole('heading', {name:'Clothing reviews',exact:true}).waitFor();
     for (const domain of ['commerce','support','churn','credit','maintenance']) {
+      begin('BI-DATA-001', domain);
       await page.getByRole('navigation', {name:'Data domains'}).getByRole('button').filter({hasText: new RegExp('^' + domain, 'i')}).click();
       await page.getByRole('button', {name:'Sources',exact:true}).click();
       await page.getByRole('button', {name:'Confirm source access and terms',exact:true}).click();
@@ -61,19 +64,38 @@ const {chromium, request} = require('playwright');
       check(evidence.body.result.table.length > 0, 'Calculation table is empty');
       const first = evidence.body.result.table[0], expected = oracles[domain];
       check(first.group === expected.group && first.count === expected.count && first.mean === expected.mean, domain + ' disagrees with the independent fixture oracle');
+      passed('BI-DATA-001', domain, {run_id:standing.id, snapshot_id:standing.snapshot_id, expected, observed:first});
+      begin('BI-DURABLE-001', domain);
+      const duplicate = await api(manager,'POST','/api/v1/goals/' + selected.id + '/runs',{});
+      check(duplicate.id === standing.id && duplicate.job_id === standing.job_id, 'Duplicate admission changed run/job identity');
+      const afterDuplicate = await finished(duplicate.id);
+      check(JSON.stringify(afterDuplicate.result) === JSON.stringify(standing.result), 'Duplicate admission changed accepted result');
+      check((await runs(selected.id)).length === 1, 'Duplicate admission produced another result');
+      passed('BI-DURABLE-001', domain, {run_id:standing.id, job_id:standing.job_id, result_unchanged:true, analysis_runs:1});
+      begin('BI-REFRESH-001', domain);
+      const refreshed = await api(manager,'POST','/api/v1/sources/' + domain + '/refresh',{});
+      const refreshedResult = await finished(refreshed.id);
+      check(refreshedResult.status === 'succeeded' && refreshedResult.result.changed === false, 'Unchanged refresh changed snapshot');
+      check((await runs(selected.id)).length === 1, 'Unchanged refresh produced another analysis');
+      passed('BI-REFRESH-001', domain, {import_run_id:refreshed.id, standing_run_id:standing.id, snapshot_id:standing.snapshot_id, analysis_runs:1});
       await page.getByRole('button', {name:'Close evidence',exact:true}).click();
       await page.getByRole('button', {name:'Conversation',exact:true}).click();
+      begin('BI-DIALOGUE-001', domain);
       await page.getByLabel('Follow-up question').fill('Follow-up observed value for ' + domain);
       await page.getByRole('button', {name:'Investigate',exact:true}).click();
       await until(() => runs(selected.id), list => list.filter(r => r.status === 'succeeded').length === 2);
       const unchanged = (await api(manager,'GET','/api/v1/goals')).find(g => g.id === selected.id);
       check(unchanged.last_success === standing.id, 'Follow-up replaced the standing answer');
+      check(JSON.stringify((await finished(standing.id)).result) === JSON.stringify(standing.result), 'Follow-up mutated the standing result');
+      passed('BI-DIALOGUE-001', domain, {standing_run_id:standing.id, last_success:unchanged.last_success});
       receipt.domains.push({domain, goal_id:selected.id, standing_run:standing.id, source_import:true, confirmed_goal:true, supported_answer:true, independent_oracle:true, evidence_snapshot:true, followup_preserves_standing:true, mode:'fixture'});
     }
     const commerce = receipt.domains.find(d => d.domain === 'commerce');
+    begin('BI-DIALOGUE-002', 'commerce');
     const bad = await api(manager,'POST','/api/v1/goals/' + commerce.goal_id + '/runs',{question:'fixture_invalid_number'});
     check((await finished(bad.id)).status === 'partial','Unsupported provider numbers were accepted');
     check((await api(manager,'GET','/api/v1/goals')).find(g => g.id === commerce.goal_id).last_success === commerce.standing_run,'A failed run replaced the standing answer');
+    passed('BI-DIALOGUE-002', 'commerce', {standing_run_id:commerce.standing_run, failed_followup_id:bad.id});
     const trained = await api(manager,'POST','/api/v1/goals/' + commerce.goal_id + '/runs',{operation:'training'});
     const comparison = await finished(trained.id);
     check(comparison.status === 'succeeded' && comparison.result.mode === 'fixture','Fixture comparison was not labeled');
@@ -83,13 +105,16 @@ const {chromium, request} = require('playwright');
     check((await finished(estimated.id)).status === 'succeeded','Approved fixture predictor was not used');
     const calculation = await api(manager,'GET','/api/v1/evidence/' + (await finished(estimated.id)).result.findings[0].evidence_ids[0]);
     check(calculation.body.tool === 'predict','Prediction question used observations');
+    begin('BI-CORRECTION-001', 'commerce');
     await api(manager,'POST','/api/v1/sources/commerce/corrections',{record_id:'1',target:0,explanation:'Synthetic correction for notification check'});
     await until(() => runs(commerce.goal_id), list => list.some(r => r.status === 'succeeded' && r.snapshot_id !== calculation.body.snapshot));
     const notices = await api(manager,'GET','/api/v1/notifications');
     check(notices.some(n => n.goal_id === commerce.goal_id),'Material correction did not notify');
+    passed('BI-CORRECTION-001', 'commerce', {previous_snapshot_id:calculation.body.snapshot, material_notification:true});
     receipt.recovery = {unsupported_number_rejected:true,last_answer_preserved:true,fixture_promotion:true,prediction_tool:true,correction_refresh:true,internal_notification:true};
     await page.close();
     for (const role of ['manager','analyst','viewer']) for (const width of [1440,390]) {
+      begin('BI-ACCESS-001', 'commerce');
       const view = await browser.newPage({viewport:{width,height:1000}});
       const viewErrors=[];view.on('pageerror',error=>viewErrors.push(error.message));
       await view.goto(base + '/#access=' + access[role]);
@@ -118,6 +143,7 @@ const {chromium, request} = require('playwright');
       check(viewErrors.length === 0,'Browser errors: ' + viewErrors.join('; '));
       const shot = role + '-' + width + '.png';
       await view.screenshot({path:path.join(out,shot),fullPage:true});
+      passed('BI-ACCESS-001', 'commerce', {role,width,write_status:denial.api,core_status:denial.core});
       receipt.screenshots.push(shot);receipt.views.push({role,width,no_overflow:true,keyboard_evidence:true,core_denial:true});
       await view.close();
     }
@@ -143,7 +169,7 @@ const {chromium, request} = require('playwright');
     await api(worker,'DELETE','/threads/' + clockThread.thread_id);
     receipt.native_clock = {status:'passed',mode:'real clock with fixture data/provider',due_at:scheduled.next_run_date,fired_at:cronRun.created_at,run_id:cronRun.run_id,cleanup:'removed'};
     receipt.status='passed';
-  } catch (error) {receipt.error=error.message;process.exitCode=1;}
+  } catch (error) {if (activeScenario) receipt.scenarios.push({...activeScenario,status:'failed',reason:error.message});receipt.error=error.message;process.exitCode=1;}
   finally {
     if (cronId && worker) {try {await api(worker,'DELETE','/runs/crons/' + cronId);} catch (_) {receipt.cron_cleanup='database cleanup required';}}
     if (browser) await browser.close();if (manager) await manager.dispose();if (worker) await worker.dispose();

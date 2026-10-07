@@ -68,6 +68,12 @@ def main():
     name = conninfo_to_dict(os.environ['BACKINTEL_APP_DATABASE_URL'])['dbname']
     if not (name.startswith('backintel_') and name.endswith('_test')):
         raise RuntimeError('Fixture runtime requires a disposable test database')
+    from runtime import analysis_api
+    port = int(os.environ['BACKINTEL_VALIDATION_PORT'])
+    if not 1 <= port <= 65535:
+        raise ValueError('Fixture port must be between 1 and 65535')
+    # Only this guarded, disposable fixture entrypoint changes allowed origins.
+    analysis_api.WRITE_ORIGINS = frozenset((f'http://127.0.0.1:{port}', f'http://localhost:{port}'))
     from runtime.bootstrap import initialize
     initialize()
     db.catalog()
