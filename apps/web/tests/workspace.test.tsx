@@ -10,6 +10,7 @@ let role: string;
 let source: Record<string, any>;
 let goal: Record<string, any>;
 let runs: Record<string, any>[];
+let savedFinding: Record<string, any>;
 let requests: {path: string; method: string; body: any}[];
 let failRun: boolean;
 let releaseRun: (() => void) | undefined;
@@ -32,6 +33,7 @@ beforeEach(() => {
       tables: [{title: 'summarize', evidence_id: 'calculation-1', rows: [{group: 'A', count: 4, labeled: 4, mean: 0.5}]}],
       usage: {provider_usd: 0, charge_status: 'reconciled'}, limitations: ['Synthetic component fixture.'],
     }}];
+  savedFinding = structuredClone(runs[0]);
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = new URL(String(input), location.origin).pathname;
     const method = init?.method || 'GET';
@@ -43,6 +45,7 @@ beforeEach(() => {
     else if (path === '/api/v1/goals' && method === 'GET') value = [goal];
     else if (path === '/api/v1/notifications' || path.endsWith('/models') || path.endsWith('/reviews')) value = [];
     else if (path === '/api/v1/runs') value = runs;
+    else if (path === '/api/v1/goals/goal-1/findings') value = savedFinding;
     else if (path === '/api/v1/sources/commerce/terms') {
       source = {...source, body: {...source.body, terms_acknowledged: body.acknowledged}}; value = source;
     } else if (path === '/api/v1/goals/goal-1' && method === 'PATCH') {
@@ -70,6 +73,12 @@ async function openWorkspace() {
 }
 
 describe('analysis workspace user controls', () => {
+  it('keeps the saved answer when fifty newer runs fill the history', async () => {
+    runs = Array.from({length: 50}, (_, i) => ({...runs[0], id: 'newer-'+i, status: 'partial', result: null}));
+    await openWorkspace();
+    expect(screen.getByText(answer)).toBeVisible();
+    expect(requests.some(r => r.path === '/api/v1/goals/goal-1/findings')).toBe(true);
+  });
   it('shows an expired credential failure and permits another login', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({detail: 'Access credential is invalid, revoked, or expired'}, {status: 403})));
     const user = userEvent.setup(); render(<App/>);

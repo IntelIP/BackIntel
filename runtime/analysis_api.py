@@ -141,7 +141,7 @@ def goals(p=Depends(access)):
     for g in result:
         source=db.source(g['domain'])
         previous=db.run(g['last_success']) if g['last_success'] else None
-        g['freshness']='refresh_failed' if source['body'].get('last_refresh_error') else 'current' if previous and previous['snapshot_id']==source['latest_snapshot'] and previous['goal_version']==g['version'] else 'stale' if previous else 'unanswered'
+        g['freshness']='refresh_failed' if source['body'].get('last_refresh_error') else 'current' if previous and previous['snapshot_id']==source['latest_snapshot'] and previous['goal_version']==g['version'] and previous['body'].get('model_id')==g['active_model'] else 'stale' if previous else 'unanswered'
     return result
 
 
@@ -276,28 +276,30 @@ def review(identity:str,body:ReviewInput,p=Depends(access)):
 @app.post('/api/v1/sources/{domain}/corrections',status_code=201)
 def correction(domain:str,body:CorrectionInput,p=Depends(access)):
     db.authorize(p,domain,('manager',))
-    source=db.source(domain)
-    rows=db.records(source['latest_snapshot'])
-    row=next((r for r in rows if r['id']==body.record_id),None)
-    if not row or set(body.features)-set(row['features']):
-        raise ValueError('Unknown record or feature')
-    row['features'].update(body.features)
-    for name in row['groups'].keys() & body.features.keys():
-        row['groups'][name] = row['features'][name]
-    if body.target is not None:
-        if CONFIG['sources'][domain]['kind']=='classification' and body.target not in (0,1):
-            raise ValueError('Classification target must be 0 or 1')
-        row['target']=body.target
-        row['split']='unlabeled'  # A late correction never contaminates a historical benchmark.
-    prior=db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s',(source['latest_snapshot'],),one=True)['body']
-    updated={**prior,'corrected_from':source['latest_snapshot'],'correction':{**body.model_dump(),'actor':p['id']},'record_hash':digest(rows)}
-    identity=digest(updated)
-    db.save_snapshot(domain,identity,updated,rows)
-    for model in db.query('SELECT m.id,m.body FROM backintel.analysis_models m JOIN backintel.analysis_goals g ON g.id=m.goal_id WHERE g.domain=%s',(domain,)):
-        splits=model['body'].get('splits',{})
-        if body.record_id in splits.get('train',[])+splits.get('calibration',[])+splits.get('test',[]):
-            db.write('UPDATE backintel.analysis_models SET body=%s WHERE id=%s',(Jsonb({**model['body'],'invalidated_by':identity}),model['id']))
-            db.write('UPDATE backintel.analysis_goals SET active_model=NULL WHERE active_model=%s',(model['id'],))
+    with db.connect() as c, c.transaction():
+        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
+        source=db.source(domain)
+        rows=db.records(source['latest_snapshot'])
+        row=next((r for r in rows if r['id']==body.record_id),None)
+        if not row or set(body.features)-set(row['features']):
+            raise ValueError('Unknown record or feature')
+        row['features'].update(body.features)
+        for name in row['groups'].keys() & body.features.keys():
+            row['groups'][name] = row['features'][name]
+        if body.target is not None:
+            if CONFIG['sources'][domain]['kind']=='classification' and body.target not in (0,1):
+                raise ValueError('Classification target must be 0 or 1')
+            row['target']=body.target
+            row['split']='unlabeled'  # A late correction never contaminates a historical benchmark.
+        prior=db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s',(source['latest_snapshot'],),one=True)['body']
+        updated={**prior,'corrected_from':source['latest_snapshot'],'correction':{**body.model_dump(),'actor':p['id']},'record_hash':digest(rows)}
+        identity=digest(updated)
+        db.save_snapshot(domain,identity,updated,rows,connection=c)
+        for model in db.query('SELECT m.id,m.body FROM backintel.analysis_models m JOIN backintel.analysis_goals g ON g.id=m.goal_id WHERE g.domain=%s',(domain,)):
+            splits=model['body'].get('splits',{})
+            if body.record_id in splits.get('train',[])+splits.get('calibration',[])+splits.get('test',[]):
+                c.execute('UPDATE backintel.analysis_models SET body=%s WHERE id=%s',(Jsonb({**model['body'],'invalidated_by':identity}),model['id']))
+                c.execute('UPDATE backintel.analysis_goals SET active_model=NULL WHERE active_model=%s',(model['id'],))
     for g in db.query('SELECT * FROM backintel.analysis_goals WHERE domain=%s AND confirmed AND NOT paused',(domain,)):
         run=service.submit(g['id'],{'id':g['owner']})
         try:service.wake(run['id'])

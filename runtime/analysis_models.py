@@ -183,8 +183,6 @@ def predict(model, rows):
     body=model['body']; directory=model_root()/'Analysis'/body['id']
     # A manager chooses the immutable approved route after inspecting the comparison.
     route=body.get('approved_route','catboost-facts')
-    if route.endswith('-decide'):
-        rows,_=decide(rows,body['domain'])
     name=route+'.joblib'
     expected=next((f['sha256'] for f in body['artifacts'] if f['file']==name),None)
     if expected is None or file_sha(directory/name)!=expected:

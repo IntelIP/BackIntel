@@ -108,14 +108,14 @@ def submit(identity, actor, question=None, operation='analysis'):
         store = Evidence(c, 'analysis-job-'+run_id)
         job_id = enqueue(store, payload, run_id)
         c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, run_id))
-        partial = c.execute('SELECT status FROM backintel.analysis_runs WHERE id=%s', (run_id,)).fetchone()[0]=='partial'
-        if partial:
+        resumable = c.execute('SELECT status FROM backintel.analysis_runs WHERE id=%s FOR UPDATE', (run_id,)).fetchone()[0] in ('partial', 'cancelled')
+        if resumable:
             unresolved = c.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s AND charge IS NULL', (run_id,)).fetchone()[0]
             if unresolved:
                 raise RuntimeError('Reconcile uncertain charges before resuming this run')
-            resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL WHERE job_id=%s AND state='completed' AND attempts<max_attempts RETURNING job_id", (job_id,)).fetchone()
+            resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',cancel_requested=false,result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL WHERE job_id=%s AND state IN ('completed','cancelled') AND attempts<max_attempts RETURNING job_id", (job_id,)).fetchone()
             if resumed:
-                c.execute("UPDATE backintel.analysis_runs SET status='queued',error=NULL,updated_at=now() WHERE id=%s", (run_id,))
+                c.execute("UPDATE backintel.analysis_runs SET status='queued',result=NULL,error=NULL,updated_at=now() WHERE id=%s", (run_id,))
     return db.run(run_id)
 
 
@@ -241,7 +241,13 @@ def dispatch(run_id=None):
         c.execute("UPDATE backintel.capability_jobs SET lease_until=now() WHERE state='running' AND task_id LIKE %s", ('analysis-job-%',))
         while True:
             task_ids = [r['task_id'] for r in db.query("SELECT DISTINCT task_id FROM backintel.capability_jobs WHERE task_id LIKE 'analysis-job-%' AND state IN ('queued','retry','running')")]
-            c.execute("UPDATE backintel.capability_jobs SET state='failed',error='Worker lease expired at attempt limit',lease_until=NULL WHERE task_id=ANY(%s) AND state='running' AND lease_until<now() AND attempts>=max_attempts", (task_ids,))
+            with c.transaction():
+                failed = c.execute("UPDATE backintel.capability_jobs SET state=CASE WHEN cancel_requested THEN 'cancelled' ELSE 'failed' END,error=CASE WHEN cancel_requested THEN 'Cancelled after worker interruption' ELSE 'Worker lease expired at attempt limit' END,lease_until=NULL WHERE task_id=ANY(%s) AND state='running' AND lease_until<now() AND (cancel_requested OR attempts>=max_attempts) RETURNING job_id,error,state", (task_ids,)).fetchall()
+                for job_id, reason, job_state in failed:
+                    status = 'cancelled' if job_state == 'cancelled' else 'partial'
+                    run = c.execute("UPDATE backintel.analysis_runs SET status=%s,error=%s,updated_at=now() WHERE job_id=%s AND status IN ('queued','running') RETURNING id", (status, reason, job_id)).fetchone()
+                    if run:
+                        c.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)', (run[0], 'completed', Jsonb({'status': status, 'reason': reason})))
             available = runnable(c, task_ids)
             if not available:
                 break

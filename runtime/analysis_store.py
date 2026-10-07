@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+from contextlib import nullcontext
 import time
 from decimal import Decimal
 
@@ -59,8 +60,8 @@ def source(domain):
     return s
 
 
-def save_snapshot(domain, identity, body, rows):
-    with connect() as c, c.transaction():
+def save_snapshot(domain, identity, body, rows, *, connection=None):
+    with (nullcontext(connection) if connection is not None else connect()) as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
         c.execute('INSERT INTO backintel.analysis_snapshots(id,source_id,body) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING', (identity, domain, Jsonb(body)))
         with c.cursor() as cur:

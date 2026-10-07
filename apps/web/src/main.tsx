@@ -24,6 +24,7 @@ export default function App() {
   const [question,setQuestion] = useState('');
   const [followup,setFollowup] = useState('');
   const [runs,setRuns] = useState<Run[]>([]);
+  const [savedFinding,setCurrent] = useState<Run|null>(null);
   const [importRun,setImportRun] = useState<Run|null>(null);
   const [models,setModels] = useState<Model[]>([]);
   const [reviews,setReviews] = useState<Review[]>([]);
@@ -39,8 +40,8 @@ export default function App() {
   const manager = me?.role === 'manager';
   const canAnalyze = manager || me?.role === 'analyst';
   const selected = goals.find(g => g.id === goalId);
+  const current = savedFinding?.id === selected?.last_success ? savedFinding : null;
   const source = sources.find(s => s.domain === domain);
-  const current = runs.find(r => r.id === selected?.last_success && r.status === 'succeeded');
   const pending = runs.find(r => r.status === 'queued' || r.status === 'running') || importRun;
 
   async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
@@ -56,8 +57,8 @@ export default function App() {
   }
   async function details(id = goalId) {
     if (!id) return;
-    const [r,m,v] = await Promise.all([api<Run[]>('/runs?goal_id='+id),api<Model[]>('/goals/'+id+'/models'),api<Review[]>('/goals/'+id+'/reviews')]);
-    setRuns(r); setModels(m); setReviews(v);
+    const [r,m,v,f] = await Promise.all([api<Run[]>('/runs?goal_id='+id),api<Model[]>('/goals/'+id+'/models'),api<Review[]>('/goals/'+id+'/reviews'),api<Run|null>('/goals/'+id+'/findings')]);
+    setRuns(r); setModels(m); setReviews(v); setCurrent(f);
   }
   async function action(fn: () => Promise<void>) {
     setError('');setBusy(true);
@@ -68,7 +69,7 @@ export default function App() {
     history.replaceState(null,'',location.pathname);
     if (token) {sessionStorage.setItem('backintel-access',token);refresh().catch(e=>setError(e.message));}
   },[token]);
-  useEffect(() => {setRuns([]);setModels([]);setReviews([]);setEvidence(null);if(goalId) details().catch(e=>setError(e.message));},[goalId]);
+  useEffect(() => {setRuns([]);setCurrent(null);setModels([]);setReviews([]);setEvidence(null);if(goalId) details().catch(e=>setError(e.message));},[goalId]);
   useEffect(()=>{if(!token)return;const timer=setInterval(()=>{refresh().then(()=>details()).catch(e=>setError(e.message));},30000);return()=>clearInterval(timer);},[token,goalId]);
   useEffect(() => {setQuestion(source?.body.question || '');},[domain,source?.body.question]);
   useEffect(() => {setEditQuestion(selected?.body.question || '');},[goalId,selected?.version]);

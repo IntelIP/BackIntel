@@ -196,6 +196,93 @@ class CampaignChecks(unittest.TestCase):
         with self.assertRaises(InterruptedError):
             db.check_run(other['id'])
 
+    def test_cancelled_run_resubmits_same_job_without_reviving_active_attempt(self):
+        from runtime.analysis_api import cancel_run
+        cancel_run(self.run['id'], self.actor)
+        resumed = service.submit(self.goal, self.actor)
+        self.assertEqual(resumed['id'], self.run['id'])
+        self.assertEqual(resumed['status'], 'queued')
+        job = db.query('SELECT state,cancel_requested FROM backintel.capability_jobs WHERE job_id=%s', (resumed['job_id'],), one=True)
+        self.assertEqual(job, {'state': 'queued', 'cancel_requested': False})
+        db.write("UPDATE backintel.capability_jobs SET state='running',cancel_requested=true WHERE job_id=%s", (resumed['job_id'],))
+        db.write("UPDATE backintel.analysis_runs SET status='cancelled' WHERE id=%s", (resumed['id'],))
+        self.assertEqual(service.submit(self.goal, self.actor)['status'], 'cancelled')
+        self.assertTrue(db.query('SELECT cancel_requested FROM backintel.capability_jobs WHERE job_id=%s', (resumed['job_id'],), one=True)['cancel_requested'])
+        service.dispatch()
+        self.assertEqual(db.query('SELECT state FROM backintel.capability_jobs WHERE job_id=%s', (resumed['job_id'],), one=True)['state'], 'cancelled')
+        self.assertEqual(service.submit(self.goal, self.actor)['status'], 'queued')
+
+    def test_cancelled_run_requires_charge_reconciliation_before_resuming(self):
+        from runtime.analysis_api import cancel_run
+        cancel_run(self.run['id'], self.actor)
+        db.write('INSERT INTO backintel.analysis_requests(id,run_id,domain,reserved,status) VALUES(%s,%s,%s,%s,%s)',
+                 (str(uuid.uuid4()), self.run['id'], 'commerce', Decimal('0.01'), 'uncertain'))
+        with self.assertRaisesRegex(RuntimeError, 'Reconcile uncertain charges'):
+            service.submit(self.goal, self.actor)
+        self.assertEqual(db.run(self.run['id'])['status'], 'cancelled')
+
+    def test_exhausted_orphan_stops_application_progress_and_emits_completion(self):
+        db.write("UPDATE backintel.capability_jobs SET state='running',attempts=max_attempts,lease_until=now()+interval '1 hour' WHERE job_id=%s", (self.run['job_id'],))
+        db.write("UPDATE backintel.analysis_runs SET status='running' WHERE id=%s", (self.run['id'],))
+        service.dispatch()
+        self.assertEqual(db.run(self.run['id'])['status'], 'partial')
+        events = db.query("SELECT body FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'", (self.run['id'],))
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['body']['status'], 'partial')
+        service.dispatch()
+        self.assertEqual(len(db.query("SELECT body FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'", (self.run['id'],))), 1)
+
+    def test_model_promotion_marks_preserved_answer_stale_after_failed_refresh(self):
+        from runtime.analysis_api import goals, findings
+        with patch('runtime.analysis_agent.analyze', return_value={'summary': 'standing fixture', 'tables': []}):
+            service.dispatch()
+        identity = digest([self.goal, 'model fixture'])
+        db.write('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s)',
+                 (identity, self.goal, self.snapshot, Jsonb({'artifacts': [{'file': 'catboost-facts.joblib'}]})))
+        service.promote(identity, self.actor)
+        with patch('runtime.analysis_agent.analyze', side_effect=RuntimeError('Fixture provider failure')):
+            service.dispatch()
+        g = next(g for g in goals(db.authorize(self.actor)) if g['id'] == self.goal)
+        self.assertEqual(g['freshness'], 'stale')
+        self.assertEqual(findings(self.goal, self.actor)['id'], self.run['id'])
+
+    def test_concurrent_corrections_preserve_both_edits(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        service.revise_goal(self.goal, self.actor, paused=True)
+        reading = threading.Event()
+        release = threading.Event()
+        second_read = threading.Event()
+        second_started = threading.Event()
+        original_records = db.records
+
+        def records(snapshot):
+            if not reading.is_set():
+                reading.set()
+                if not release.wait(5):
+                    raise TimeoutError('Fixture correction was not released')
+            else:
+                second_read.set()
+            return original_records(snapshot)
+
+        def edit_target():
+            second_started.set()
+            return correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], target=0, explanation='Fixture target correction'), self.actor)
+
+        with patch.object(db, 'records', side_effect=records), ThreadPoolExecutor(max_workers=2) as workers:
+            first = workers.submit(correction, 'commerce', CorrectionInput(record_id=self.rows[0]['id'], features={'age': 41}, explanation='Fixture feature correction'), self.actor)
+            try:
+                self.assertTrue(reading.wait(5))
+                second = workers.submit(edit_target)
+                self.assertTrue(second_started.wait(5))
+                self.assertFalse(second_read.wait(0.25), 'Second correction read before the first committed')
+            finally:
+                release.set()
+            first.result(timeout=5)
+            second.result(timeout=5)
+        row = db.records(db.source('commerce')['latest_snapshot'])[0]
+        self.assertEqual(row['features']['age'], 41)
+        self.assertEqual(row['target'], 0)
+
     def test_failed_refresh_keeps_standing_result(self):
         first = {'summary': 'standing fixture', 'tables': [{'title': 'summarize', 'rows': [{'group': 'A', 'mean': 1}]}]}
         with patch('runtime.analysis_agent.analyze', return_value=first):

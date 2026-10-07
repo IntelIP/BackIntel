@@ -18,6 +18,34 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_predictions_cannot_be_presented_as_observed_facts(self):
+        answer = {'summary': 'Evidence checked.', 'limitations': [], 'findings': [
+            {'claim': 'Predicted outcome.', 'kind': 'fact', 'evidence_ids': ['prediction']}]}
+        results = [{'evidence_id': 'prediction', 'kind': 'estimate'}]
+        with self.assertRaisesRegex(ValueError, 'Predicted evidence'):
+            validate_answer(answer, results)
+        answer['findings'][0]['kind'] = 'estimate'
+        self.assertEqual(validate_answer(answer, results), answer)
+        answer['findings'][0]['kind'] = 'fact'
+        results[0]['kind'] = 'observed'
+        self.assertEqual(validate_answer(answer, results), answer)
+
+    def test_decide_prediction_enriches_records_once(self):
+        from unittest.mock import Mock, patch
+        from runtime.analysis_models import predict
+        rows = [{'id': 'fixture', 'features': {'age': 40}, 'text': 'fixture'}]
+        model = {'body': {'id': 'fixture', 'domain': 'commerce', 'kind': 'regression',
+                         'approved_route': 'catboost-facts-decide',
+                         'artifacts': [{'file': 'catboost-facts-decide.joblib', 'sha256': 'fixture'}]}}
+        estimator = Mock()
+        estimator.predict.return_value = [0.25]
+        with patch('runtime.analysis_models.decide', return_value=(rows, {})) as enrich, \
+             patch('runtime.analysis_models.model_root', return_value=Path('/unused-fixture-models')), \
+             patch('runtime.analysis_models.file_sha', return_value='fixture'), \
+             patch.dict('sys.modules', {'joblib': Mock(load=Mock(return_value={'vectorizer': Mock(), 'estimator': estimator}))}):
+            self.assertEqual(predict(model, rows), {'fixture': 0.25})
+        enrich.assert_called_once_with(rows, 'commerce')
+
     def test_timestamp_offsets_preserve_the_same_instant(self):
         from runtime.analysis_data import timestamp
         for value in ('2024-01-01T00:00:00Z', '2024-01-01T02:00:00+02:00', '2023-12-31T19:00:00-05:00', '2024-01-01T00:00:00'):

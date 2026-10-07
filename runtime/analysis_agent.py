@@ -62,6 +62,8 @@ def validate_answer(answer, results, group=None):
             raise ValueError('Invalid finding shape')
         if not f['evidence_ids'] or not set(f['evidence_ids']).issubset(ids):
             raise ValueError('Finding lacks permitted calculation evidence')
+        if f['kind'] == 'fact' and any(r.get('kind') == 'estimate' for r in results if r['evidence_id'] in f['evidence_ids']):
+            raise ValueError('Predicted evidence cannot support a factual finding')
     for text in [answer['summary']] + [f['claim'] for f in answer['findings']]:
         if not isinstance(text, str) or len(text) > 5000 or re.search(r'\b(causes|caused by|will default|approve the loan|deny the loan)\b', text, re.I):
             raise ValueError('Unsupported causal or lending claim')
