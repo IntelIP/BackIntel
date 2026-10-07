@@ -27,6 +27,20 @@ python3 -m scripts.analysis_demo open --role manager
 
 `provision` reuses the existing `BackIntel OpenRouter` Keychain item and writes only an ephemeral runtime copy into tmpfs. It stores opaque manager, analyst, and viewer access credentials in Keychain. The launcher opens a credential fragment and the frontend immediately removes it from browser history. Credentials never enter reports, source files, model context, or Git. Re-provision and reopen access after a container restart rotates ephemeral local credentials.
 
+## Restored local checkout
+
+The October 4 resume ZIP is restored at `/Users/hudson/Documents/GitHub/BackIntelLocalResume`, based on `f5e2b693476541ce9fb7598d5d759a28b74af2b3`. It contains the analysis workspace, not the later agent toolkit candidate. The existing checkout at `/Users/hudson/Documents/GitHub/BackIntel` retains its source changes.
+
+The ignored `.env` selects the separate `backintel-local-resume` Docker project and reuses existing dataset files and model weights. Start it and open manager access without changing stored Keychain grants:
+
+```sh
+cd /Users/hudson/Documents/GitHub/BackIntelLocalResume
+OPENROUTER_API_KEY= docker compose -f compose.analysis.yml up -d --wait
+python3 -m scripts.analysis_demo open --role manager
+```
+
+Provider credentials and paid scheduling remain disabled for this recovery. Reconcile earlier cloud spending into this workspace's ledger under the existing $10 cap before enabling paid work. Source confirmations still apply. Home Credit files and the later agent toolkit source are missing. Local run receipts do not establish release readiness.
+
 ## Sources
 
 Original files use `BACKINTEL_DATASET_DIR` with domain subdirectories `{Commerce,Support,Churn,Credit,Maintenance}`; the Mac default is `~/Library/Application Support/BackIntel/Datasets`. Compose's portable default is ignored `private/Datasets`. Model weights and prepared artifacts use `BACKINTEL_MODEL_DIR` (Compose defaults to ignored `artifacts/Models`). Source access and terms must be acknowledged before ingestion. No command accepts competition rules on behalf of the user.

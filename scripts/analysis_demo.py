@@ -144,7 +144,7 @@ def main():
     if args.command=='acquire':
         acquire(args.domain,args.acknowledge_terms)
     elif args.command=='open':
-        token=keychain('get',args.role).strip()
+        token=runtime_access()[args.role]
         url='http://127.0.0.1:2028/#access='+token
         subprocess.run(['osascript','-'],input='open location '+json.dumps(url),capture_output=True,text=True,check=True)
         print('Workspace opened using the local '+args.role+' grant.')

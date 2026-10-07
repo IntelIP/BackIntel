@@ -24,3 +24,9 @@
 !apps/web/dist/
 !apps/web/dist/**
 /apps/web/node_modules/
+!reflex_demo/
+!reflex_demo/reflex_demo/
+!reflex_demo/reflex_demo/**
+!frontend/
+!frontend/src/
+!frontend/src/styles.css

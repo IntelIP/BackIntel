@@ -117,8 +117,12 @@ def run(directory):
     result['resource_boundary'] = {'cpu_threads': CONFIG['limits']['cpu_threads'], 'wall_timeout_seconds': CONFIG['limits']['model_seconds'],
                                    'rss_budget_bytes': CONFIG['limits']['worker_bytes'], 'rss_enforcement': 'parent monitors Linux process RSS; child verifies peak RSS'}
     result['implementation'] = fingerprint(Path(__file__))
-    result['candidate_commit'] = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=PROJECT, capture_output=True, text=True, check=True).stdout.strip()
-    result['dirty_tree'] = bool(subprocess.run(['git', 'status', '--porcelain'], cwd=PROJECT, capture_output=True, text=True, check=True).stdout)
+    if os.getenv('BACKINTEL_CANDIDATE_SHA'):
+        result['candidate_commit'] = os.environ['BACKINTEL_CANDIDATE_SHA']
+        result['dirty_tree'] = True
+    else:
+        result['candidate_commit'] = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=PROJECT, capture_output=True, text=True, check=True).stdout.strip()
+        result['dirty_tree'] = bool(subprocess.run(['git', 'status', '--porcelain'], cwd=PROJECT, capture_output=True, text=True, check=True).stdout)
     result['identity'] = digest([snapshot, libraries, parameters, result['implementation'], result['splits']])
     (directory / 'receipt.json').write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')
     print(json.dumps({'status': result['status'], 'comparison_scope': result['comparison_scope'], 'rows': oracle['records'],
