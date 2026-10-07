@@ -1,0 +1,385 @@
+{
+  "version": "backintel-scenarios/v1",
+  "frozen_at": "2026-10-06",
+  "partition_note": "Existing checks and new workflow definitions are development scenarios. This campaign does not claim an unseen held-out system score. Separately supplied real analyst receipts identify their reserved question partition; consumed failures must be disclosed.",
+  "scenarios": [
+    {
+      "id": "BI-GROUNDING-001",
+      "family": "grounded_answers",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Invented references, numbers and causal claims rejected",
+      "module": "test_analysis.py",
+      "test": "test_answer_rejects_invented_evidence_numbers_and_causation"
+    },
+    {
+      "id": "BI-DATA-002",
+      "family": "grounded_answers",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Computed aggregates match independent oracle",
+      "module": "test_analysis.py",
+      "test": "test_aggregate_oracle"
+    },
+    {
+      "id": "BI-SPLIT-001",
+      "family": "prediction_controls",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Training excludes unavailable future labels",
+      "module": "test_analysis.py",
+      "test": "test_chronological_label_availability"
+    },
+    {
+      "id": "BI-SPLIT-002",
+      "family": "prediction_controls",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Engine boundaries and official evaluation labels preserved",
+      "module": "test_analysis.py",
+      "test": "test_maintenance_official_labels_and_engine_separation"
+    },
+    {
+      "id": "BI-REFRESH-002",
+      "family": "refresh",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Changed sources respect retraining threshold and interval",
+      "module": "test_analysis.py",
+      "test": "test_arrival_candidates_and_daily_limit"
+    },
+    {
+      "id": "BI-REFRESH-003",
+      "family": "refresh",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Failed refresh preserves accepted answer",
+      "module": "test_analysis.py",
+      "test": "test_failed_refresh_preserves_answer"
+    },
+    {
+      "id": "BI-CORRECTION-002",
+      "family": "correction",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Correction invalidates affected model eligibility",
+      "module": "test_analysis.py",
+      "test": "test_correction_invalidates_test_member_and_promotion"
+    },
+    {
+      "id": "BI-RECOVERY-003",
+      "family": "recovery",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Persisted response replay does not invoke provider",
+      "module": "test_analysis_campaign.py",
+      "test": "test_request_replay_needs_no_credentials_or_provider_transport"
+    },
+    {
+      "id": "BI-RECOVERY-004",
+      "family": "recovery",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Uncertain provider timeout is not retried",
+      "module": "test_analysis_campaign.py",
+      "test": "test_ambiguous_provider_timeout_is_not_retried"
+    },
+    {
+      "id": "BI-ACCESS-002",
+      "family": "access",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Expired access blocks API and queued work",
+      "module": "test_analysis_campaign.py",
+      "test": "test_expired_grant_blocks_api_and_already_accepted_work"
+    },
+    {
+      "id": "BI-ACCESS-003",
+      "family": "access",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Stored fixture evidence remains domain restricted",
+      "module": "test_analysis_campaign.py",
+      "test": "test_real_private_run_evidence_and_events_are_domain_restricted"
+    },
+    {
+      "id": "BI-ACCESS-004",
+      "family": "access",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Manager cannot broaden own scope",
+      "module": "test_analysis_campaign.py",
+      "test": "test_scoped_manager_cannot_expand_grants_outside_own_sources"
+    },
+    {
+      "id": "BI-INPUT-001",
+      "family": "hostile_and_broken_input",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Unauthorized tool request rejected within limits",
+      "module": "test_analysis_campaign.py",
+      "test": "test_hostile_tool_request_is_rejected_and_calls_are_bounded"
+    },
+    {
+      "id": "BI-INPUT-002",
+      "family": "hostile_and_broken_input",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Malformed answer preserves standing result",
+      "module": "test_analysis_campaign.py",
+      "test": "test_malformed_analyst_output_is_partial_without_replacing_answer"
+    },
+    {
+      "id": "BI-INPUT-003",
+      "family": "hostile_and_broken_input",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Malformed source files rejected",
+      "module": "test_analysis_setup.py",
+      "test": "test_lfs_html_missing_columns_and_invalid_target_are_rejected"
+    },
+    {
+      "id": "BI-LIMIT-001",
+      "family": "resource_limits",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Budget limits enforced",
+      "module": "test_analysis_campaign.py",
+      "test": "test_campaign_run_and_goal_limits"
+    },
+    {
+      "id": "BI-LIMIT-002",
+      "family": "resource_limits",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Tool loop stops at configured boundary",
+      "module": "test_analysis_campaign.py",
+      "test": "test_valid_tool_loop_stops_before_thirteenth_execution"
+    },
+    {
+      "id": "BI-LIMIT-003",
+      "family": "resource_limits",
+      "evidence": "unit",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Elapsed limit prevents dispatch",
+      "module": "test_analysis_campaign.py",
+      "test": "test_elapsed_analysis_limit_stops_before_provider_dispatch"
+    },
+    {
+      "id": "BI-DATA-001",
+      "family": "grounded_answers",
+      "evidence": "browser",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Displayed values match fixed independent domain oracle",
+      "domains": [
+        "commerce",
+        "support",
+        "maintenance",
+        "churn",
+        "credit"
+      ]
+    },
+    {
+      "id": "BI-REFRESH-001",
+      "family": "refresh",
+      "evidence": "browser",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Unchanged source preserves snapshot and adds no provider work",
+      "domains": [
+        "commerce",
+        "support",
+        "maintenance",
+        "churn",
+        "credit"
+      ]
+    },
+    {
+      "id": "BI-DURABLE-001",
+      "family": "recovery",
+      "evidence": "browser",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Duplicate request reuses durable admission",
+      "domains": [
+        "commerce",
+        "support",
+        "maintenance",
+        "churn",
+        "credit"
+      ]
+    },
+    {
+      "id": "BI-DIALOGUE-001",
+      "family": "dialogue",
+      "evidence": "browser",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Follow-up leaves standing answer unchanged",
+      "domains": [
+        "commerce",
+        "support",
+        "maintenance",
+        "churn",
+        "credit"
+      ]
+    },
+    {
+      "id": "BI-DIALOGUE-002",
+      "family": "dialogue",
+      "evidence": "browser",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Failed follow-up remains visible without replacing standing answer",
+      "domains": [
+        "commerce"
+      ]
+    },
+    {
+      "id": "BI-CORRECTION-001",
+      "family": "correction",
+      "evidence": "browser",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Applied correction updates observed result",
+      "domains": [
+        "commerce"
+      ]
+    },
+    {
+      "id": "BI-ACCESS-001",
+      "family": "access",
+      "evidence": "browser",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Browser role boundaries and forbidden routes hold",
+      "domains": [
+        "commerce"
+      ],
+      "variants": [
+        {
+          "role": "manager",
+          "width": 1440
+        },
+        {
+          "role": "manager",
+          "width": 390
+        },
+        {
+          "role": "analyst",
+          "width": 1440
+        },
+        {
+          "role": "analyst",
+          "width": 390
+        },
+        {
+          "role": "viewer",
+          "width": 1440
+        },
+        {
+          "role": "viewer",
+          "width": 390
+        }
+      ]
+    },
+    {
+      "id": "BI-RECOVERY-001",
+      "family": "recovery",
+      "evidence": "runner",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Worker restart resumes same accepted import without provider requests",
+      "domains": [
+        "commerce"
+      ]
+    },
+    {
+      "id": "BI-RECOVERY-002",
+      "family": "recovery",
+      "evidence": "runner",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Broker restart resumes durable work without duplicate admission",
+      "domains": [
+        "commerce"
+      ]
+    },
+    {
+      "id": "BI-FRONTEND-BUILD",
+      "family": "frontend",
+      "evidence": "stage",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Frontend builds",
+      "stage": "frontend-build"
+    },
+    {
+      "id": "BI-FRONTEND-TEST",
+      "family": "frontend",
+      "evidence": "stage",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Frontend component checks pass",
+      "stage": "frontend-test"
+    },
+    {
+      "id": "BI-PREDICTION-001",
+      "family": "real_prediction",
+      "evidence": "prediction",
+      "mode": "real",
+      "partition": "development",
+      "expected": "Partial real baseline/predictor comparison and saved-model reproduction",
+      "domains": [
+        "commerce",
+        "support",
+        "maintenance",
+        "churn",
+        "credit"
+      ]
+    },
+    {
+      "id": "BI-ANALYST-001",
+      "family": "real_analyst",
+      "evidence": "analyst",
+      "mode": "real",
+      "partition": "development",
+      "expected": "Current real analyst scenario answers match independent oracles and reconciled charges",
+      "domains": [
+        "commerce",
+        "support",
+        "maintenance",
+        "churn",
+        "credit"
+      ]
+    },
+    {
+      "id": "BI-OFFLINE",
+      "family": "runtime",
+      "evidence": "stage",
+      "mode": "fixture",
+      "partition": "development",
+      "expected": "Existing offline campaign completes including cleanup",
+      "stage": "offline"
+    }
+  ]
+}
