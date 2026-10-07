@@ -58,5 +58,15 @@ class WorkflowChecks(unittest.TestCase):
             accepted_result(connection, state, 'different-job')
         for rows in ((('sha256',), (2,)), (None, (1,))):
             connection.execute.return_value.fetchone.side_effect = rows
-            with self.assertRaises(AssertionError):
+            with patch('scripts.validation.run_analysis_offline.time.monotonic', side_effect=[0, 10]), self.assertRaises(AssertionError):
                 accepted_result(connection, state, 'job')
+
+    def test_recovery_waits_for_outer_job_completion(self):
+        state = {'id': 'run', 'job_id': 'job', 'result': {'snapshot': 'snapshot'}}
+        connection = Mock()
+        connection.execute.return_value.fetchone.side_effect = [None, (0,), None, (1,), ('sha256',), (1,)]
+        with patch('scripts.validation.run_analysis_offline.time.sleep') as wait:
+            result = accepted_result(connection, state, 'job')
+        self.assertEqual(result['accepted_result_sha256'], 'sha256')
+        self.assertEqual(result['completed_events'], 1)
+        self.assertEqual(wait.call_count, 2)

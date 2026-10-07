@@ -154,14 +154,21 @@ def accepted_result(connection, state, job_id):
     """Identify the one accepted completion after an interrupted import."""
     if state['job_id'] != job_id:
         raise AssertionError('Recovery changed the admitted job identity')
-    row = connection.execute('SELECT result_sha256 FROM backintel.capability_jobs WHERE job_id=%s AND state=%s',
-                             (job_id, 'completed')).fetchone()
-    completions = connection.execute("SELECT count(*) FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'",
-                                     (state['id'],)).fetchone()[0]
-    if not row or not row[0] or completions != 1:
-        raise AssertionError('Recovery did not retain exactly one accepted completion')
-    return {'same_run_id': state['id'], 'same_job_id': job_id, 'accepted_result_sha256': row[0],
-            'completed_events': completions, 'snapshot_id': state['result']['snapshot']}
+    # The handler marks its run succeeded before the outer job commits its result.
+    deadline = time.monotonic() + 10
+    while True:
+        row = connection.execute('SELECT result_sha256 FROM backintel.capability_jobs WHERE job_id=%s AND state=%s',
+                                 (job_id, 'completed')).fetchone()
+        completions = connection.execute("SELECT count(*) FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'",
+                                         (state['id'],)).fetchone()[0]
+        if completions > 1:
+            raise AssertionError('Recovery retained duplicate completion events')
+        if row and row[0] and completions == 1:
+            return {'same_run_id': state['id'], 'same_job_id': job_id, 'accepted_result_sha256': row[0],
+                    'completed_events': completions, 'snapshot_id': state['result']['snapshot']}
+        if time.monotonic() >= deadline:
+            raise AssertionError(f'Recovery completion was not durable: result={row!r}, events={completions}')
+        time.sleep(.1)
 
 
 def main():
