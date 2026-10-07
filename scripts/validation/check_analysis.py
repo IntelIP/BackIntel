@@ -10,6 +10,8 @@ import hashlib
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
+from scripts.analysis_benchmark_support import (SCENARIOS, candidate_identity, receipt_identity_error, scenario_spec)
 
 
 def docker(*args,**kw):
@@ -32,28 +34,90 @@ def functional(output, filters=()):
 
 
 def real(output):
+    return benchmark_receipt(output, require_comparisons=True)
+
+
+def benchmark_receipt(output, require_comparisons=False):
+    """Recheck only current receipt runs; historical DB counts never establish readiness."""
+    config=json.loads((ROOT/'config/analysis.json').read_text())
+    specs=[scenario_spec(domain,scenario,spec['group']) for domain,spec in config['sources'].items() for scenario in SCENARIOS]
+    current=candidate_identity(ROOT)
     code="""
 import json
-from runtime import analysis_store as db
-from runtime.analysis_data import CONFIG
-result=[]
-for domain in CONFIG['sources']:
- s=db.source(domain)
- models=db.query('SELECT m.id,m.body FROM backintel.analysis_models m JOIN backintel.analysis_goals g ON g.id=m.goal_id WHERE g.domain=%s',(domain,))
- runs=db.query("SELECT r.id,r.result FROM backintel.analysis_runs r JOIN backintel.analysis_goals g ON g.id=r.goal_id WHERE g.domain=%s AND r.status='succeeded' AND r.body->>'operation'='analysis'",(domain,))
- valid_models=[m['id'] for m in models if m['body'].get('mode')=='real' and {'catboost','tabiclv2'}.issubset({p['route'] for p in m['body']['methods']})]
- valid_runs=[r['id'] for r in runs if r['result'].get('mode')=='real' and r['result'].get('model')==CONFIG['analyst']['model'] and r['result'].get('usage',{}).get('charge_status')=='measured']
- result.append({'domain':domain,'snapshot':s['latest_snapshot'],'real_comparisons':valid_models,'frontier_answers':valid_runs,'status':'passed' if s['latest_snapshot'] and valid_models and len(valid_runs)>=3 else 'blocked'})
-print(json.dumps({'domains':result,'costs':db.query('SELECT status,charge,reserved FROM backintel.analysis_requests')},default=str))
+from pathlib import Path
+p=Path('/models/Analysis/benchmark-evidence.json')
+print(p.read_text() if p.exists() else '{}')
 """
-    checked=docker('exec','-T','runtime','python','-c',code,timeout=60)
-    if checked.returncode:
-        return {'status':'blocked','reason':'Real runtime evidence unavailable','diagnostic':checked.stderr[-1500:]}
+    read=docker('exec','-T','runtime','python','-c',code,timeout=30)
+    (output/'benchmark.json').write_text(read.stdout or '{}')
+    if read.returncode:
+        return {'status':'blocked','reason':'Benchmark receipt unavailable','diagnostic':read.stderr[-1500:]}
+    try:
+        receipt=json.loads(read.stdout)
+        reason=receipt_identity_error(receipt,current,specs)
+    except (TypeError,ValueError) as error:
+        return {'status':'blocked','reason':'Invalid benchmark receipt: '+str(error)}
+    if reason:return {'status':'blocked','reason':reason}
+    # Send frozen identity in process input, not shell interpolation. Runtime recalculates raw-source
+    # oracles and grades recorded answers again using current persisted calculation evidence.
+    verify="""
+import json,sys
+from pathlib import Path
+from runtime import analysis_store as db
+from runtime.analysis_data import CONFIG,source_files
+from scripts.analysis_benchmark_support import raw_oracle,score_answer,fingerprint
+receipt=json.loads(sys.stdin.read());results=[]
+folders=('runtime','scripts','config','migrations')
+expected={name:sha for name,sha in receipt['candidate']['files'].items() if name.split('/')[0] in folders}
+actual={str(p):fingerprint(p)['sha256'] for folder in folders for p in Path(folder).rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix not in ('.pyc','.pyo')}
+if actual!=expected:raise RuntimeError('Runtime source file set or bytes differ from candidate')
+for domain in CONFIG['sources']:
+ result={'domain':domain,'status':'blocked'};results.append(result)
+ try:
+  entries=[r for r in receipt['domains'] if r.get('domain')==domain]
+  if len(entries)!=1:raise RuntimeError('Domain receipt missing or duplicated')
+  entry=entries[0]
+  goal=db.goal(entry['goal_id'])
+  if not goal['body']['question'].endswith(' Benchmark '+receipt['campaign_id']+' '+receipt['candidate']['source_hash']):raise RuntimeError('Goal lacks current campaign source identity')
+  oracle=raw_oracle(domain,source_files(domain),CONFIG['limits']['source_rows'])
+  if oracle!=entry.get('oracle'):raise RuntimeError('Source oracle differs from receipt')
+  snapshot=db.source(domain)['latest_snapshot']
+  if snapshot!=entry.get('snapshot_id'):raise RuntimeError('Source snapshot differs from receipt')
+  expected=[s for s in receipt['scenarios'] if s['domain']==domain]
+  answers=entry.get('answers',[])
+  if len(answers)!=len(expected):raise RuntimeError('Required scenario answer missing')
+  run_ids=[]
+  for spec in expected:
+   matches=[a for a in answers if a.get('scenario')==spec]
+   if len(matches)!=1 or matches[0].get('status')!='passed':raise RuntimeError('Scenario not passed uniquely')
+   checked=matches[0];run=db.run(checked['run_id']);run_ids.append(run['id'])
+   if run['goal_id']!=entry['goal_id'] or run['body']['question']!=spec['prompt']:raise RuntimeError('Run differs from scenario')
+   evidence={i:db.query('SELECT * FROM backintel.capability_evidence WHERE sha256=%s',(i,),one=True) for f in run['result']['findings'] for i in f['evidence_ids']}
+   score=score_answer(run,evidence,spec,oracle,snapshot)
+   if any(score[k]!=checked.get(k) for k in ('expected','actual','evidence_ids')):raise RuntimeError('Stored score differs from current evidence')
+   if run['result'].get('model')!=CONFIG['analyst']['model'] or run['result'].get('usage',{}).get('charge_status')!='measured':raise RuntimeError('Real model identity or cost missing')
+  if REQUIRE_COMPARISONS:
+   comparison=entry.get('comparison',{})
+   if comparison.get('status')!='passed':raise RuntimeError('Full comparison incomplete')
+   run=db.run(comparison['run_id']);run_ids.append(run['id'])
+   if run['goal_id']!=entry['goal_id'] or run['snapshot_id']!=snapshot or run['status']!='succeeded':raise RuntimeError('Comparison run is stale')
+   model=db.query('SELECT body,snapshot_id FROM backintel.analysis_models WHERE id=%s',(comparison['candidate_id'],),one=True)
+   body=model['body']
+   if model['snapshot_id']!=snapshot or body.get('mode')!='real' or not {'baseline','catboost','tabiclv2'}.issubset({m['route'] for m in body['methods']}):raise RuntimeError('Required real methods missing')
+   if body.get('dependencies',{}).get('implementation_sha256')!=fingerprint(Path('runtime/analysis_models.py'))['sha256']:raise RuntimeError('Model implementation differs')
+  charges=db.query('SELECT run_id,id,status,charge,reserved FROM backintel.analysis_requests WHERE run_id=ANY(%s)',(run_ids,))
+  expected_charges=[c for c in receipt['charges'] if c['run_id'] in run_ids]
+  if sorted(json.loads(json.dumps(charges,default=str)),key=lambda c:c['id'])!=sorted(expected_charges,key=lambda c:c['id']):raise RuntimeError('Cost ledger differs from receipt')
+  if not charges or any(c['charge'] is None for c in charges):raise RuntimeError('Measured provider charges missing')
+  result['status']='passed'
+ except Exception as error:
+  result['reason']=type(error).__name__+': '+str(error)[:500]
+print(json.dumps({'domains':results,'status':'passed' if all(r['status']=='passed' for r in results) else 'blocked'}))
+""".replace('REQUIRE_COMPARISONS',repr(require_comparisons))
+    checked=docker('exec','-T','runtime','python','-c',verify,input=json.dumps(receipt),timeout=60)
+    if checked.returncode:return {'status':'blocked','reason':'Current benchmark evidence could not be verified','diagnostic':checked.stderr[-1500:]}
     report=json.loads(checked.stdout)
-    report['status']='passed' if all(d['status']=='passed' for d in report['domains']) else 'blocked'
-    report['provider_usd']=sum(float(c['charge'] or 0) for c in report['costs'])
-    report['charge_status']='unknown' if any(c['charge'] is None for c in report['costs']) else 'measured'
-    if report['charge_status']=='unknown':report['status']='blocked'
+    report.update(provider_calls=receipt['provider_calls'],provider_usd=receipt['provider_usd'],charge_status=receipt['charge_status'])
     return report
 
 
@@ -85,19 +149,7 @@ def security(output):
 
 
 def semantic(output):
-    code="""import json;from pathlib import Path;p=Path('/models/Analysis/benchmark-evidence.json');print(p.read_text() if p.exists() else '{}')"""
-    result=docker('exec','-T','runtime','python','-c',code,timeout=30)
-    (output/'benchmark.json').write_text(result.stdout or '{}')
-    if result.returncode:return {'status':'blocked','reason':'Benchmark receipt unavailable','provider_calls':0,'provider_usd':0}
-    receipt=json.loads(result.stdout)
-    domains=receipt.get('domains',[])
-    statuses=[d.get('status') for d in domains]
-    complete=len(domains)==5 and all(d.get('status')=='passed' and len(d.get('answers',[]))==3 and all(a.get('correct') for a in d['answers']) for d in domains)
-    charges=receipt.get('charges',[])
-    unknown=any(c.get('charge') is None for c in charges)
-    return {'status':'failed' if 'failed' in statuses else 'passed' if complete and not unknown else 'blocked',
-            'domains':domains,'provider_calls':len(charges),'provider_usd':sum(float(c['charge']) for c in charges if c.get('charge') is not None),
-            'charge_status':'unknown' if unknown else 'measured'}
+    return benchmark_receipt(output)
 
 
 def visual(output):
