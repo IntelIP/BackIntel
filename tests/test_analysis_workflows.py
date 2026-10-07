@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from runtime import analysis_api as api
-from scripts.validation.run_analysis_offline import accepted_result
+from scripts.validation.run_analysis_offline import accepted_result, fixture_configuration
 
 
 class WorkflowChecks(unittest.TestCase):
@@ -28,6 +28,25 @@ class WorkflowChecks(unittest.TestCase):
                 request = Request({'type': 'http', 'method': 'POST', 'headers': [(b'origin', origin.encode())]})
                 with self.assertRaises(HTTPException):
                     api.access(request)
+
+    def test_aegra_fixture_loader_reuses_patched_origin_dependency(self):
+        from pathlib import Path
+        from aegra_api.core.app_loader import load_custom_app
+        config = fixture_configuration(28765)
+        origins = frozenset(config['http']['cors']['allow_origins'])
+        with patch.object(api, 'WRITE_ORIGINS', origins), patch.object(api.db, 'principal', return_value={'id': 'fixture'}):
+            app = load_custom_app(config['http']['app'])
+            route = next(route for route in app.routes if getattr(route, 'path', None) == '/api/v1/me')
+            access = route.dependant.dependencies[0].call
+            self.assertIs(app, api.app)
+            request = Request({'type': 'http', 'method': 'POST', 'headers': [(b'origin', b'http://127.0.0.1:28765')]})
+            self.assertEqual(access(request), {'id': 'fixture'})
+            request = Request({'type': 'http', 'method': 'POST', 'headers': [(b'origin', b'http://evil.test:28765')]})
+            with self.assertRaises(HTTPException):
+                access(request)
+        self.assertEqual(api.WRITE_ORIGINS, frozenset(('http://127.0.0.1:2028', 'http://localhost:2028')))
+        for value in [*config['graphs'].values(), config['auth']['path']]:
+            self.assertTrue(Path(value.rsplit(':', 1)[0]).is_file())
 
     def test_recovery_requires_same_job_and_one_accepted_result(self):
         state = {'id': 'run', 'job_id': 'job', 'result': {'snapshot': 'snapshot'}}

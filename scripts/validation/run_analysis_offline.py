@@ -134,6 +134,22 @@ def backup_restore(admin_url, test_url, database, output, settings):
             connection.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(restore)))
 
 
+def fixture_configuration(port):
+    """Reuse the fixture-patched app through Aegra's normal module loader."""
+    if not 1 <= port <= 65535:
+        raise ValueError('Fixture port must be between 1 and 65535')
+    config = json.loads((ROOT / 'aegra.analysis.json').read_text())
+    config['http']['app'] = 'runtime.analysis_api:app'
+    config['http']['cors']['allow_origins'] = [f'http://127.0.0.1:{port}', f'http://localhost:{port}']
+    # This fixture config lives outside the source checkout; keep import paths stable.
+    def absolute_import(value):
+        path, name = value.rsplit(':', 1)
+        return str((ROOT / path).resolve()) + ':' + name
+    config['graphs'] = {name: absolute_import(value) for name, value in config['graphs'].items()}
+    config['auth']['path'] = absolute_import(config['auth']['path'])
+    return config
+
+
 def accepted_result(connection, state, job_id):
     """Identify the one accepted completion after an interrupted import."""
     if state['job_id'] != job_id:
@@ -225,7 +241,9 @@ sys.exit(0 if result.wasSuccessful() else 1)
                 broker_ready(redis_url)
             if not redis_url:
                 raise RuntimeError('Provide BACKINTEL_VALIDATION_REDIS_URL or --broker-recovery')
-            env.update(DATABASE_URL=test_url, AEGRA_CONFIG=str(ROOT / 'aegra.analysis.json'), AUTH_TYPE='custom',
+            fixture_config = output / 'aegra.fixture.json'
+            fixture_config.write_text(json.dumps(fixture_configuration(args.port), indent=2) + '\n')
+            env.update(DATABASE_URL=test_url, AEGRA_CONFIG=str(fixture_config), AUTH_TYPE='custom',
                        BACKINTEL_VALIDATION_MODE='fixture', BACKINTEL_DATASET_DIR=str(data),
                        BACKINTEL_ACCESS_CREDENTIAL_FILE=str(access), BACKINTEL_VALIDATION_PORT=str(args.port),
                        BACKINTEL_AEGRA_URL=f'http://127.0.0.1:{args.port}', REDIS_BROKER_ENABLED='true',
