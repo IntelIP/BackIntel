@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import uuid
 
@@ -12,9 +15,18 @@ from runtime.simulation import encoded
 
 
 def main() -> int:
-    output = Path(__file__).resolve().parents[2] / "artifacts/validation/Sandbox"
+    root = Path(__file__).resolve().parents[2]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output', type=Path, default=root / 'artifacts/validation/Sandbox')
+    parser.add_argument('--image', default='backintel-capability-demo-runtime:latest')
+    args = parser.parse_args()
+    head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+    if os.environ.get('TABELLIO_EXPECTED_COMMIT', head) != head:
+        raise ValueError('Sandbox check candidate does not match the expected commit')
+    output = args.output
     output.mkdir(parents=True, exist_ok=True)
-    receipt = {"schema": "backintel-sandbox-check/v1", "candidate": "uncommitted-working-tree",
+    receipt = {"schema": "backintel-sandbox-check/v1", "candidate_commit": head,
+               "dirty": bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=root)),
                "code_generation": "simulated", "sandbox_execution": "real", "checks": [], "status": "running"}
     with tempfile.TemporaryDirectory(prefix="BackIntelHostBoundary") as temporary:
         secret = Path(temporary) / "forbidden.txt"
@@ -34,7 +46,7 @@ def main() -> int:
         path = output / (uuid.uuid4().hex + ".json")
         try:
             for name, (source, expected) in samples.items():
-                run = run_candidate(source, {"values": [2, 3, 5]}, "backintel-capability-demo-runtime:latest")
+                run = run_candidate(source, {"values": [2, 3, 5]}, args.image)
                 actual = run["status"] if run["status"] == "candidate" else run["stop_reason"]
                 passed = actual == expected and run["cleanup_confirmed"]
                 if name == "approved_input":
