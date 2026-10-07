@@ -39,6 +39,10 @@ No claim is made for production readiness, customer accuracy, measured savings,
 complete operating cost, general connectors, autonomous preparation of unfamiliar
 data, or arbitrary agent-created pipelines.
 
+The legacy full-product validation manifest still lacks required visual,
+operational, and security validators. Its release gate fails rather than treating
+missing evidence as success. Demo source publication does not bypass that gate.
+
 Product direction
 The saved autonomous-workflow concept is in:
 docs/research/autonomous-workflow-concept.txt
