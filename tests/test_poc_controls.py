@@ -40,7 +40,7 @@ class PoCControlsChecks(unittest.TestCase):
         browser = {'views': views, 'native_clock': {'status': 'passed', 'cleanup': 'removed'},
                    'screenshots': [f"{v['role']}-{v['width']}.png" for v in views],
                    'scenarios': [{'id': 'BI-ACCESS-001', 'status': 'passed', 'role': v['role'], 'width': v['width'],
-                                  'write_status': 403, 'core_status': 403} for v in views]}
+                                  'write_status': 200 if v['role'] == 'manager' else 403, 'core_status': 403} for v in views]}
         recovery = {'status': 'passed', 'completed_events': 1, 'same_run_id': 'run', 'same_job_id': 'job',
                     'accepted_result_sha256': 'hash', 'existing_broker_untouched': True}
         receipt = {'hard_worker_restart': recovery, 'broker_restart': recovery,
@@ -69,6 +69,6 @@ class PoCControlsChecks(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'one completion'):
                 check_controls('operational', bad, browser, directory)
             bad = copy.deepcopy(browser)
-            bad['scenarios'][0]['write_status'] = 201
-            with self.assertRaisesRegex(ValueError, 'Unauthorized writes'):
+            bad['scenarios'][2]['write_status'] = 201
+            with self.assertRaisesRegex(ValueError, 'Role access controls'):
                 check_controls('security', receipt, bad, directory)

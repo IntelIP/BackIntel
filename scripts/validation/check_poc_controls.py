@@ -63,7 +63,10 @@ def check_controls(mode, receipt, browser, directory):
         require(all(v.get('core_denial') is True for v in views), 'Core API access boundary failed')
         denials = [s for s in browser.get('scenarios', []) if s.get('id') == 'BI-ACCESS-001']
         require(len(denials) == 6 and {(s.get('role'), s.get('width')) for s in denials} == expected_views, 'Missing access-denial scenarios')
-        require(all(s.get('status') == 'passed' and s.get('write_status') == s.get('core_status') == 403 for s in denials), 'Unauthorized writes or core access were accepted')
+        # The manager scenario reads /me; only analyst/viewer attempt a denied write.
+        require(all(s.get('status') == 'passed' and s.get('core_status') == 403
+                    and s.get('write_status') == (200 if s['role'] == 'manager' else 403)
+                    for s in denials), 'Role access controls failed')
 
 
 def main():
