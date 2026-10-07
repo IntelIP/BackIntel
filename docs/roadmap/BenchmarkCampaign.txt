@@ -1,0 +1,29 @@
+BackIntel consolidation and architecture benchmark campaign
+Acceptance source: user-approved swarm outline and instruction to execute it, October 6, 2026.
+
+Outcome
+One recoverable canonical code baseline, a source-backed benchmark method, a runnable scenario suite, and honest baseline-versus-candidate results that identify working capabilities and remaining failures.
+
+Ownership
+Principal/integrator owns Git, preservation, final source, scenario contract, runtime execution and outcome report. Research agent owns methodology; scenario agent owns coverage design. Implementation workers receive isolated temporary worktrees and disjoint files. Final validation checks the integrated commit.
+
+Required deliverables
+1. Git reconciliation record and recoverable originals: docs/architecture/GitReconciliation.txt.
+2. Current architecture map: docs/architecture/current-system.md.
+3. Research and scenario design: docs/research/AnalysisBenchmarkMethods.txt and docs/architecture/BenchmarkScenarios.txt.
+4. Runnable versioned scenario benchmark reusing existing validation/model runners.
+5. Baseline and final-candidate results with code/data/scenario identity, expected/actual outcomes, per-family status, timing, resource and paid-cost boundaries.
+6. Short final report identifying measured changes and remaining work.
+
+Scenario contract
+Grounded business answers; predictor comparisons; changed/unchanged-source refresh; corrections and stale-model invalidation; worker/broker interruption and duplicate prevention; source/role/expiry isolation; hostile/malformed/missing input; time/memory/tool/spending limits; evidence inspection and follow-up isolation.
+Use deterministic expected results independent of the answer path. Freeze development and reserved scenarios before evaluating candidate improvements. Retain failures. Do not claim a held-out set if it informed changes. Baseline/candidate comparisons require identical scenario, data, execution mode and limits; otherwise mark not comparable.
+
+Invariants and forbidden outcomes
+No lost source/data/evidence. No reintroduced OlistV2. No passing by incidental prose matches or stale receipts. No simulated response relabeled as real inference. No aggregate score hiding failed access, evidence or recovery behavior. No silent dataset replacement. No extra framework when existing tools suffice. No invented production savings or whole-system readiness.
+
+Authority and limits
+Local source integration, local commits, research, isolated tests and local CPU model evaluation are authorized. No push, remote merge, publication, destructive cleanup or production changes. Keep hosted inference disabled until existing paid campaign ledger and authorization are reconciled; do not infer a new budget. Use current source confirmations. Credit remains blocked when actual files are unavailable. Existing missing model/provider prerequisites are reported explicitly.
+
+Done condition
+All requested artifacts exist. The consolidated source is committed. Required checks and the agreed scenario suite run on the exact candidate, with trustworthy passed/failed/blocked results and actionable explanations. Compare baseline/candidate only where equivalent evidence exists. Explicit input/prerequisite blockers remain visible; a fixture pass never replaces a missing live result. Do not mark full live acceptance or production readiness from this campaign unless those outcomes are actually demonstrated.

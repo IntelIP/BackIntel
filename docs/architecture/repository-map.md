@@ -2,6 +2,8 @@
 
 Maintained integration checkout: `/Users/hudson/Documents/GitHub/BackIntel`.
 
+The consolidated development branch is `codex/backintel-consolidated`. Read [current architecture](current-system.md) for the saved-goal analysis system and its legacy demonstration surfaces. [Git reconciliation](GitReconciliation.txt) records preserved branches and recovery files; the older resume and demonstration folders are retained references.
+
 | Surface | Source | Responsibility |
 | --- | --- | --- |
 | Product contract | [Roadmap](../roadmap/v0.1.0-development-roadmap.md) and [capability reference](../roadmap/capability-reference.md) | Current issue-review demo steps; full 16-capability acceptance contract and historical plans in the reference |

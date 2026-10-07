@@ -27,14 +27,14 @@ python3 -m scripts.analysis_demo open --role manager
 
 `provision` reuses the existing `BackIntel OpenRouter` Keychain item and writes only an ephemeral runtime copy into tmpfs. It stores opaque manager, analyst, and viewer access credentials in Keychain. The launcher opens a credential fragment and the frontend immediately removes it from browser history. Credentials never enter reports, source files, model context, or Git. Re-provision and reopen access after a container restart rotates ephemeral local credentials.
 
-## Restored local checkout
+## Consolidated local checkout
 
-The October 4 resume ZIP is restored at `/Users/hudson/Documents/GitHub/BackIntelLocalResume`, based on `f5e2b693476541ce9fb7598d5d759a28b74af2b3`. It contains the analysis workspace, not the later agent toolkit candidate. The existing checkout at `/Users/hudson/Documents/GitHub/BackIntel` retains its source changes.
+The canonical development folder is `/Users/hudson/Documents/GitHub/BackIntel` on `codex/backintel-consolidated`. It incorporates the October 4 recovery (`f5e2b69`) and the local recovery fixes (`53ffa85`). The original unsaved source is preserved on `codex/recovery-original-20261006` (`23dd937`); the resume folder is retained as a clean recovery reference. See [Git reconciliation](GitReconciliation.txt). The later agent toolkit candidate is not present.
 
 The ignored `.env` selects the separate `backintel-local-resume` Docker project and reuses existing dataset files and model weights. Start it and open manager access without changing stored Keychain grants:
 
 ```sh
-cd /Users/hudson/Documents/GitHub/BackIntelLocalResume
+cd /Users/hudson/Documents/GitHub/BackIntel
 OPENROUTER_API_KEY= docker compose -f compose.analysis.yml up -d --wait
 python3 -m scripts.analysis_demo open --role manager
 ```

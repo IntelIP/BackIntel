@@ -1,0 +1,81 @@
+BackIntel benchmark research — 2026-10-06
+
+Question
+Which benchmark methods can measure whether BackIntel reliably answers saved business questions, supports predictions, and resumes ongoing work?
+
+Decision informed
+Define a bounded scenario suite for the consolidated BackIntel baseline. Decide what to measure now, what requires live provider access, and whether any public benchmark should become a dependency.
+
+Conclusion
+Build a BackIntel-native scenario suite using existing domain inputs and independent answer oracles. Borrow evaluation methods from DABstep, BIRD, Spider 2.0, and the tau benchmark family. Do not install these full benchmark environments or claim their leaderboard scores. BackIntel's durable goals, source correction, permissions, and spending controls require its own scenarios. Public SQL tasks do not cover those outcomes.
+
+Confirmed facts
+
+1. Local BackIntel scope. The recovered runbook describes a bounded hosted analyst, local text interpretation and predictors, source snapshots, scheduled saved goals, corrections, durable jobs, permissions, and evidence-linked answers. Existing offline campaigns use real API/database/worker components but substitute provider/model responses; they already contain independent count/mean/group oracles. Paid scheduling remains disabled for recovery. Source: docs/architecture/analysis-workspace-runbook.md in BackIntelLocalResume, read 2026-10-06. This is implementation documentation, not a fresh proof of behavior.
+
+2. DABstep measures multi-step data analysis across supporting documents. Its official submission description expects strings, numbers, or lists and uses quasi-exact matching against a reference answer. The public scorer normalizes case/whitespace and handles numeric/list answers without an LLM judge. Its numeric extraction can accept a number embedded in prose, so do not copy that leniency into financial, unit-sensitive, or contradictory-answer scoring. The official dataset card and space declare CC BY 4.0. Adopt the method of independently computed answers, explicit types, units, and tolerances; no dataset or scorer was copied. Sources [1–3].
+
+3. BIRD Mini-Dev tests text-to-SQL and includes execution accuracy, reward-based valid efficiency, and soft F1 for result tables. Its official dataset card declares CC BY-SA 4.0. The card describes 500 questions from 11 databases; the repository additionally describes a newer V2 expansion and labels some metrics beta. Do not mix editions or infer one current task count from those documents. For BackIntel, compare actual rows/aggregates with an independently written reference computation. Soft partial credit is diagnostic; it must not turn wrong business answers into passes. Sources [4–5].
+
+4. Spider 2.0 evaluates enterprise SQL/data workflows. The current repository lists Snow (547), Lite (547), and DBT (68) settings. Lite evaluation accepts SQL or final CSV results. Its table comparison supports ordering options and numeric tolerance. Its repository license is MIT for software; that does not establish unrestricted rights to redistribute every hosted database. The README reports Snowflake access suspension on 2026-08-12 and historical evaluation-suite fixes. Therefore full Spider2 is an optional later interoperability experiment, not a prerequisite for a local BackIntel release. Sources [6–8].
+
+5. The original tau-bench repository explicitly says its tasks are outdated and directs users to tau2-bench, now branded tau3. The current version includes policy/tool/user simulation domains. July 2026 grading fixes make affected banking results from versions before 1.0.1 incomparable with later results. Its evaluator compares reconstructed final database states, while a separate natural-language assertion evaluator calls an LLM. Thus it is incorrect to describe all tau scoring as deterministic. The repository is MIT licensed. Borrow final-state checks, trace inspection, and repeated trial success. Do not add its simulated customer conversations or voice stack to BackIntel. Sources [9–12].
+
+Inference and recommended design
+
+Three separate evidence layers are necessary:
+A. Offline architecture scenarios: real persistence, permissions, scheduler, worker and API; controlled fixture data/provider responses. These establish infrastructure behavior only.
+B. Real prediction scenarios: real permitted datasets, frozen splits, simple baseline, CatBoost and available TabICLv2; no frontier judge required. These establish prediction quality and saved-model reproduction.
+C. Real analyst scenarios: actual analyst calls and tools, with independent expected results and evidence checks. These establish reasoning/tool-use outcomes. Keep blocked if authorization, reconciled budget, provider access, or source rights are missing.
+
+Scenario contract:
+- Stable scenario ID, version, family, dataset/snapshot hash, required capabilities, and evidence mode.
+- User question or ordered actions, permitted source scope, initial state, controlled failure/arrival trigger, and resource limits.
+- Reference facts computed outside the answer path; accepted units, denominator, date window, sorting, and absolute/relative tolerance fixed before execution.
+- Expected end state and prohibited side effects. A correct answer with an unauthorized read/write or duplicate paid request fails.
+- Raw trace, answer, supporting source IDs, run/job/provider request IDs when applicable, timing, costs or explicit unavailable status, and outcome: pass/fail/blocked/not run.
+
+Bounded initial coverage:
+- Each available domain: one count/filter question, one grouped comparison, and one missing/ambiguous-data question that requires a stated limitation or clarification.
+- Prediction: simple baseline versus current predictor on the same unseen cohort; correct labels and leakage checks; reproduce a saved predictor's outputs. Classification: prevalence, AUROC when defined, PR-AUC, and calibration or log loss; regression: MAE and a domain-meaningful baseline. Do not let a single metric select the winner across all domains.
+- Saved goals: unchanged source does no new analyst work; new snapshot refreshes relevant results; corrected facts invalidate affected predictions; follow-up does not overwrite the standing answer.
+- Reliability: interrupt a running job, interrupt the broker, fail a provider/tool, exhaust a budget, and present malformed tool output. Confirm preserved last-good answer, explicit status, and no duplicate accepted result/request.
+- Access/input boundaries: restricted source access, expired grants, embedded instructions in source data, and attempts to escape approved tools.
+
+Grounded answers:
+Check every reported number and population definition against the independent oracle. Check each supporting reference exists, belongs to the allowed snapshot, and supports the associated claim. A citation that exists is insufficient if it does not support the claim. Separate observations, predictions, and hypotheses. Score unsupported assertions as failures or an explicitly reported diagnostic dimension, not as stylistic penalties. Use humans or a separately calibrated model judge only for explanation clarity and qualitative claims that cannot be deterministically checked; save the rubric, judge version, and disagreements. A model judge is not the primary correctness oracle.
+
+Held-out evaluation:
+Freeze scenario definitions and data hashes before baseline measurement. Use development scenarios for fixes and a reserved evaluation set for the final comparison. A held-out set of source records alone does not make analyst question templates held out. For prediction splits, preserve entity boundaries and appropriate time order; maintenance must preserve engine boundaries and official test labels. If held-out failures inform fixes, mark that set as development thereafter or disclose repeated use. Public benchmark answers may be present in model training; their availability is not evidence of freshness.
+
+Reliability and comparison:
+Report per-domain, per-family outcomes and attempted/blocked/not-run denominators. Compare the committed baseline and candidate under the same inputs, limits, provider version, cache policy, and harness. Start with one trial per deterministic scenario. For stochastic analyst scenarios, use three independently initialized trials as a bounded diagnostic when authorized, reporting per-trial success and all-three success. More trials are only useful if the uncertainty affects a release/improvement decision. Do not call this tau pass^k unless using its actual definition and estimator; do not confuse all-k success with best-of-k pass@k. Small trial counts support a directional comparison, not a statistically precise reliability claim.
+
+Measure wall-clock time, provider latency, tool calls, paid tokens/actual reconciled cost, retries, duplicate requests, and peak memory where available. Separate local compute cost as unmeasured unless priced explicitly. Show timeout and failure rates alongside latency so fast failures do not appear efficient. Report medians plus ranges for tiny samples; p95 requires enough observations to be meaningful. Do not combine correctness, access breaches, dollars, and speed into one opaque score.
+
+Architecture changes should follow demonstrated failure: wrong aggregation, unsupported claim, stale state, unrecoverable work, unauthorized action, excess latency or cost. Retest affected scenarios; run the agreed final held-out suite against the saved candidate. No public benchmark installation or extra framework is needed for this first campaign.
+
+Conflicts and unknowns
+- Existing local receipts must be inspected by the integration owner; this research does not certify their current validity.
+- Home Credit source files are documented as missing. Mark real credit evaluation blocked. Do not generate a substitute and call it real credit evidence.
+- Synthetic support tickets and simulated engine trajectories remain synthetic even when real models run on them.
+- Exact current source terms for the user's existing datasets were outside this research assignment. Preserve source confirmations; benchmark-level licenses do not override source-specific terms.
+- DABstep content.py contains an approximately 450-question description and a legacy dataset link; use the declared revision/task manifest if executing it later, not the prose count.
+- No public dataset downloaded, no model inference run, and no external account configured. Research verified documentation and evaluator code only.
+
+Implications
+Extend BackIntel's current validation harness instead of adopting another agent framework. Keep offline, real-prediction, and real-analyst results separately visible. Use public benchmark methods to sharpen scoring and repeatability, not to imply public leaderboard participation. Include candidate commit, dirty state, scenario/data versions, model/provider identifiers, and harness revision in receipts. License review is only needed before copying code/data; method-only attribution needs no new runtime dependency.
+
+Sources — retrieved 2026-10-06
+[1] DABstep official dataset card: https://huggingface.co/datasets/adyen/DABstep/blob/main/README.md
+[2] DABstep official evaluation description: https://huggingface.co/spaces/adyen/DABstep/blob/main/dabstep_benchmark/content.py
+[3] DABstep official scorer: https://huggingface.co/spaces/adyen/DABstep/blob/main/dabstep_benchmark/evaluation/scorer.py
+[4] BIRD official Mini-Dev repository: https://github.com/bird-bench/mini_dev
+[5] BIRD official dataset card/license: https://huggingface.co/datasets/birdsql/bird_mini_dev/blob/main/README.md
+[6] Spider 2.0 official repository: https://github.com/xlang-ai/Spider2
+[7] Spider 2.0 evaluation: https://github.com/xlang-ai/Spider2/tree/main/spider2-lite/evaluation_suite
+[8] Spider 2.0 software license: https://github.com/xlang-ai/Spider2/blob/main/LICENSE
+[9] Legacy tau-bench deprecation notice: https://github.com/sierra-research/tau-bench
+[10] Current tau3 repository and version warning: https://github.com/sierra-research/tau2-bench
+[11] State evaluator: https://github.com/sierra-research/tau2-bench/blob/main/src/tau2/evaluator/evaluator_env.py
+[12] LLM assertion evaluator and software license: https://github.com/sierra-research/tau2-bench/blob/main/src/tau2/evaluator/evaluator_nl_assertions.py ; https://github.com/sierra-research/tau2-bench/blob/main/LICENSE

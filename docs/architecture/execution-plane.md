@@ -2,7 +2,7 @@
 
 **Status:** Architecture working draft  
 **Scope:** Generated code execution, validation, preview, export, promotion, and delivery  
-**Implementation status:** No sandbox runtime or artifact application has been installed  
+**Implementation status:** Local Docker sandbox execution and audience-scoped artifact rendering exist, with recorded development checks. The broader broker, generated applications, and production publication in this draft remain proposed or partial. See [Current BackIntel System Architecture](current-system.md) for the current boundary.
 **Related research:**
 
 - [`../research/background-agents-research.txt`](../research/background-agents-research.txt)

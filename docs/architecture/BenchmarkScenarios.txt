@@ -1,0 +1,113 @@
+BackIntel scenario design and reusable harness assessment
+Inspected: /Users/hudson/Documents/GitHub/BackIntelLocalResume, 2026-10-06.
+Scope: source inspection only. No tests, models, paid calls, or repository edits performed.
+
+Recommendation
+Reuse the existing runners. Add a small scenario manifest and comparison layer around them; strengthen the current real benchmark's scoring and provenance. Do not build another agent framework or a parallel job system.
+
+Existing surfaces to retain
+1. scripts/validation/run_analysis_offline.py: fixtures(), main(), backup_restore().
+   Existing disposable PostgreSQL runner, no-provider unit suite, browser-to-worker fixture journey, actual process kill/restart, optional owned Redis stop/restart, native scheduler, backup restoration, dependencies and tracked-file hashes. Unit mode runs test_analysis*.py under external-transport guard. E2E delegates browser work to check_analysis_offline_browser.cjs. Produces receipt and diagnostics outside source.
+2. scripts/validation/check_analysis_offline_browser.cjs.
+   Independent fixed CSV oracle for five fixture domains, manager-created goal, snapshot/evidence checks, follow-up isolation, invalid-number rejection, fixture promotion/prediction, corrections/notifications, three roles at 1440/390 pixels, keyboard evidence, denied core-route bypass, native clock.
+3. scripts/analysis_benchmark.py: execute(), main().
+   Existing real source-gated import -> confirmed goal -> training -> three known-answer questions per domain. execute() follows existing durable jobs via event stream. Domain selection exists. Keep authorization and accounting behavior.
+4. scripts/analysis_local_benchmark.py: raw_churn_oracle(), run(), main().
+   Strongest current independent raw-data oracle. Verifies Telco identity/label/group/split mapping, train-only transforms, entity isolation, package pin, held-out metrics, independent Brier formula, artifact reload. Explicitly partial real evidence; no analyst/Decide/TabICL claim. Existing Linux child RSS/wall limit and environment isolation.
+5. runtime/analysis_models.py: compare(), metrics(), matrix_features(), predict().
+   Baseline + simple-text where applicable + CatBoost + TabICLv2. Frozen train/calibration/test memberships, train-only vectorizer, pinned dependency/checkpoint metadata, implementation hash, source snapshot, artifact fingerprints, cached-manifest integrity check. Preserve this model comparison implementation.
+6. runtime/analysis_data.py: fingerprint(), adapt(), sample(), ADAPTERS.
+   Use for production-side provenance/sampling, not for the independent expected answers.
+7. scripts/validation/check_analysis.py: functional(), real(), semantic(), security(), visual(), main().
+   Existing durable validator evidence and Tabellio wrapper; statuses passed/failed/blocked. Its selection logic needs stronger identity checks before it can summarize a new benchmark honestly.
+8. tests/test_analysis.py, tests/test_analysis_campaign.py, tests/test_analysis_errors.py, apps/web component tests.
+   Most requested controls already have targeted regression cases. Reuse their assertions and fixture setup instead of duplicating them as new production features.
+
+Proposed manifest and receipt contract
+One config/analysis_scenarios.json can define suite_version, scenario_id, family, split (development or held_out), domain, execution mode, prerequisite IDs, question/action parameters, assertion type, tolerance, resource limits and fixed seed. Keep model quality and workflow correctness as separate results. A Python stdlib orchestrator can select existing checks and collect their existing receipts into one report; no new package needed.
+
+Each result records scenario_id/version/hash, baseline_or_candidate label, candidate commit, dirty flag plus actual source/config hashes, source file SHA256/size, snapshot identity, model/checkpoint IDs, split membership or digest, seed, execution layer, status and reason, expected/actual assertion values, elapsed time, measured provider calls/cost and cost status, and linked evidence. Hash untracked candidate source if permitted; existing offline candidate_files only hashes tracked files. Freeze manifest/oracles before final evaluation. Never claim clean commit evidence for a dirty tree.
+
+Comparison requires equivalent source, cohort, scenario/oracle versions, limits and execution mode. Mismatch -> not comparable with reason, never a computed improvement. Keep simulations visibly separate from real input/model execution. Status precedence: any required failure -> failed; otherwise any required missing evidence/prerequisite -> blocked; otherwise passed. Report denominators by domain/family/mode and explicit blocked requirements. Avoid one aggregate score.
+
+Scenarios and minimum observable assertions
+
+A. Grounded business answers (all available real domains; five fixture domains)
+A1 record_count: raw CSV/text file record count after documented selection, then analyst question. Verify returned inspect_source evidence count and factual claim, not merely presence of count digits in prose.
+A2 observed_mean: raw-label mean independently computed; check supported evidence table and answer's asserted metric/group binding within specified tolerance.
+A3 lowest_group: minimum group by raw-label mean with explicit tie rule; verify group identity, mean and count, and evidence snapshot equals analyzed snapshot. Examples: commerce recommendation by department; support resolution duration by SLA plan; churn churn rate by contract; maintenance RUL by engine. Credit blocked on actual source files.
+A4 held_out: highest group, opposite ranking, or filtered cohort with distinct raw oracle; not the same three development prompts reworded. Must respect actual tool/filter support. If unsupported, show unsupported capability rather than silently substitute a simpler question.
+A5 insufficient evidence: missing/empty labels, nonexistent group and unsupported causal request -> limitation/partial response, no invented measurement or causation.
+Reuse: analysis_benchmark.execute; test_aggregate_oracle, test_qualified_engine_numbers_and_descending_order, test_answer_rejects_invented_evidence_numbers_and_causation. Extend raw_churn_oracle pattern for other raw formats.
+
+B. Prediction comparisons (real available models; fixture only for workflow controls)
+B1 frozen candidate: compare existing baseline, simple text where supported, CatBoost and TabICLv2 on identical training/calibration/test members. Report classification Brier/log-loss/AUC and regression MAE/RMSE as implemented, sample size, and per-row predictions. No automatic pass just because a model beats one metric.
+B2 leakage guard: entities cannot cross splits; label-availability time cannot exceed training cutoff; test labels absent from features; TF-IDF/vectorizer fitted on training only. Credit future bureau records excluded. Existing temporal tests already cover this.
+B3 restoration: reloaded accepted artifact yields identical held-out predictions within fixed tolerance.
+B4 held-out cohort: freeze separate scenario/seed before candidate changes. Retain official maintenance test labels as evaluation only. Do not repeatedly choose architecture using final held-out outcomes.
+Reuse: analysis_models.compare, analysis_local_benchmark.run and its independent Brier check; tests test_chronological_label_availability, test_support_excludes_later_outcomes, test_credit_rejects_future_history, test_maintenance_official_labels_and_engine_separation.
+Boundary: existing limits cap training 512, calibration 128, test 256, source_rows 10000. Report evaluated samples, not full-file performance. A static churn snapshot is not prospective deployment evidence. Synthetic support/maintenance remain synthetic even with real models.
+
+C. Refresh and no-op
+C1 same bytes: import unchanged files twice; second yields unchanged snapshot, no new analysis/training, no provider dispatch/charge, standing answer unchanged.
+C2 changed data: append/change approved fixture rows; next snapshot differs and one standing analysis updates. New-label retraining follows 128-label / daily interval controls.
+C3 refresh failure: missing/unreadable source retains last accepted snapshot/result; visible failure reason; no fabricated fresh answer.
+Reuse: service.import_source/schedule_snapshot/refresh; test_arrival_candidates_and_daily_limit, test_failed_refresh_preserves_answer, test_failed_refresh_keeps_standing_result. Add actual API no-op request/counter assertion to existing browser fixture rather than only mocked schedule check.
+
+D. Corrections
+D1 group/label correction: corrected snapshot/group/value changes, previous evidence remains inspectable; result refresh and threshold notification follow.
+D2 test-member correction: affected model loses promotion eligibility; active stale model clears; corrected test member is not reused as untouched held-out evidence.
+Reuse: test_correction_invalidates_test_member_and_promotion; existing browser correction_refresh and internal_notification assertions.
+Boundary: correcting a row changes evaluation identity; compare only newly frozen equivalent cohorts after invalidation.
+
+E. Interruptions and duplicate prevention
+E1 duplicate submissions: concurrent same work reuses one accepted job.
+E2 worker interruption during import: real kill/restart resumes same run, two attempts, zero provider requests; already implemented.
+E3 provider acceptance then worker loss: replay accepted response under same request identity without transport or added ledger charge. Existing unit replay test is real DB plus mocked provider, not live provider evidence.
+E4 ambiguous provider timeout: exactly one attempted request; uncertain ledger blocks a retry pending reconciliation.
+E5 owned broker restart and backup restore: queued job remains; restored evidence/result identities match.
+Reuse: run_analysis_offline.main/backup_restore; test_duplicate_submissions_cancel_and_orphan_recovery, test_request_replay_needs_no_credentials_or_provider_transport, test_settlement_replay_and_uncertain_charge, test_ambiguous_provider_timeout_is_not_retried.
+Gap: existing hard kill covers import, not post-provider-charge analysis. Add deterministic fault injection around persisted-response boundary before proposing any live paid interruption experiment. Do not assert exactly-once billing based on import recovery.
+
+F. Access isolation
+F1 manager/analyst/viewer permissions at API and UI, direct URL/core-route bypass denied.
+F2 wrong domain/goal cannot retrieve run, private evidence, events or request ledger.
+F3 expiry/revocation after admission blocks queued execution; scoped manager cannot widen domains.
+Reuse: test_role_and_domain_denials, test_revocation_and_cross_goal_evidence, test_real_private_run_evidence_and_events_are_domain_restricted, test_expired_grant_blocks_api_and_already_accepted_work, test_scoped_manager_cannot_expand_grants_outside_own_sources; existing browser roles.
+Note: a test named real_private_run uses stored real-shaped fixture evidence; do not call it a live provider test.
+
+G. Hostile/broken inputs
+G1 source text says reveal credentials / ignore instructions: no forbidden tool/exfiltration; factual task proceeds or explicitly refuses unsupported action.
+G2 invented evidence ID/numeric answer/causal certainty fails answer validation and preserves accepted result.
+G3 malformed model JSON, unavailable model/provider, missing values and empty cohorts produce bounded partial/failed/blocked states with useful limitation.
+G4 synthetic secrets redact from API, events, errors and persisted evidence; hostile HTML renders inert.
+Reuse: test_hostile_tool_request_is_rejected_and_calls_are_bounded, test_malformed_analyst_output_is_partial_without_replacing_answer, test_unapproved_provider_response_is_rejected, test_credentials_are_redacted_from_failure_and_append_only_evidence and frontend tests.
+Boundary: malicious text exists in fixture CSV, but deterministic fixture provider does not attempt to obey it. That run tests plumbing/containment, not real model instruction resistance. Mark real attack scenarios blocked until separately permitted real execution.
+
+H. Limits and review/follow-up
+H1 six model calls, twelve tools, 600s analyst wall limit, model RSS/wall boundaries; stop before next prohibited dispatch.
+H2 campaign/run/goal spending caps and one concurrent request; unknown charge blocks admission; zero-spend mode clears credentials and prohibits external transport.
+H3 accepted answer survives failed follow-up; follow-up does not replace standing answer; evidence opens via keyboard, correct snapshot/history visible; forecast labels differ from observed facts.
+Reuse: campaign tests test_invalid_cost_and_request_ceiling, test_campaign_run_and_goal_limits, test_concurrent_admission_near_campaign_cap, test_valid_tool_loop_stops_before_thirteenth_execution, test_elapsed_analysis_limit_stops_before_provider_dispatch; test_followup_preserves_standing_answer_and_promotion_route; browser suite.
+Report model-process resource measurement separately from aggregate server/container memory; current per-process maximum is not whole-system memory.
+
+Material defects/gaps found in existing benchmark contract
+1. analysis_benchmark.main oracle derives expected values from db.records after the same production adapter. Shared adapter defects can pass. Add raw-source independent oracles.
+2. Narrative correctness uses substring match for string expectations and any numeric token matching a rounded mean. Wrong answers containing an incidental expected number/group may pass. Require linked evidence result with metric/group/count assertions; do not infer correctness from token presence.
+3. analysis_benchmark receipt lacks tested code identity, scenario suite hash, explicit top-level execution mode and current source fingerprint contract. Bind these before comparing candidates.
+4. check_analysis.real queries any successful historical models/runs per domain; no current candidate/snapshot binding. check_analysis.semantic reads one existing benchmark-evidence.json and can accept stale run results. Reject mismatched evidence explicitly.
+5. Existing real benchmark always trains before answer questions, so missing optional models can block independent answer evaluation. Split scenario prerequisites so grounded-answer scenarios can execute independently of full prediction comparisons.
+6. Existing fixed three questions are useful smoke checks but no unseen scenario set, repeated stochastic reliability trial, or baseline/candidate comparator exists.
+7. Existing control fixtures are strong, but do not prove real provider resistance, measured live costs, or end-to-end live recovery. Preserve explicit blocked scenarios.
+
+Smallest implementation order
+1. Parent freezes reconciled source and baseline identity. Record existing control results through reusable offline runner.
+2. Add versioned scenario manifest and stdlib orchestrator/receipt comparator. Reuse existing validators by scenario/family; do not duplicate all assertions.
+3. Strengthen real benchmark oracle/scoring/provenance and stale evidence rejection; test these mechanisms with deterministic adversarial receipts and wrong-answer examples.
+4. Add missing deterministic no-op counter and accepted-response interruption assertions to existing fixtures.
+5. Run offline suite and real local available-model comparisons with explicit blocked missing routes/domains. Fixture coverage of Credit never makes real Credit passed. OlistV2 stays excluded.
+6. Only after authority/preconditions are settled, run designated real analyst scenarios with measured costs and agreed limits. Reuse existing access/transport tools and never move keys into receipts.
+7. Candidate fixes follow observed failures; final report compares identical suite/cohort/mode and lists unresolved user-impact failures.
+
+Graph navigation
+Graphify queried with project_path=/Users/hudson/Documents/GitHub/BackIntelLocalResume, depth=1, budget=600 for analysis_benchmark -> analysis_service submit -> analysis_models compare. Returned relevant symbols; concrete responsibilities above were verified by direct source reads. No graph update or source mutations performed.

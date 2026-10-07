@@ -1,5 +1,9 @@
 # BackIntel
 
+The consolidated local development home is `/Users/hudson/Documents/GitHub/BackIntel`, on `codex/backintel-consolidated`. Start with the [current architecture](docs/architecture/current-system.md), [analysis runbook](docs/architecture/analysis-workspace-runbook.md), and [benchmark campaign](docs/roadmap/BenchmarkCampaign.txt). The recovered workspace includes saved questions, bounded analysis, source permissions, and durable refresh jobs. Complete real five-domain acceptance remains blocked.
+
+[Git reconciliation and recovery](docs/architecture/GitReconciliation.txt) · [Benchmark research](docs/research/AnalysisBenchmarkMethods.txt) · [Website and SEO source](https://github.com/IntelIP/BackIntelWebsite)
+
 The [interactive decision workspace demo](frontend/README.md) lets a reviewer inspect a finding, open evidence and record a decision. React and the Python Reflex alternative share one local review API.
 
 BackIntel targets a recurring operational problem: before a team can decide what needs attention, someone must gather scattered records, read free-text notes, reconcile changes, judge significance, and assemble a review people can trust. New information can make that review stale and force the same work again. This is the problem hypothesis we are testing; its frequency and cost still need validation with a real team.
