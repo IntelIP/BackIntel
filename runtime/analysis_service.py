@@ -199,21 +199,27 @@ def handle(store, payload):
             db.check_run(identity)
             result = import_source(r['body']['domain'], {'id': r['owner']})
             db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s',(result['snapshot'],identity))
-            schedule_snapshot(r['body']['domain'], result)
+            result['goals'] = schedule_snapshot(r['body']['domain'], result)
         else:
             result = model_job(identity) if payload['operation'] == 'training' else analyze(identity)
         db.check_run(identity)
-        db.write("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
-        if payload['operation'] == 'analysis':
-            g = db.goal(r['goal_id'])
-            previous = db.run(g['last_success']) if g['last_success'] else None
-            standing = r['body']['question'] == g['body']['question'] and r['goal_version'] == g['version']
-            changed = standing and previous and threshold_crossed(previous['result'], result, g['body']['notification_delta'])
-            if standing:
-                db.write('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s AND version=%s', (identity, g['id'], r['goal_version']))
-            if changed:
-                db.event(identity, 'material_change', {'message': 'A saved goal threshold was crossed.'})
-        db.event(identity, 'completed', {'status': 'succeeded'})
+        # Publish success in the job's transaction so interruption rolls back the
+        # run, saved finding, notifications and accepted evidence together.
+        with store.connection.transaction():
+            connection = store.connection
+            connection.execute("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
+            if payload['operation'] == 'analysis':
+                g = db.goal(r['goal_id'])
+                previous = db.run(g['last_success']) if g['last_success'] else None
+                standing = r['body']['question'] == g['body']['question'] and r['goal_version'] == g['version']
+                changed = standing and previous and threshold_crossed(previous['result'], result, g['body']['notification_delta'])
+                if standing:
+                    connection.execute('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s AND version=%s', (identity, g['id'], r['goal_version']))
+                if changed:
+                    connection.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)',
+                                       (identity, 'material_change', Jsonb({'message': 'A saved goal threshold was crossed.'})))
+            connection.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)',
+                               (identity, 'completed', Jsonb({'status': 'succeeded'})))
     except Exception as error:
         # No failed refresh replaces last_success; no response is disguised as real success.
         status = 'cancelled' if isinstance(error, (InterruptedError, PermissionError)) else 'partial'
@@ -248,19 +254,25 @@ def dispatch(run_id=None):
 
 
 def schedule_snapshot(domain, update):
-    if not update['changed']:
-        return
+    # Imports commit before scheduling. Revisit unchanged snapshots as well;
+    # submit's stable run identity reuses jobs already admitted successfully.
+    outcomes = []
     for g in db.query('SELECT * FROM backintel.analysis_goals WHERE domain=%s AND confirmed AND NOT paused', (domain,)):
-        actor = {'id': g['owner']}
-        submit(g['id'], actor)
-        latest = db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC LIMIT 1', (g['id'],), one=True)
-        if latest:
-            old = {r['id'] for r in db.records(latest['snapshot_id']) if r['target'] is not None and r['split']=='train'}
-            new = {r['id'] for r in db.records(update['snapshot']) if r['target'] is not None and r['split']=='train'}
-            attempt = db.query("SELECT created_at FROM backintel.analysis_runs WHERE goal_id=%s AND body->>'operation'='training' ORDER BY created_at DESC LIMIT 1", (g['id'],), one=True)
-            interval = time.time()-(attempt or latest)['created_at'].timestamp()
-            if len(new-old)>=CONFIG['limits']['new_labels'] and interval>=CONFIG['limits']['candidate_interval_seconds']:
-                submit(g['id'], actor, operation='training')
+        try:
+            actor = {'id': g['owner']}
+            run = submit(g['id'], actor)
+            latest = db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC LIMIT 1', (g['id'],), one=True)
+            if latest:
+                old = {r['id'] for r in db.records(latest['snapshot_id']) if r['target'] is not None and r['split']=='train'}
+                new = {r['id'] for r in db.records(update['snapshot']) if r['target'] is not None and r['split']=='train'}
+                attempt = db.query("SELECT created_at FROM backintel.analysis_runs WHERE goal_id=%s AND body->>'operation'='training' ORDER BY created_at DESC LIMIT 1", (g['id'],), one=True)
+                interval = time.time()-(attempt or latest)['created_at'].timestamp()
+                if len(new-old)>=CONFIG['limits']['new_labels'] and interval>=CONFIG['limits']['candidate_interval_seconds']:
+                    submit(g['id'], actor, operation='training')
+            outcomes.append({'goal_id': g['id'], 'run_id': run['id'], 'status': run['status']})
+        except (ValueError, PermissionError, RuntimeError, OSError) as error:
+            outcomes.append({'goal_id': g['id'], 'status': 'blocked', 'reason': safe_error(error)})
+    return outcomes
 
 
 def refresh():
@@ -273,8 +285,8 @@ def refresh():
             continue
         try:
             update = import_source(domain, owner)
-            schedule_snapshot(domain, update)
-            results.append({'domain': domain, **update})
+            goals = schedule_snapshot(domain, update)
+            results.append({'domain': domain, **update, 'goals': goals})
         except (ValueError, PermissionError, RuntimeError, OSError) as error:
             results.append({'domain': domain, 'status': 'blocked', 'reason': safe_error(error)})
     return {'sources': results, 'dispatch': dispatch()}

@@ -122,9 +122,7 @@ class ApplicationChecks(unittest.TestCase):
         old={'snapshot_id':'old','created_at':datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=2)}
         rows=[{'id':str(i),'target':1,'split':'train'} for i in range(128)]
         recent={'created_at':datetime.datetime.now(datetime.timezone.utc)}
-        with patch.object(service,'submit') as submit, patch.object(service.db,'query') as query, patch.object(service.db,'records') as records:
-            service.schedule_snapshot('commerce',{'changed':False})
-            query.assert_not_called();submit.assert_not_called()
+        with patch.object(service,'submit',return_value={'id':'run','status':'queued'}) as submit, patch.object(service.db,'query') as query, patch.object(service.db,'records') as records:
             query.side_effect=[[goal],old,None];records.side_effect=[[],rows]
             service.schedule_snapshot('commerce',{'changed':True,'snapshot':'new'})
             self.assertEqual(submit.call_count,2)

@@ -42,13 +42,13 @@ jobs:
           POSTGRES_DB: postgres
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U validation -d postgres'
+          --health-cmd "pg_isready -U validation -d postgres"
           --health-interval 2s --health-retries 20
       redis:
         image: redis:7.2.5-alpine
         ports: ['6379:6379']
         options: >-
-          --health-cmd 'redis-cli ping'
+          --health-cmd "redis-cli ping"
           --health-interval 2s --health-retries 20
     env:
       BACKINTEL_VALIDATION_ADMIN_URL: postgresql://validation:local-validation-only@127.0.0.1:5432/postgres

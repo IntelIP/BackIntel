@@ -51,6 +51,62 @@ class CampaignChecks(unittest.TestCase):
         db.write('INSERT INTO backintel.analysis_requests(id,run_id,domain,reserved,charge,status,response) VALUES(%s,%s,%s,%s,%s,%s,%s)',
                  (identity, r['id'], db.goal(r['goal_id'])['domain'], amount, amount, 'complete', Jsonb({'mode': 'fixture', 'id': identity})))
 
+    def test_success_publication_recovers_atomically(self):
+        result = {'summary': 'explicit fixture', 'tables': [], 'mode': 'fixture'}
+        with patch('runtime.analysis_agent.analyze', return_value=result):
+            service.execute(self.run['job_id'], service.handle)
+            previous = self.run['id']
+            for boundary in ('during_publication', 'before_job_commit'):
+                with self.subTest(boundary=boundary):
+                    snapshot = digest([self.snapshot, boundary])
+                    db.save_snapshot('commerce', snapshot, {'files': [], 'mode': 'fixture'}, self.rows)
+                    run = service.submit(self.goal, self.actor)
+                    def interrupted(store, payload):
+                        if boundary == 'during_publication':
+                            with patch.object(service, 'threshold_crossed', side_effect=KeyboardInterrupt):
+                                return service.handle(store, payload)
+                        service.handle(store, payload)
+                        raise KeyboardInterrupt
+                    with self.assertRaises(KeyboardInterrupt):
+                        service.execute(run['job_id'], interrupted)
+                    self.assertEqual(db.goal(self.goal)['last_success'], previous)
+                    self.assertNotEqual(db.run(run['id'])['status'], 'succeeded')
+                    self.assertEqual(db.query("SELECT count(*) AS n FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'", (run['id'],), one=True)['n'], 0)
+                    service.dispatch()
+                    self.assertEqual(db.goal(self.goal)['last_success'], run['id'])
+                    self.assertEqual(db.run(run['id'])['status'], 'succeeded')
+                    job = db.query('SELECT state,result_sha256 FROM backintel.capability_jobs WHERE job_id=%s', (run['job_id'],), one=True)
+                    self.assertEqual(job['state'], 'completed')
+                    self.assertTrue(job['result_sha256'])
+                    self.assertEqual(db.query("SELECT count(*) AS n FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'", (run['id'],), one=True)['n'], 1)
+                    previous = run['id']
+
+    def test_refresh_retries_unchanged_snapshot_without_blocking_other_goals(self):
+        revoked = 'revoked-' + uuid.uuid4().hex
+        db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s)',
+                 (revoked, hashlib.sha256(revoked.encode()).hexdigest(), 'manager', ['commerce']))
+        blocked = service.create_goal({'id': revoked}, 'commerce', 'Revoked owner fixture')['id']
+        service.revise_goal(blocked, {'id': revoked}, confirmed=True)
+        db.write('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s', (revoked,))
+        snapshot = digest([self.snapshot, 'arrival'])
+        db.save_snapshot('commerce', snapshot, {'files': [], 'mode': 'fixture'}, self.rows)
+        original_submit = service.submit
+        def transient(identity, actor, **kwargs):
+            if identity == self.goal:
+                raise RuntimeError('Temporary scheduling failure')
+            return original_submit(identity, actor, **kwargs)
+        with patch.object(service, 'submit', side_effect=transient):
+            first = service.schedule_snapshot('commerce', {'changed': True, 'snapshot': snapshot})
+        self.assertEqual(next(item for item in first if item['goal_id'] == self.goal)['status'], 'blocked')
+        healthy = service.create_goal(self.actor, 'commerce', 'Healthy owner fixture')['id']
+        service.revise_goal(healthy, self.actor, confirmed=True)
+        for _ in range(2):
+            outcomes = service.schedule_snapshot('commerce', {'changed': False, 'snapshot': snapshot})
+            self.assertEqual(next(item for item in outcomes if item['goal_id'] == blocked)['status'], 'blocked')
+            for goal in (self.goal, healthy):
+                self.assertEqual(next(item for item in outcomes if item['goal_id'] == goal)['status'], 'queued')
+                self.assertEqual(db.query('SELECT count(*) AS n FROM backintel.analysis_runs WHERE goal_id=%s AND snapshot_id=%s', (goal, snapshot), one=True)['n'], 1)
+
     def test_invalid_cost_and_request_ceiling(self):
         for amount in (-.01, 'NaN', 'Infinity', True):
             with self.subTest(amount=amount), self.assertRaises(ValueError):
