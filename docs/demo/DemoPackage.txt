@@ -53,15 +53,16 @@ PythonDemo: the Reflex template and its pinned direct dependency.
 Records: the completed run, original execution exports, verification, screenshots,
 budget, source packet, and copied review seed.
 SourceSnapshot: current source and dependency locks for review and later work.
-Manifest.json: per-file hashes and the source base commit. Source is uncommitted;
-the package is not an exact-commit release or a production deployment.
+Manifest.json: per-file hashes and the source base commit. The manifest describes the original uncommitted recording source; it does not
+identify the current checkout. The package is not an exact-commit release or a
+production deployment.
 DependencyLicenses: license texts available in the installed frontend packages.
 
 Business and licensing limits
 Inputs and future outcomes are synthetic. Six validation cases selected a method;
 they do not prove customer accuracy. Handling times, savings, revenue, local
 compute cost, and net benefit remain unmeasured. Read Licensing.txt before
-redistribution. The repository has not declared a source license.
+redistribution. The repository source is MIT licensed; preserve the package's dependency notices.
 
 Rebuild from the working repository
 cd frontend

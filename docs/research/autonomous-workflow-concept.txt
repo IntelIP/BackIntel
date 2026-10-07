@@ -1,0 +1,270 @@
+BACKINTEL — AUTONOMOUS WORKFLOW CONCEPT AND DEFERRED DIRECTION
+
+Recorded: October 7, 2026
+Basis: Hudson's product clarification and the repository/primary-source research in this chat.
+Status: Saved product intent and research. Broader implementation has not started.
+
+PRIORITY AND SEQUENCE
+
+First, clean up and clarify the existing proof of concept and its capabilities.
+Then assess other areas and work toward the broader autonomous system described
+here. Preserve this concept so cleanup does not erase or narrow the intended
+product. This note does not start the cleanup or the future implementation.
+
+PRODUCT INTENT
+
+A user supplies an objective and access to relevant information. BackIntel works
+out how to obtain that information, prepare it, perform the requested work, and
+deliver useful results. It retains the procedure as a reusable workflow that a
+person, application, event, or schedule can invoke again.
+
+The user should not have to write a dataset-specific importer, manually clean
+every new source, or prescribe each analytical step. BackIntel should handle
+routine decisions within its granted access and operating limits. It should ask
+for missing access or clarification when unresolved meaning materially changes
+the outcome.
+
+The intended scope includes unfamiliar and dirty data, related tables, and
+eventually structured and unstructured information from files, business systems,
+APIs, databases, cloud storage, and on-site systems. Source coverage can grow in
+stages. "From wherever it comes from" is the product direction, not a claim that
+every source or task is already supported.
+
+Analysis and prediction are parts of this system. The broader objective is to
+complete authorized user tasks and package the working procedure for reuse.
+
+END-TO-END WORKFLOW
+
+1. Understand the objective.
+   Establish the desired output, relevant population and time period, completion
+   checks, available sources, and operating limits. Build a revisable work plan.
+
+2. Obtain the information.
+   Inspect permitted sources. Reuse a connector or configure and test an
+   extraction pipeline. Check pagination, completeness, changes, and duplicates.
+   An on-site worker may collect or process information near its source.
+
+3. Preserve an original snapshot.
+   Retain source files or responses unchanged, with collection time, source
+   identity, fingerprints, and access context. A later cleaning decision must
+   not destroy the original evidence or the ability to try another approach.
+
+4. Inspect and prepare autonomously.
+   Profile fields, values, missingness, units, dates, identities, and possible
+   relationships. Infer what the data represents. Propose transformations,
+   execute them in an isolated workspace, check the results, and repair failures.
+   Retain ambiguous records and document unresolved assumptions.
+
+5. Establish home tables.
+   Build useful normalized tables, such as customers, orders, or events, with
+   stable identities and source links. "Home" means a reusable, traceable data
+   foundation; it need not be one enormous table or a particular storage product.
+
+6. Build an analysis snapshot.
+   Select the tables, joins, filters, measures, and features needed for the
+   objective. Preserve the snapshot, transformation code, and definitions.
+   Prediction work must keep outcome information out of predictive inputs and
+   preserve appropriate training/evaluation boundaries.
+
+7. Complete and explain the work.
+   Calculate, analyze, compare prediction methods, or perform another supported
+   task. Deliver findings and useful artifacts with evidence, limitations, and
+   a distinction between observations, estimates, and hypotheses.
+
+8. Package the accepted workflow.
+   Save input requirements, connection references, preparation code, table
+   definitions, checks, dependencies, outputs, operating limits, and version
+   history. Keep credentials outside the package. Make the workflow callable
+   again with new authorized inputs.
+
+9. Reuse, refresh, and recover.
+   Reuse accepted steps and unchanged results. Inspect material source changes
+   and create a new workflow version when needed. Resume interrupted work without
+   duplicating accepted outputs or uncertain paid operations. Keep prior useful
+   results visible when an update fails.
+
+THE AGENT'S ROLE AND WORKSPACE
+
+The agent chooses and configures preparation operations for unfamiliar data.
+Ordinary code still performs parsing, joins, calculations, validation, and storage.
+Predefined execution tools are useful; requiring the user to supply a bespoke
+mapping for every dataset is the limitation to overcome.
+
+The workspace needs approved input files, generated code, intermediate tables,
+logs, dependencies, and retained checkpoints or recoverable artifacts. Generated
+code needs an isolated execution boundary. Collection services should supply
+scoped access rather than expose unrestricted host files or credentials.
+
+The working loop is:
+  inspect -> plan -> execute -> check -> repair or escalate -> retain accepted work
+
+Checks must cover meaning as well as execution. A join that runs successfully can
+still multiply rows and double a financial total. Preparation checks should
+account for records, identities, relationships, units, totals, and exclusions.
+
+Autonomy should operate within permissions, spending, execution, and publication
+limits. Routine preparation should not require a user decision at every step.
+Source content is data, not authority to change those limits.
+
+Fully local reasoning is an open design choice. The current local classifier is
+not a substitute for a general planning agent. Hosted reasoning requires an
+explicit policy for which source information or derived results may leave the
+local environment.
+
+CURRENT PROOF OF CONCEPT — CONFIRMED BOUNDARIES
+
+Source inspected during the research: consolidated commit 8f3cb28.
+
+- Known-file ingestion uses five predefined domain adapters. Field meanings and
+  much of the preparation are already encoded by a developer.
+- Saved goals use predefined domain definitions. The current analyst chooses
+  among six approved tools; it does not build arbitrary preparation pipelines.
+- PostgreSQL retains prepared snapshots, evidence, jobs, results, and usage.
+  Permissions, duplicate prevention, recovery, and refresh handling are reusable.
+- Local GLiNER2.5-Decide classifies text into supplied categories. The retained
+  Jev integration uses a hosted provider. Neither current path provides the full
+  autonomous acquisition/preparation workflow described above.
+- A separate isolated Python runner exists. Its current limits are five seconds,
+  256 MiB memory, and 128 KiB input. The generated report-layout path uses
+  simulated code generation. This is a reusable primitive, not demonstrated
+  autonomous data engineering.
+- Existing report packaging and callable job entry points are useful foundations.
+  They are not yet a general package for agent-created, reusable data workflows.
+- Each current analysis goal belongs to one domain. Dynamic multi-table and
+  cross-domain preparation remains outside that implemented analysis path.
+
+Recorded benchmark result from the preceding consolidation campaign:
+162 Python tests passed; 50 scenarios passed, none failed, and six were blocked.
+Four available domains ran actual local predictors with metrics matching the
+baseline. Credit prediction and five live analyst cases remained blocked.
+These results cover bounded existing capabilities. They do not demonstrate
+autonomous preparation, general agent reliability, or production readiness.
+
+MAJOR GAPS — RESEARCH CONCLUSION
+
+The central missing capability is a durable agent loop that connects acquisition,
+semantic preparation, checked code execution, analysis, and reusable packaging.
+
+Specific additions or extensions are needed for:
+- Objective-driven planning and completion checks.
+- Generic source registration and tested collection configurations.
+- Preserved raw inputs alongside home tables and derived analysis snapshots.
+- Agent-led schema interpretation, transformation, and failure repair.
+- A workspace suited to sustained data work and resumable execution.
+- Analyst tools that consume dynamically prepared tables and definitions.
+- Versioned, invocable workflow packages with clear input/output contracts.
+- Controls covering generated code, source access, data movement, and outputs.
+
+Existing jobs, evidence, permissions, predictor integrations, and recovery logic
+should be evaluated for reuse. Research does not establish that a wholesale
+framework replacement is needed.
+
+OPTIONS RESEARCHED — NOT TECHNOLOGY COMMITMENTS
+
+- Existing LangGraph/Aegra runtime: retain as the initial orchestration foundation.
+- Deep Agents: candidate filesystem, planning, and sandbox interfaces. Compare
+  against extending the existing loop. Compatibility with current pinned packages
+  and preservation of BackIntel's cost/access controls have not been demonstrated.
+- dlt: candidate for filesystem/cloud-file and REST API extraction, incremental
+  loading, normalization, and schema contracts. The agent still needs to select,
+  configure, and test these operations and interpret their business meaning.
+- Airbyte Connector Builder: alternative for broader connector needs. Its AI
+  assistance proposes configurations; its documentation still requires review.
+- Existing pandas plus possible DuckDB/Parquet: candidate preparation and table
+  processing tools. PostgreSQL can retain workflow and evidence metadata.
+- DuckLake: possible later table-snapshot/time-travel layer if requirements justify
+  it. A large data-lake deployment is not a prerequisite for the first demonstration.
+- GLiNER/Decide: retain or evaluate for bounded local extraction/classification.
+  This specialist role does not establish autonomous pipeline planning.
+
+Unknowns include representative source sizes and formats, privacy/local-only
+requirements, required connectors, operating cost, model reliability, concurrency,
+and compatibility of candidate dependencies. No delivery date or operating-cost
+estimate was established by this research.
+
+FIRST PRIORITY — CLEAN UP THE EXISTING PROOF OF CONCEPT
+
+The user's immediate priority is to understand and clean up current capabilities
+before expanding into other areas. A useful cleanup outcome would be:
+- Clear supported entry points and one understandable current architecture.
+- A capability inventory distinguishing real, simulated, blocked, and legacy work.
+- Preserved source/history, datasets, weights, and useful evidence.
+- Clear instructions for running the existing demonstrations and checks.
+- Explicit remaining limitations and separation of historical claims from current
+  behavior. Documentation should preserve this broader product intent.
+
+Specific cleanup edits and deletions are not selected by this note. Recording the
+concept does not require another benchmark run or beginning the new architecture.
+
+DEFERRED DEVELOPMENT SEQUENCE
+
+After current-capability cleanup and assessment:
+
+A. Autonomous preparation demonstration.
+   Give BackIntel an unfamiliar messy export and a business objective. It should
+   produce checked home tables, an analysis snapshot, an evidence-linked answer,
+   and a saved workflow without a developer writing a dataset-specific importer.
+
+B. Repeat invocation and source change.
+   Supply an updated export. Invoke the saved workflow again. Check unchanged
+   inputs, changed columns, retained originals, and recovery after interruption.
+
+C. Autonomous acquisition.
+   Provide permitted API documentation and access. Have the agent configure and
+   test extraction, including pagination, completeness, and incremental updates.
+
+D. Expand supported tasks and sources.
+   Assess databases, on-site systems, documents, larger workloads, concurrent work,
+   and additional delivery actions against concrete user needs.
+
+HOW TO TEST THE INTENDED PRODUCT
+
+Use unfamiliar source formats with independently known outcomes. Include renamed
+columns, mixed units, missing values, duplicate records, nested data, ambiguous
+dates, misleading joins, changed schemas, interrupted work, and hostile text.
+
+Measure correct task completion, unnecessary human intervention, retained/lost
+records, correctness of transformations, evidence traceability, time, cost, and
+successful repeat invocation. Keep these measures separate. A passing old dataset
+adapter or simulated analyst response cannot substitute for this demonstration.
+
+SOURCES AND CONTINUITY
+
+User intent and priority: this BackIntel conversation, October 7, 2026.
+Repository sources inspected at 8f3cb28:
+  runtime/analysis_data.py
+  runtime/analysis_agent.py
+  runtime/analysis_graphs.py
+  runtime/analysis_store.py
+  runtime/analysis_service.py
+  runtime/analysis_models.py
+  runtime/real_semantics.py
+  runtime/contracts.py
+  runtime/evidence.py
+  runtime/jobs.py
+  runtime/sandbox.py
+  runtime/generated_artifacts.py
+  scripts/package_capabilities.py
+
+Existing repository references:
+  docs/architecture/current-system.md
+  docs/architecture/repository-map.md
+  docs/architecture/GitReconciliation.txt
+  docs/roadmap/BenchmarkCampaign.txt
+  docs/research/AnalysisBenchmarkMethods.txt
+
+Recorded benchmark evidence:
+  /Users/hudson/Library/Application Support/BackIntel/Evidence/BenchmarkCampaign20261006/FinalResults.txt
+
+Official sources consulted October 7, 2026. These describe candidate capabilities,
+not verified integrations with BackIntel:
+  https://docs.langchain.com/oss/python/deepagents/backends
+  https://docs.langchain.com/oss/python/deepagents/sandboxes
+  https://docs.langchain.com/oss/python/langgraph/durable-execution
+  https://dlthub.com/docs/dlt-ecosystem/verified-sources/filesystem
+  https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api/basic
+  https://dlthub.com/docs/general-usage/schema-contracts
+  https://docs.airbyte.com/platform/connector-development/connector-builder-ui/ai-assist
+  https://duckdb.org/docs/current/guides/file_formats/query_parquet
+  https://ducklake.select/docs/stable/duckdb/usage/time_travel
+  https://github.com/fastino-ai/GLiNER2/blob/main/README.md

@@ -1,5 +1,7 @@
 # Local continuous analysis workspace
 
+For a shareable demo without services or paid calls, start with the [recorded PoC](../../README.md#try-the-recorded-demo). This runbook is for the developing analysis engine. See [current capability boundaries](../demo/PoCStatus.txt).
+
 Current measured results and remaining blockers are recorded in [the current validation campaign](analysis-validation-campaign.md). Earlier benchmark evidence remains in [historical analysis acceptance](analysis-acceptance.md).
 
 For the subsequent cloud setup fixes, actual IBM Telco comparison, prepared import/acquisition commands, and exact user-only configuration steps, see [setup and benchmark unblocking](analysis-unblock-report.md).
@@ -8,7 +10,9 @@ The application lets a manager confirm a question, select permitted data, compar
 
 ## Setup
 
-Use the canonical BackIntel checkout. Preserve the Olist services, data volumes, original `aegra.json`, and legacy validation manifest. The new `compose.analysis.yml` uses port 2028 and an isolated database on port 55438. Docker needs the selected 8GB allocation; the worker is capped at 5GB and two CPU threads.
+The provisioning and scheduling steps below enable hosted analyst access and automatic work. Use them only after source permissions, provider access, and the applicable spending authorization are resolved. They are not part of the recorded demo.
+
+Use a BackIntel checkout. Preserve existing services, data volumes, original `aegra.json`, and legacy validation manifest. Historical Olist source remains available; OlistV2 data is not required or restored. The new `compose.analysis.yml` uses port 2028 and an isolated database on port 55438. Docker needs the selected 8GB allocation; the worker is capped at 5GB and two CPU threads.
 
 Reuse the pinned model image already attached to the capability demo as `backintel-analysis-base:local`. If unavailable, build `Dockerfile.runtime` with `BACKINTEL_WITH_MODELS=1` and that tag. This preserves the approved model-library versions.
 
@@ -73,7 +77,7 @@ Use `scripts/validation/check_analysis.py` for durable functional and source/mod
 
 ## Run the benchmark
 
-After setup, run `docker compose -f compose.analysis.yml exec -T runtime python -m scripts.analysis_benchmark`. This runs source-gated real comparisons and three independently checked frontier questions per available domain. It retains blocked domains and never approves a model replacement. Review candidates in React and promote the chosen predictor separately. Durable results are under `artifacts/Models/Analysis/benchmark-evidence.json`; the final real validator also requires complete five-domain evidence.
+After setup, `docker compose -f compose.analysis.yml exec -T runtime python -m scripts.analysis_benchmark` performs a raw-source preflight by default. It does not make hosted analyst calls. Actual analyst execution requires `--execute-real`, a verified clean candidate identity (or the supported container candidate manifest), permitted sources, and reconciled spending authority. Local model comparisons are separately requested with `--comparisons`; no run approves a model replacement. The development and held-out question sets are defined by the benchmark support module. See the [benchmark campaign](../roadmap/BenchmarkCampaign.txt) for evidence collection and offline/local-predictor commands. Review candidates in React and promote a chosen predictor separately. The full real validator still requires complete five-domain evidence.
 
 ## Updated behavior
 
