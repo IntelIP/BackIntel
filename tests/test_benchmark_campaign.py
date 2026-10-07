@@ -11,6 +11,20 @@ from scripts.validation import benchmark_campaign as campaign
 
 
 class CampaignReceiptChecks(unittest.TestCase):
+    def test_cli_exit_codes_distinguish_blocked_and_noncomparable(self):
+        for status, expected in [('passed', 0), ('failed', 1), ('blocked', 2)]:
+            with self.subTest(status=status), patch('sys.argv', [
+                'benchmark_campaign', 'collect', '--label', 'candidate', '--output', '/unused'
+            ]), patch.object(campaign, 'collect', return_value={'status': status}), patch('builtins.print'):
+                self.assertEqual(campaign.main(), expected)
+        for comparable, expected in [(True, 0), (False, 2)]:
+            with self.subTest(comparable=comparable), patch('sys.argv', [
+                'benchmark_campaign', 'compare', 'baseline', 'candidate', '--output', '/unused'
+            ]), patch.object(campaign, 'read_json', return_value={}), patch.object(
+                campaign, 'compare', return_value={'comparable': comparable}
+            ), patch.object(campaign, 'write_json'), patch('builtins.print'):
+                self.assertEqual(campaign.main(), expected)
+
     def test_collect_binds_browser_bytes_to_runner_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -357,7 +357,9 @@ def main():
     else:
         report = run(args) if args.command == 'run' else collect(args)
     print(json.dumps({key: report[key] for key in ('status', 'families', 'comparable', 'reasons') if key in report}))
-    return int(report.get('status') == 'failed')
+    if args.command == 'compare':
+        return 0 if report.get('comparable') else 2
+    return {'passed': 0, 'failed': 1}.get(report.get('status'), 2)
 
 
 if __name__ == '__main__':
