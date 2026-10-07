@@ -27,3 +27,22 @@ Local source integration, local commits, research, isolated tests and local CPU 
 
 Done condition
 All requested artifacts exist. The consolidated source is committed. Required checks and the agreed scenario suite run on the exact candidate, with trustworthy passed/failed/blocked results and actionable explanations. Compare baseline/candidate only where equivalent evidence exists. Explicit input/prerequisite blockers remain visible; a fixture pass never replaces a missing live result. Do not mark full live acceptance or production readiness from this campaign unless those outcomes are actually demonstrated.
+
+Reproduce the offline scenario campaign
+Use Python 3.12 with requirements.testing.txt, the locked apps/web dependencies and its pinned Playwright browser. Supply BACKINTEL_VALIDATION_ADMIN_URL for a local disposable PostgreSQL server, BACKINTEL_VALIDATION_REDIS_URL for local Redis, NODE_PATH pointing to apps/web/node_modules, and BACKINTEL_VALIDATION_POSTGRES_CONTAINER when exercising dump/restore. The runner creates its own disposable databases and Redis container; it does not stop the existing application.
+
+python scripts/validation/benchmark_campaign.py run --label candidate --checkout . --port 2029 --output /absolute/new/evidence/directory
+
+The command intentionally returns a nonzero result when required live prediction/analyst evidence is absent, even when offline scenarios pass. Inspect campaign.json by family and mode. --skip-browser records that required evidence as blocked; it is not an acceptance shortcut.
+
+Run actual local predictors from a verified clean checkout
+python scripts/analysis_prediction_benchmark.py --checkout /absolute/clean/checkout --output /absolute/new/prediction/directory --datasets /absolute/Datasets --models /absolute/Models --image EXISTING_LOCAL_ANALYSIS_IMAGE
+
+This uses the existing local analysis image, source-use receipts, approved local weights, two CPU threads, the configured memory/time limits, and a disabled network. Each domain retains its own receipt. Credit remains blocked when files or confirmation are missing. Saved models are reloaded and their test predictions checked. Local compute dollar cost is unavailable. No provider calls or model promotion occur.
+
+Collect and compare
+python scripts/validation/benchmark_campaign.py collect --label candidate --checkout . --output /absolute/new/collection --units /absolute/campaign/units --offline /absolute/campaign/offline --prediction-receipt /absolute/predictions/churn/receipt.json
+Repeat --prediction-receipt for each available domain. Add --analyst-receipt only for an actual source-grounded, exact-candidate run after its existing spending boundary is reconciled. Collection validates identity and artifact hashes; it does not rerun inference.
+python scripts/validation/benchmark_campaign.py compare /absolute/baseline/campaign.json /absolute/candidate/campaign.json --output /absolute/comparison.json
+
+Changed data, cohorts, scenario definitions, limits, dependencies, or scoring harness make results not comparable. Changed predictor implementation is the variable under evaluation and remains identified without automatically blocking comparison. Historical logs are evidence of their original run, never proof of the current source. The baseline frozen for this campaign is 5fe7fcdc478d967587575ec0c1cba97c06939a4a.
