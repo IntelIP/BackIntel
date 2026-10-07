@@ -222,16 +222,19 @@ class SetupChecks(unittest.TestCase):
 
     def test_live_benchmark_uses_configured_url_credentials_and_bounded_wait(self):
         from scripts import analysis_benchmark as benchmark
+        from runtime import analysis_service, analysis_store
+        import httpx
         client = MagicMock(); client.__enter__.return_value = client
         stream = MagicMock(); stream.__enter__.return_value = stream; stream.iter_lines.return_value = []
         client.stream.return_value = stream
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'access.json'; path.write_text(json.dumps({'manager': 'fixture'}))
             env = {'BACKINTEL_ACCESS_CREDENTIAL_FILE': str(path), 'BACKINTEL_AEGRA_URL': 'http://127.0.0.1:2028'}
-            with patch.dict(os.environ, env), patch.object(benchmark.service, 'wake'), patch.object(benchmark.httpx, 'Client', return_value=client), patch.object(benchmark.db, 'run', side_effect=[{'status': 'queued'}, {'status': 'queued'}, {'status': 'succeeded'}, {'status': 'succeeded'}]):
+            with patch.dict(os.environ, env), patch.object(analysis_service, 'wake'), patch.object(httpx, 'Client', return_value=client) as transport, patch.object(analysis_store, 'run', side_effect=[{'status': 'queued'}, {'status': 'queued'}, {'status': 'succeeded'}, {'status': 'succeeded'}]):
                 self.assertEqual(benchmark.execute({'id': 'fixture'})['status'], 'succeeded')
+                transport.assert_called_once_with(timeout=75, headers={'Authorization': 'Bearer fixture'})
             self.assertEqual(client.stream.call_args.args[1], 'http://127.0.0.1:2028/api/v1/runs/fixture/events')
-            with patch.dict(os.environ, env), patch.object(benchmark.service, 'wake'), patch.object(benchmark.httpx, 'Client', return_value=client), patch.object(benchmark.db, 'run', return_value={'status': 'queued'}), patch.object(benchmark.time, 'monotonic', side_effect=[0, 99999]):
+            with patch.dict(os.environ, env), patch.object(analysis_service, 'wake'), patch.object(httpx, 'Client', return_value=client) as transport, patch.object(analysis_store, 'run', return_value={'status': 'queued'}), patch.object(benchmark.time, 'monotonic', side_effect=[0, 99999]):
                 with self.assertRaises(TimeoutError):
                     benchmark.execute({'id': 'fixture'})
 
