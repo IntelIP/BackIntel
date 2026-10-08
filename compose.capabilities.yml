@@ -40,7 +40,8 @@ services:
       BACKINTEL_TEST_DATABASE_URL: postgresql://capability_demo@postgres:5432/test_backintel_demo
       REDIS_URL: redis://redis:6379/0
       REDIS_BROKER_ENABLED: "true"
-      AUTH_TYPE: noop
+      AEGRA_CONFIG: /app/aegra.capabilities.json
+      BACKINTEL_CAPABILITY_TOKEN: ${BACKINTEL_CAPABILITY_TOKEN:?Load the capability operator token from your local credential store}
       WORKER_COUNT: "1"
       N_JOBS_PER_WORKER: "1"
       CRON_ALLOW_SECONDS_SCHEDULE: "true"

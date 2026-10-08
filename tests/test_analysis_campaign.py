@@ -57,6 +57,24 @@ class CampaignChecks(unittest.TestCase):
         db.write('INSERT INTO backintel.analysis_requests(id,run_id,domain,reserved,charge,status,response) VALUES(%s,%s,%s,%s,%s,%s,%s)',
                  (identity, r['id'], db.goal(r['goal_id'])['domain'], amount, amount, 'complete', Jsonb({'mode': 'fixture', 'id': identity})))
 
+    def test_over_reservation_charge_blocks_reconciliation_and_future_calls(self):
+        from runtime.analysis_agent import record_charge, reconcile_charge
+        db.reserve(self.run['id'], 'over-reservation', Decimal('.01'))
+        with self.assertRaisesRegex(RuntimeError, 'exceeds approved reservation'):
+            record_charge('over-reservation', Decimal('.02'))
+        recorded = db.query('SELECT status,charge FROM backintel.analysis_requests WHERE id=%s', ('over-reservation',), one=True)
+        self.assertEqual(recorded, {'status':'uncertain','charge':Decimal('.02')})
+        with self.assertRaisesRegex(RuntimeError, 'exceeds approved reservation'):
+            reconcile_charge('over-reservation', self.actor)
+        with self.assertRaisesRegex(RuntimeError, 'unresolved provider charge'):
+            db.reserve(self.run['id'], 'next-request', Decimal('.01'))
+
+    def test_charge_within_reservation_completes(self):
+        from runtime.analysis_agent import record_charge
+        db.reserve(self.run['id'], 'within-reservation', Decimal('.02'))
+        record_charge('within-reservation', Decimal('.01'))
+        self.assertEqual(db.query('SELECT status FROM backintel.analysis_requests WHERE id=%s', ('within-reservation',), one=True)['status'], 'complete')
+
     def test_success_publication_recovers_atomically(self):
         result = {'summary': 'explicit fixture', 'tables': [], 'mode': 'fixture'}
         with patch('runtime.analysis_agent.analyze', return_value=result):

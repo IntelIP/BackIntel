@@ -18,6 +18,40 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_summary_uses_typed_cited_findings(self):
+        results = [{'evidence_id':'observed','kind':'observed','table':[{'mean':.2}]},
+                   {'evidence_id':'predicted','kind':'estimate','table':[{'mean':.8}]}]
+        answer = {'summary':'The observed rate is 80%.','limitations':[], 'findings':[
+            {'claim':'The observed rate is 20%.','kind':'fact','evidence_ids':['observed']}]}
+        self.assertEqual(validate_answer(answer, results)['summary'], 'The observed rate is 20%.')
+        self.assertNotIn('80%', validate_answer({**answer, 'summary':'The observed rate is 80%.', 'findings':[]}, results)['summary'])
+
+    def test_source_replacement_during_adaptation_is_rejected(self):
+        from unittest.mock import patch
+        from runtime import analysis_data as data
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)/'source.csv'
+            source.write_text('original')
+            def replacement(paths):
+                yield {'id':'one','entity':'one','target':1,'split':None}
+                other = source.with_suffix('.new')
+                other.write_text('replacement')
+                other.replace(source)
+            with patch.dict(data.ADAPTERS, {'commerce':replacement}), self.assertRaisesRegex(ValueError, 'Source changed'):
+                data.adapt('commerce', [source])
+
+    def test_capability_operator_authentication(self):
+        import asyncio
+        from unittest.mock import patch
+        from runtime.capability_auth import authenticate, auth
+        with patch.dict('os.environ', {'BACKINTEL_CAPABILITY_TOKEN':'fixture-operator-token'}):
+            for headers in ({}, {'authorization':'Bearer wrong'}):
+                with self.subTest(headers=headers), self.assertRaises(auth.exceptions.HTTPException):
+                    asyncio.run(authenticate(headers))
+            self.assertEqual(asyncio.run(authenticate({'authorization':'Bearer fixture-operator-token'}))['identity'], 'capability-operator')
+        with patch.dict('os.environ', {'BACKINTEL_CAPABILITY_TOKEN':''}), self.assertRaises(auth.exceptions.HTTPException):
+            asyncio.run(authenticate({'authorization':'Bearer '}))
+
     def test_counts_cannot_validate_rates_or_means(self):
         results = [{'evidence_id':'typed', 'table':[{'group':'A','mean':.2,'count':80}]}]
         for claim in ('The observed rate is 80%.', 'The mean is 80.', 'There are 20 records.'):
@@ -185,7 +219,7 @@ class AdapterChecks(unittest.TestCase):
         client=MagicMock();client.__enter__.return_value=client
         client.get.return_value.json.return_value={'data':[{'id':agent.CONFIG['analyst']['model'],'pricing':{'prompt':'0.000001','completion':'0.000001'}}]}
         client.post.return_value.json.return_value={'id':'fixture-response','model':'unapproved/model','usage':{'cost':.001},'output':[]}
-        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith('UPDATE') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
+        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith('UPDATE') else {'reserved':.01} if sql.startswith('SELECT reserved') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
             with self.assertRaisesRegex(ValueError,'unapproved'):agent.request('fixture-run',0,[])
         payload=client.post.call_args.kwargs['json']
         self.assertEqual(payload['provider']['order'],['OpenAI'])

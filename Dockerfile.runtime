@@ -11,6 +11,7 @@ RUN if [ "$BACKINTEL_WITH_MODELS" = "1" ]; then \
       pip install --no-cache-dir -r requirements.models.txt; \
     fi
 COPY aegra.json ./aegra.json
+COPY aegra.capabilities.json ./aegra.capabilities.json
 COPY config ./config
 COPY runtime ./runtime
 COPY migrations ./migrations

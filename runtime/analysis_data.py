@@ -193,6 +193,7 @@ def adapter_identity(domain):
 
 def adapt(domain, paths=None):
     paths = paths or source_files(domain)
+    source_identity = [fingerprint(p) for p in paths]
     rows = []
     cohort = []
     identities = set()
@@ -234,7 +235,9 @@ def adapt(domain, paths=None):
         else:
             bucket = int(digest(r['entity'])[:8], 16) % 100
             r['split'] = 'train' if bucket < 70 else 'calibration' if bucket < 85 else 'test'
-    body = {'domain': domain, 'files': [fingerprint(p) for p in paths], **adapter_identity(domain),
+    if source_identity != [fingerprint(p) for p in paths]:
+        raise ValueError('Source changed during adaptation; retry the import')
+    body = {'domain': domain, 'files': source_identity, **adapter_identity(domain),
             'rows': len(rows), 'total_rows':total_rows, 'cohort_policy':'bounded fixed identity hash', 'split_policy': 'engine-official' if domain == 'maintenance' else 'chronological-label-availability' if cutoffs else 'fixed-entity-hash',
             'cutoffs': cutoffs, 'caveat': CONFIG['sources'][domain]['caveat'],
             'record_hash': digest(rows)}

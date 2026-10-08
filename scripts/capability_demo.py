@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -12,13 +13,20 @@ import uuid
 
 import psycopg
 
-from scripts.jev.run_review_batch import request
+from scripts.jev.run_review_batch import request as api_request
 from runtime.simulation import digest, encoded
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "artifacts" / "validation" / "CapabilityDemo"
 BASE = "http://127.0.0.1:2027"
 DEMO_DSN = "postgresql://capability_demo@127.0.0.1:55437/test_backintel_demo"
+
+
+def request(method, path, body=None, *, base=BASE):
+    token = os.environ.get('BACKINTEL_CAPABILITY_TOKEN')
+    if not token:
+        raise RuntimeError('Load the capability operator token from your local credential store')
+    return api_request(method, path, body, base=base, headers={'Authorization': 'Bearer ' + token})
 
 
 def status(connection, demo_id="development-v1") -> dict:

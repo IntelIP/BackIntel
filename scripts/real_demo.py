@@ -20,7 +20,7 @@ from runtime.real_pipeline import require_approved_scope
 from runtime.real_semantics import scope_for, usage_for
 from runtime.simulation import encoded
 from scripts.capability_demo import BASE, DEMO_DSN, ROOT, domain_snapshot, status
-from scripts.jev.run_review_batch import request
+from scripts.capability_demo import request
 from scripts.package_capabilities import package
 from scripts.real_capabilities import submit
 

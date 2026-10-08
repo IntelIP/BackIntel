@@ -98,6 +98,8 @@ def validate_answer(answer, results, group=None):
                 allowed = means + counts
             if not any(round(v,precision)==n for v in allowed):
                 raise ValueError('Narrative number is unsupported by tool results')
+    # The primary UI summary uses the same typed, cited claims as the findings.
+    answer['summary'] = ' '.join(f['claim'] for f in answer['findings']) or 'Analysis completed. Review current calculation tables and limitations.'
     return answer
 
 
@@ -230,13 +232,27 @@ def request(identity, index, inputs):
                     cost = meta.json().get('data', {}).get('total_cost')
             if cost is None or not math.isfinite(float(cost)) or float(cost) < 0:
                 raise RuntimeError('Provider charge is unresolved')
-            db.write("UPDATE backintel.analysis_requests SET status='complete',charge=%s,response=%s WHERE id=%s", (Decimal(str(cost)), Jsonb(value), call_id))
+            record_charge(call_id, cost)
             if value.get('model') not in config['served_models']:
                 raise ValueError('Provider served an unapproved model identity')
             return value
     except Exception:
         db.write("UPDATE backintel.analysis_requests SET status='uncertain' WHERE id=%s AND status<>'complete'", (call_id,))
         raise
+
+
+def record_charge(call_id, cost):
+    charge = Decimal(str(cost))
+    if isinstance(cost, bool) or not charge.is_finite() or charge < 0:
+        raise RuntimeError('Provider charge is unresolved')
+    request = db.query('SELECT reserved FROM backintel.analysis_requests WHERE id=%s', (call_id,), one=True)
+    if not request:
+        raise ValueError('Unknown provider request')
+    exceeded = charge > request['reserved']
+    db.write('UPDATE backintel.analysis_requests SET status=%s,charge=%s WHERE id=%s',
+             ('uncertain' if exceeded else 'complete', charge, call_id))
+    if exceeded:
+        raise RuntimeError('Provider charge exceeds approved reservation; further calls are blocked')
 
 
 def reconcile_charge(call_id, actor):
@@ -247,6 +263,7 @@ def reconcile_charge(call_id, actor):
     db.authorize(actor, db.run_domain(r), ('manager',))
     value = request['response']
     if request['charge'] is not None:
+        record_charge(call_id, request['charge'])
         return db.usage(r['id'])
     if not value or not value.get('id'):
         raise RuntimeError('No provider response identity; charge remains unresolved')
@@ -257,8 +274,7 @@ def reconcile_charge(call_id, actor):
     cost = response.json().get('data', {}).get('total_cost')
     if cost is None or not math.isfinite(float(cost)) or float(cost) < 0:
         raise RuntimeError('Provider charge remains unresolved')
-    db.write("UPDATE backintel.analysis_requests SET status='complete',charge=%s WHERE id=%s AND charge IS NULL",
-             (Decimal(str(cost)), call_id))
+    record_charge(call_id, cost)
     db.event(r['id'], 'charge_reconciled', {'request_id': call_id, 'provider_usd': float(cost)})
     return db.usage(r['id'])
 

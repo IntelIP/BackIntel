@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def main():
     password = secrets.token_hex(32)
     env = {**os.environ, 'POSTGRES_PASSWORD': password,
-           'BACKINTEL_ANALYSIS_DB_PASSWORD': password, 'BACKINTEL_CAPABILITY_DB_PASSWORD': password}
+           'BACKINTEL_ANALYSIS_DB_PASSWORD': password, 'BACKINTEL_CAPABILITY_DB_PASSWORD': password,
+           'BACKINTEL_CAPABILITY_TOKEN': secrets.token_hex(32)}
     for filename in ('compose.analysis.yml', 'compose.capabilities.yml'):
         result = subprocess.run(['docker', 'compose', '-f', filename, 'config', '--format', 'json'],
                                 cwd=ROOT, env=env, capture_output=True, check=True, timeout=20)
@@ -22,6 +23,11 @@ def main():
         assert database['environment'].get('POSTGRES_HOST_AUTH_METHOD') != 'trust'
         assert database['environment']['POSTGRES_PASSWORD'] == password
         assert services['runtime']['environment']['PGPASSWORD'] == password
+        if filename == 'compose.capabilities.yml':
+            runtime = services['runtime']['environment']
+            assert runtime.get('AUTH_TYPE') != 'noop'
+            assert runtime['AEGRA_CONFIG'] == '/app/aegra.capabilities.json'
+            assert runtime['BACKINTEL_CAPABILITY_TOKEN'] == env['BACKINTEL_CAPABILITY_TOKEN']
         assert 'hba_file=/etc/postgresql/backintel-hba.conf' in database['command']
         assert any(v['target'] == '/etc/postgresql/backintel-hba.conf' and v.get('read_only')
                    and Path(v['source']).resolve() == ROOT / 'config/local-postgres-hba.conf'
