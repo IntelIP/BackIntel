@@ -18,6 +18,17 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_prior_snapshot_numbers_cannot_support_current_claims(self):
+        results = [{'tool':'compare_snapshots','evidence_id':'comparison',
+                    'current':[{'mean':.2,'count':20}], 'previous':[{'mean':.8,'count':80}]}]
+        for claim in ('The current observed rate is 80%.', 'The current source has 80 records.', 'The rate is 80%.'):
+            with self.subTest(claim=claim), self.assertRaisesRegex(ValueError, 'Narrative number'):
+                validate_answer({'summary':claim, 'findings':[], 'limitations':[]}, results)
+        for claim in ('The current rate is 20%.', 'The previous rate was 80%.', 'The previous source had 80 records.',
+                      'The previous rate was 80% and the current rate is 20%.'):
+            with self.subTest(claim=claim):
+                validate_answer({'summary':claim, 'findings':[], 'limitations':[]}, results)
+
     def test_summary_uses_typed_cited_findings(self):
         results = [{'evidence_id':'observed','kind':'observed','table':[{'mean':.2}]},
                    {'evidence_id':'predicted','kind':'estimate','table':[{'mean':.8}]}]

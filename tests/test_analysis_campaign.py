@@ -75,6 +75,18 @@ class CampaignChecks(unittest.TestCase):
         record_charge('within-reservation', Decimal('.01'))
         self.assertEqual(db.query('SELECT status FROM backintel.analysis_requests WHERE id=%s', ('within-reservation',), one=True)['status'], 'complete')
 
+    def test_resubmission_respects_five_attempt_boundary(self):
+        for attempts in (3, 4):
+            db.write("UPDATE backintel.capability_jobs SET state='failed',attempts=%s,max_attempts=%s WHERE job_id=%s", (attempts, attempts, self.run['job_id']))
+            db.write("UPDATE backintel.analysis_runs SET status='partial' WHERE id=%s", (self.run['id'],))
+            self.assertEqual(service.submit(self.goal, self.actor)['status'], 'queued')
+            self.assertEqual(db.query('SELECT max_attempts FROM backintel.capability_jobs WHERE job_id=%s', (self.run['job_id'],), one=True)['max_attempts'], 5)
+        db.write("UPDATE backintel.capability_jobs SET state='failed',attempts=5 WHERE job_id=%s", (self.run['job_id'],))
+        db.write("UPDATE backintel.analysis_runs SET status='partial' WHERE id=%s", (self.run['id'],))
+        with self.assertRaisesRegex(RuntimeError, 'five-attempt limit'):
+            service.submit(self.goal, self.actor)
+        self.assertEqual(db.run(self.run['id'])['status'], 'partial')
+
     def test_success_publication_recovers_atomically(self):
         result = {'summary': 'explicit fixture', 'tables': [], 'mode': 'fixture'}
         with patch('runtime.analysis_agent.analyze', return_value=result):

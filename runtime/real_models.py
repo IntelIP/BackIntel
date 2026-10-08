@@ -87,8 +87,10 @@ def prepare_real(store, task_record: dict, training: list[dict], route: str, fea
                 raise ValueError("Final semantic-feature model preparation requires actual Jev findings")
     columns = sorted(c for c in training[0]["feature"]["body"]["values"] if feature_set == "semantic" or c.startswith("structured:"))
     libraries = versions()
+    implementation = file_sha(Path(__file__))
     key = digest({"task":task_record["sha256"],"training":[[r["feature"]["sha256"],r["outcome"]["sha256"]] for r in training],
-                  "route":route,"feature_set":feature_set,"at":at,"implementation_mode":"real","libraries":libraries,"config":config})
+                  "route":route,"feature_set":feature_set,"at":at,"implementation_mode":"real","libraries":libraries,"config":config,
+                  "implementation_sha256":implementation})
     with store.connection.transaction():
         store.lock()
         existing = store.find("model",key)
@@ -131,7 +133,7 @@ def prepare_real(store, task_record: dict, training: list[dict], route: str, fea
                         "implementation_mode":"real","preparation":"trained_catboost" if route == "catboost" else "tabiclv2_context",
                         "columns":columns,"scales":scales,"target":task_record["body"]["target"],"prepared_at":at,"training_count":len(training),
                         "training_matrix_sha256":digest([[r["feature"]["sha256"],r["outcome"]["sha256"]] for r in training]),
-                        "libraries":libraries,"configuration_sha256":digest(config),"checkpoint":weights,
+                        "libraries":libraries,"configuration_sha256":digest(config),"checkpoint":weights,"implementation_sha256":implementation,
                         "artifact":{"package":key,"file":artifact.name,"sha256":file_sha(artifact)},
                         "wall_ms":(time.perf_counter()-started)*1000,"prepared_bytes":artifact.stat().st_size,
                         "provider_calls":0,"measured_provider_usd":0,"local_compute_usd":None,
@@ -144,6 +146,8 @@ def prepare_real(store, task_record: dict, training: list[dict], route: str, fea
 @lru_cache(maxsize=2)
 def _load(root_value: str, model_json: str):
     model = json.loads(model_json)
+    if model.get('implementation_sha256') != file_sha(Path(__file__)):
+        raise ValueError('Predictor implementation differs from prepared package; prepare it again')
     _allow_model_use(model["route"])
     if model["libraries"] != versions():
         raise ValueError("Installed predictor libraries differ from the prepared package")

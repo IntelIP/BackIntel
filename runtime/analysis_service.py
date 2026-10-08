@@ -120,11 +120,14 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
     c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, run_id))
     resumable = c.execute('SELECT status FROM backintel.analysis_runs WHERE id=%s FOR UPDATE', (run_id,)).fetchone()[0] in ('partial', 'cancelled')
     if resumable:
+        attempts = c.execute('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s FOR UPDATE', (job_id,)).fetchone()[0]
+        if attempts >= 5:
+            raise RuntimeError('This investigation reached its five-attempt limit; submit a new question or source snapshot')
         db.release_unsent(run_id, connection=c)
         unresolved = c.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s AND charge IS NULL', (run_id,)).fetchone()[0]
         if unresolved:
             raise RuntimeError('Reconcile uncertain charges before resuming this run')
-        resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',cancel_requested=false,result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL,max_attempts=GREATEST(max_attempts,attempts+3) WHERE job_id=%s AND state IN ('completed','cancelled','failed') RETURNING job_id", (job_id,)).fetchone()
+        resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',cancel_requested=false,result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL,max_attempts=LEAST(5,GREATEST(max_attempts,attempts+3)) WHERE job_id=%s AND state IN ('completed','cancelled','failed') RETURNING job_id", (job_id,)).fetchone()
         if resumed:
             c.execute("UPDATE backintel.analysis_runs SET owner=%s,status='queued',result=NULL,error=NULL,updated_at=now() WHERE id=%s", (actor['id'], run_id))
     return run_id

@@ -54,6 +54,20 @@ class FixtureClassifier:
 
 
 class ProviderIdentityTests(unittest.TestCase):
+    def test_model_cache_identity_changes_with_predictor_implementation(self):
+        from runtime import real_models as models
+        store = MagicMock()
+        store.find.return_value = {'fixture':'existing-model'}
+        training = [{'feature':{'sha256':'features','body':{'values':{'structured:value':1}}},
+                     'outcome':{'sha256':'outcome'}}]
+        with patch.object(models, '_allow_model_use', return_value={'limits':{'max_training_rows':2}}), \
+                patch.object(models, 'versions', return_value={'fixture':'version'}), \
+                patch.object(models, 'file_sha', side_effect=['implementation-a','implementation-b']):
+            models.prepare_real(store, {'sha256':'task'}, training, 'catboost', 'structured', 0)
+            first = store.find.call_args.args[1]
+            models.prepare_real(store, {'sha256':'task'}, training, 'catboost', 'structured', 0)
+            self.assertNotEqual(first, store.find.call_args.args[1])
+
     def test_numeric_probability_rounding_preserves_raw_reply_and_rejects_bad_weights(self):
         question = {"id": "wear", "type": "number", "prompt": "Reported wear", "rule": {"kind": "number"}}
         answer = {"legend": {str(i): str(10 * i / 9) for i in range(10)},
@@ -342,7 +356,7 @@ class RealBoundaryTests(unittest.TestCase):
         self.assertEqual(FixtureClassifier.calls,1)
         changed = copy.deepcopy(self.task["body"])
         changed["questions"][0]["prompt"] = "A different question"
-        other = register_task(self.store,changed)
+        other = register_task(self.store,changed,available_at=1)
         with self.assertRaises(PermissionError):
             extract_real(self.store,other,self.sources[1],3,authorization_id=self.authorization,classifier_factory=FixtureClassifier)
         self.assertEqual(FixtureClassifier.calls,1)

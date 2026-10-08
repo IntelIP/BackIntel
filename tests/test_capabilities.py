@@ -31,7 +31,11 @@ class CapabilityTests(unittest.TestCase):
         previous = attend(store,task,'same-entity',reason,0,1)
         body = copy.deepcopy(task['body'])
         body['policy']['cooldown'] += 1
-        revised = register_task(store,body)
+        with self.assertRaisesRegex(ValueError, 'strictly later'):
+            register_task(store,body)
+        revised = register_task(store,body,available_at=1)
+        self.assertEqual(max(store.list('task'), key=lambda record: record['available_at'])['sha256'], revised['sha256'])
+        self.assertEqual(register_task(store,body)['sha256'], revised['sha256'])
         self.assertIsNone(latest_episode(store,'same-entity',revised['sha256']))
         current = attend(store,revised,'same-entity',reason,1,action='staleness')
         self.assertIsNone(current['body']['last_observed_at'])
@@ -133,7 +137,7 @@ class CapabilityTests(unittest.TestCase):
         store, task, rows, _ = self.scenario()
         task_body = copy.deepcopy(task["body"])
         task_body["policy"]["max_provider_calls"] = 3
-        task = register_task(store, task_body)
+        task = register_task(store, task_body, available_at=1)
         rows[0]["message"], rows[1]["message"] = None, "[abstain] uncertain"
         admit_source(store, task, {"format":"json", "data":rows[:4]}, 9)
         sources = current_sources(store, 9)

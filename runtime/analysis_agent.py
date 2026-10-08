@@ -69,8 +69,6 @@ def validate_answer(answer, results, group=None):
         raise ValueError('Answer lacks current calculation evidence')
     claims = [(answer['summary'], results)] + [(f['claim'], [r for r in results if r['evidence_id'] in f['evidence_ids']]) for f in answer['findings']]
     for text, cited in claims:
-        means = metric_values(cited, {'mean'})
-        counts = metric_values(cited, {'count', 'labeled', 'records', 'sample_size', 'source_size'})
         if not isinstance(text, str) or len(text) > 5000 or re.search(r'\b(causes|caused by|will default|approve the loan|deny the loan)\b', text, re.I):
             raise ValueError('Unsupported causal or lending claim')
         labels={str(row['group']) for result in cited for row in result.get('table',[]) if 'group' in row}
@@ -85,6 +83,11 @@ def validate_answer(answer, results, group=None):
             token=token.replace(',','')
             n=float(token)
             precision=len(token.split('.')[1]) if '.' in token else 0
+            snapshots = re.findall(r'\b(previous|prior|historical|current|latest)\b', text[:match.start()], re.I)
+            snapshot = 'previous' if snapshots and snapshots[-1].lower() in ('previous', 'prior', 'historical') else 'current'
+            metrics = [r.get(snapshot) if r.get('tool') == 'compare_snapshots' or 'current' in r and 'previous' in r else r for r in cited]
+            means = metric_values(metrics, {'mean'})
+            counts = metric_values(metrics, {'count', 'labeled', 'records', 'sample_size', 'source_size'})
             percentage = re.match(r'\s*(%|percent\b)', text[match.end():], re.I)
             roles = re.findall(r'\b(mean|average|rate|probability|count|records|cases|rows|tickets|samples)\b', text[:match.start()], re.I)
             count_suffix = re.match(r'\s+(records|cases|rows|tickets|samples)\b', text[match.end():], re.I)

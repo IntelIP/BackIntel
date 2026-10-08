@@ -90,7 +90,15 @@ def register_task(store, task: dict, available_at=0) -> dict:
     validate_task(task)
     if task["id"] != store.task_id:
         raise ValueError("Task/store mismatch")
-    return store.put("task", digest(task), task, available_at)
+    with store.connection.transaction():
+        store.lock()
+        existing = store.find('task', digest(task))
+        if existing:
+            return existing
+        previous = store.list('task')
+        if previous and available_at <= max(record['available_at'] for record in previous):
+            raise ValueError('Task revisions require a strictly later available_at time')
+        return store.put("task", digest(task), task, available_at)
 
 
 def parse_source(source: dict, max_rows: int) -> list[dict]:
