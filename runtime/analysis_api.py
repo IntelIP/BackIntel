@@ -172,15 +172,15 @@ def start(identity:str,body:RunInput,p=Depends(access)):
 
 @app.get('/api/v1/runs')
 def runs(goal_id:str,p=Depends(access)):
-    db.authorize(p,db.goal(goal_id)['domain'])
-    return db.query('SELECT * FROM backintel.analysis_runs WHERE goal_id=%s ORDER BY created_at DESC LIMIT 50',(goal_id,))
+    actor=db.authorize(p,db.goal(goal_id)['domain'])
+    return [run_response(r,actor) for r in db.query('SELECT * FROM backintel.analysis_runs WHERE goal_id=%s ORDER BY created_at DESC LIMIT 50',(goal_id,))]
 
 
 @app.get('/api/v1/runs/{identity}')
 def run(identity:str,p=Depends(access)):
     r=db.run(identity)
-    db.authorize(p,db.run_domain(r))
-    return r
+    actor=db.authorize(p,db.run_domain(r))
+    return run_response(r,actor)
 
 
 @app.post('/api/v1/runs/{identity}/cancel')
@@ -226,8 +226,8 @@ def events(identity:str,after:int=0,p=Depends(access)):
 @app.get('/api/v1/goals/{identity}/findings')
 def findings(identity:str,p=Depends(access)):
     g=db.goal(identity)
-    db.authorize(p,g['domain'])
-    return db.run(g['last_success']) if g['last_success'] else None
+    actor=db.authorize(p,g['domain'])
+    return run_response(db.run(g['last_success']),actor) if g['last_success'] else None
 
 
 @app.get('/api/v1/evidence/{identity}')
@@ -236,16 +236,31 @@ def evidence(identity:str,p=Depends(access)):
     if not r or not r['task_id'].startswith('analysis-goal-'):
         raise ValueError('Unknown application evidence')
     g=db.goal(r['task_id'].removeprefix('analysis-goal-'))
-    db.authorize(p,g['domain'])
-    if p['role']=='viewer' and r['kind']=='calculation' and r['body'].get('tool')=='interpret_text':
-        raise PermissionError('Raw interpretation evidence requires analyst access')
+    actor=db.authorize(p,g['domain'])
+    if actor['role']=='viewer' and (r['kind']=='model_comparison' or r['kind']=='calculation' and r['body'].get('tool')=='interpret_text'):
+        raise PermissionError('Raw interpretation and model evidence requires analyst access')
+    return r
+
+
+def model_summary(body):
+    return {'methods':[{key:method[key] for key in ('route','features','metrics') if key in method}
+                       for method in body.get('methods',[])]}
+
+
+def run_response(r,actor):
+    if actor['role']=='viewer' and r.get('result') and 'comparison' in r['result']:
+        return {**r,'result':{**r['result'],'comparison':model_summary(r['result']['comparison'])}}
     return r
 
 
 @app.get('/api/v1/goals/{identity}/models')
 def models(identity:str,p=Depends(access)):
-    db.authorize(p,db.goal(identity)['domain'])
-    return db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC',(identity,))
+    actor=db.authorize(p,db.goal(identity)['domain'])
+    candidates=db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC',(identity,))
+    if actor['role']=='viewer':
+        return [{**{key:m[key] for key in ('id','goal_id','snapshot_id','promoted','created_at')},
+                 'body':model_summary(m['body'])} for m in candidates]
+    return candidates
 
 
 @app.post('/api/v1/models/{identity}/promote',status_code=202)

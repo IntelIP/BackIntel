@@ -128,6 +128,44 @@ class RealBoundaryTests(unittest.TestCase):
     def approve_fixture(self):
         self.conn.execute("UPDATE backintel.capability_provider_authorizations SET approved=true WHERE authorization_id=%s",(self.authorization,))
 
+    def test_request_price_ceiling_is_reserved_before_dispatch(self):
+        from runtime.real_semantics import request_real
+        scope = {**scope_for(self.task,self.sources), 'max_request_usd': '.09'}
+        self.conn.execute('UPDATE backintel.capability_provider_authorizations SET approved=true,price_ceiling_known=true,max_requests=2,max_measured_usd=.10,scope=%s,scope_sha256=%s WHERE authorization_id=%s',
+                          (Jsonb(scope), digest(scope), self.authorization))
+        FixtureClassifier.charge = .09
+        first = request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)
+        self.assertEqual(first['metadata']['reserved_usd'], '0.09')
+        with self.assertRaisesRegex(RuntimeError, 'cannot reserve'):
+            request_real(self.task,self.sources[1],self.authorization,FixtureClassifier)
+        self.assertEqual(FixtureClassifier.calls, 1)
+        self.assertTrue(request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)['cached'])
+        self.assertEqual(FixtureClassifier.calls, 1)
+
+    def test_capped_request_without_known_finite_ceiling_is_not_dispatched(self):
+        from runtime.real_semantics import request_real
+        for priced, value in ((False, '.01'), (True, None), (True, 'NaN'), (True, '-1'), (True, '0')):
+            with self.subTest(priced=priced, value=value):
+                scope = {**scope_for(self.task,self.sources), 'max_request_usd': value}
+                self.conn.execute('UPDATE backintel.capability_provider_authorizations SET approved=true,price_ceiling_known=%s,max_measured_usd=.10,scope=%s,scope_sha256=%s WHERE authorization_id=%s',
+                                  (priced, Jsonb(scope), digest(scope), self.authorization))
+                with self.assertRaisesRegex(RuntimeError, 'price ceiling'):
+                    request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)
+        self.assertEqual(FixtureClassifier.calls, 0)
+
+    def test_charge_above_reserved_ceiling_is_retained_but_not_accepted(self):
+        from runtime.real_semantics import request_real
+        scope = {**scope_for(self.task,self.sources), 'max_request_usd': '.01'}
+        self.conn.execute('UPDATE backintel.capability_provider_authorizations SET approved=true,price_ceiling_known=true,max_measured_usd=.10,scope=%s,scope_sha256=%s WHERE authorization_id=%s',
+                          (Jsonb(scope), digest(scope), self.authorization))
+        FixtureClassifier.charge = .02
+        for _ in range(2):
+            with self.assertRaisesRegex(RuntimeError, 'charge'):
+                request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)
+        self.assertEqual(FixtureClassifier.calls, 1)
+        saved = self.conn.execute('SELECT state,metadata FROM backintel.capability_model_requests WHERE authorization_id=%s', (self.authorization,)).fetchone()
+        self.assertEqual((saved[0],saved[1]['cost_usd']), ('completed', .02))
+
     def test_semantic_training_requires_actual_findings_for_each_question(self):
         feature = {"feature": {"sha256": "fixture-feature"}}
         config = {"limits": {"max_training_rows": 64}}

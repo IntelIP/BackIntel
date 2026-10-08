@@ -90,6 +90,46 @@ class DecisionWorkspaceTests(unittest.TestCase):
         updated = changed.decide(case_id, dict(self.body, expected_source_sha256="b" * 64))
         self.assertEqual(updated["review"]["revision"], 2)
 
+    def test_packet_refresh_waits_for_decision_commit_and_response(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from contextlib import contextmanager
+        from threading import Event
+        from unittest.mock import patch
+        path = Path(self.tmp.name) / 'packet.json'
+        path.write_text(json.dumps({'schema': 'backintel-decision-workspace/v1', 'cases': self.cases}))
+        self.store.packet_path = path
+        entered, release, refresh_started, refreshed = Event(), Event(), Event(), Event()
+        original_connect = self.store.connect
+        @contextmanager
+        def connect():
+            if not entered.is_set():
+                entered.set()
+                if not release.wait(5):
+                    raise TimeoutError('Test did not release decision')
+            with original_connect() as connection:
+                yield connection
+        def refresh():
+            refresh_started.set()
+            packet = self.store.workspace(self.mode)
+            refreshed.set()
+            return packet
+        with patch.object(self.store, 'connect', side_effect=connect), ThreadPoolExecutor(max_workers=2) as workers:
+            decision = workers.submit(self.store.decide, self.cases[0]['id'], self.body)
+            try:
+                self.assertTrue(entered.wait(5))
+                changed = deepcopy(self.cases)
+                changed[0]['evidence']['sha256'] = 'b' * 64
+                path.write_text(json.dumps({'schema': 'backintel-decision-workspace/v1', 'cases': changed}))
+                refresh_result = workers.submit(refresh)
+                self.assertTrue(refresh_started.wait(5))
+                self.assertFalse(refreshed.wait(.25))
+            finally:
+                release.set()
+            saved = decision.result(timeout=5)
+            self.assertEqual(saved['review']['revision'], 1)
+            self.assertEqual(saved['evidence']['sha256'], self.body['expected_source_sha256'])
+            self.assertIsNone(refresh_result.result(timeout=5)['cases'][0]['review'])
+
     def public_source(self):
         source = Path(self.tmp.name)
         row = {"number": 1, "original": {"title": "Example", "body": "<script>alert(1)</script>"}, "created_at": "2024-01-01T00:00:00Z", "original_sha256": "a"*64, "url": "https://github.com/example/project/issues/1", "state_at_deadline": "closed", "qualifying_comments": [], "outcome_available_at": "2024-01-08T00:00:00Z"}

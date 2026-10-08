@@ -14,6 +14,7 @@ import math
 import re
 from pathlib import Path
 import sqlite3
+from threading import RLock
 from urllib.parse import unquote, urlsplit
 
 SCHEMA = "backintel-decision-workspace/v1"
@@ -121,6 +122,7 @@ def load_cases(source):
 
 class DecisionStore:
     def __init__(self, database, cases, packet_path=None):
+        self._lock = RLock()
         self.database = Path(database)
         self.packet_path = Path(packet_path) if packet_path is not None else None
         self.demo = None
@@ -141,68 +143,72 @@ class DecisionStore:
         return connection
 
     def case(self, case_id):
-        if case_id not in self.cases:
-            raise KeyError("Case not found")
-        item = deepcopy(self.cases[case_id])
-        with self.connect() as connection:
-            rows = connection.execute("SELECT decision,reason,revision,recorded_at FROM reviews WHERE case_id=? AND source_sha256=? ORDER BY revision DESC", (case_id, item["evidence"]["sha256"])).fetchall()
-        item["history"] = [dict(row) for row in rows]
-        item["review"] = item["history"][0] if rows else None
-        if not rows:
-            item["outcome"] = None
-        return item
+        with self._lock:
+            if case_id not in self.cases:
+                raise KeyError("Case not found")
+            item = deepcopy(self.cases[case_id])
+            with self.connect() as connection:
+                rows = connection.execute("SELECT decision,reason,revision,recorded_at FROM reviews WHERE case_id=? AND source_sha256=? ORDER BY revision DESC", (case_id, item["evidence"]["sha256"])).fetchall()
+            item["history"] = [dict(row) for row in rows]
+            item["review"] = item["history"][0] if rows else None
+            if not rows:
+                item["outcome"] = None
+            return item
 
     def refresh_packet(self):
-        if self.packet_path is None:
-            return
-        packet = json.loads(self.packet_path.read_text())
-        if packet.get("schema") != SCHEMA or not isinstance(packet.get("cases"), list):
-            raise ValueError("Invalid demonstration packet")
-        cases = {}
-        for case in packet["cases"]:
-            if case["id"] in cases or not re.fullmatch(r"[a-f0-9]{64}", case["evidence"]["sha256"]):
-                raise ValueError("Demonstration source identities must be unique and fingerprinted")
-            if any(type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1
-                   for value in case["prediction"]["estimates"].values()):
-                raise ValueError("Demonstration estimates must be finite probabilities")
-            cases[case["id"]] = deepcopy(case)
-        self.cases, self.demo = cases, packet.get("demo")
+        with self._lock:
+            if self.packet_path is None:
+                return
+            packet = json.loads(self.packet_path.read_text())
+            if packet.get("schema") != SCHEMA or not isinstance(packet.get("cases"), list):
+                raise ValueError("Invalid demonstration packet")
+            cases = {}
+            for case in packet["cases"]:
+                if case["id"] in cases or not re.fullmatch(r"[a-f0-9]{64}", case["evidence"]["sha256"]):
+                    raise ValueError("Demonstration source identities must be unique and fingerprinted")
+                if any(type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1
+                       for value in case["prediction"]["estimates"].values()):
+                    raise ValueError("Demonstration estimates must be finite probabilities")
+                cases[case["id"]] = deepcopy(case)
+            self.cases, self.demo = cases, packet.get("demo")
 
     def workspace(self, source_mode):
-        self.refresh_packet()
-        packet = {"schema": SCHEMA, "cases": [self.case(case_id) for case_id in self.cases], "source_mode": source_mode}
-        if self.demo is not None:
-            packet["demo"] = self.demo
-        return packet
+        with self._lock:
+            self.refresh_packet()
+            packet = {"schema": SCHEMA, "cases": [self.case(case_id) for case_id in self.cases], "source_mode": source_mode}
+            if self.demo is not None:
+                packet["demo"] = self.demo
+            return packet
 
     def decide(self, case_id, body):
-        try:
-            self.refresh_packet()
-        except (OSError, ValueError, KeyError) as error:
-            raise OSError("Source evidence unavailable. Refresh before saving.") from error
-        if self.demo and self.demo.get("status") == "unavailable":
-            raise OSError("Source evidence unavailable. Refresh before saving.")
-        if case_id not in self.cases:
-            raise KeyError("Case not found")
-        if not isinstance(body, dict) or set(body) != {"decision", "reason", "expected_revision", "expected_source_sha256"}:
-            raise ValueError("Decision must include decision, reason, expected_revision, and expected_source_sha256 only")
-        if not isinstance(body["decision"], str) or body["decision"] not in DECISIONS:
-            raise ValueError("Choose a supported decision")
-        if not isinstance(body["reason"], str) or not body["reason"].strip() or len(body["reason"]) > 2000:
-            raise ValueError("A reason of 1–2000 characters is required")
-        if type(body["expected_revision"]) is not int or body["expected_revision"] < 0:
-            raise ValueError("Expected revision must be a nonnegative integer")
-        source_sha256 = self.cases[case_id]["evidence"]["sha256"]
-        if body["expected_source_sha256"] != source_sha256:
-            raise Conflict("This source changed. Refresh before saving.")
-        with self.connect() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            revision = connection.execute("SELECT COALESCE(MAX(revision),0) FROM reviews WHERE case_id=? AND source_sha256=?", (case_id, source_sha256)).fetchone()[0]
-            if body["expected_revision"] != revision:
-                raise Conflict("This case changed in another view. Refresh before saving.")
-            next_revision = connection.execute("SELECT COALESCE(MAX(revision),0)+1 FROM reviews WHERE case_id=?", (case_id,)).fetchone()[0]
-            connection.execute("INSERT INTO reviews (case_id,revision,decision,reason,recorded_at,source_sha256) VALUES (?,?,?,?,?,?)", (case_id, next_revision, body["decision"], body["reason"].strip(), datetime.now(timezone.utc).isoformat(), source_sha256))
-        return self.case(case_id)
+        with self._lock:
+            try:
+                self.refresh_packet()
+            except (OSError, ValueError, KeyError) as error:
+                raise OSError("Source evidence unavailable. Refresh before saving.") from error
+            if self.demo and self.demo.get("status") == "unavailable":
+                raise OSError("Source evidence unavailable. Refresh before saving.")
+            if case_id not in self.cases:
+                raise KeyError("Case not found")
+            if not isinstance(body, dict) or set(body) != {"decision", "reason", "expected_revision", "expected_source_sha256"}:
+                raise ValueError("Decision must include decision, reason, expected_revision, and expected_source_sha256 only")
+            if not isinstance(body["decision"], str) or body["decision"] not in DECISIONS:
+                raise ValueError("Choose a supported decision")
+            if not isinstance(body["reason"], str) or not body["reason"].strip() or len(body["reason"]) > 2000:
+                raise ValueError("A reason of 1–2000 characters is required")
+            if type(body["expected_revision"]) is not int or body["expected_revision"] < 0:
+                raise ValueError("Expected revision must be a nonnegative integer")
+            source_sha256 = self.cases[case_id]["evidence"]["sha256"]
+            if body["expected_source_sha256"] != source_sha256:
+                raise Conflict("This source changed. Refresh before saving.")
+            with self.connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                revision = connection.execute("SELECT COALESCE(MAX(revision),0) FROM reviews WHERE case_id=? AND source_sha256=?", (case_id, source_sha256)).fetchone()[0]
+                if body["expected_revision"] != revision:
+                    raise Conflict("This case changed in another view. Refresh before saving.")
+                next_revision = connection.execute("SELECT COALESCE(MAX(revision),0)+1 FROM reviews WHERE case_id=?", (case_id,)).fetchone()[0]
+                connection.execute("INSERT INTO reviews (case_id,revision,decision,reason,recorded_at,source_sha256) VALUES (?,?,?,?,?,?)", (case_id, next_revision, body["decision"], body["reason"].strip(), datetime.now(timezone.utc).isoformat(), source_sha256))
+            return self.case(case_id)
 
 
 class WorkspaceServer(ThreadingHTTPServer):

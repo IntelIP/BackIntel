@@ -107,6 +107,8 @@ def _verified_metadata(metadata: dict, requested_model: str) -> None:
         cost = Decimal(str(metadata["cost_usd"]))
         if not cost.is_finite() or cost < 0:
             raise ValueError("Invalid charge")
+        if metadata.get('reserved_usd') is not None and cost > Decimal(str(metadata['reserved_usd'])):
+            raise ValueError('Provider exceeded the approved request price ceiling')
     except (KeyError,InvalidOperation,ValueError) as error:
         raise RuntimeError("Actual provider charge unavailable; response retained and further calls blocked") from error
 
@@ -170,6 +172,16 @@ def request_real(task_record: dict, source: dict, authorization_id: str, classif
                 spent += Decimal(str(metadata["cost_usd"]))
             if max_usd is not None and spent >= max_usd:
                 raise RuntimeError("Measured provider budget exhausted")
+            ceiling = None
+            if max_usd is not None:
+                try:
+                    ceiling = Decimal(str(scope.get('max_request_usd')))
+                    if not priced or not ceiling.is_finite() or ceiling <= 0:
+                        raise ValueError('No known request ceiling')
+                except (InvalidOperation, ValueError):
+                    raise RuntimeError('A dollar cap requires an approved max_request_usd price ceiling') from None
+                if spent + ceiling > max_usd:
+                    raise RuntimeError('Remaining provider budget cannot reserve the next request price ceiling')
             # Record exact primitive definitions; the factory is created only after authorization checks.
             from langchain_typesafe import Noul, Score
             types = type("Questions",(),{"Noul":Noul,"Score":Score})
@@ -183,8 +195,9 @@ def request_real(task_record: dict, source: dict, authorization_id: str, classif
             # The foreign key requires source admission to have committed before a paid request.
             connection.execute("SET LOCAL lock_timeout='2s'")
             connection.execute("""INSERT INTO backintel.capability_model_requests
-                (request_key,task_id,source_sha256,model,request,state,authorization_id)
-                VALUES (%s,%s,%s,%s,%s,'admitted',%s)""",(key,task["id"],source["sha256"],model,Jsonb(request_doc),authorization_id))
+                (request_key,task_id,source_sha256,model,request,state,authorization_id,metadata)
+                VALUES (%s,%s,%s,%s,%s,'admitted',%s,%s)""",(key,task["id"],source["sha256"],model,Jsonb(request_doc),authorization_id,
+                Jsonb({'reserved_usd':str(ceiling)} if ceiling is not None else {})))
         classifier = None
         started = time.perf_counter()
         try:
@@ -198,6 +211,8 @@ def request_real(task_record: dict, source: dict, authorization_id: str, classif
             metadata.update(wall_ms=(time.perf_counter()-started)*1000,provider="openrouter",implementation_mode="real",
                             requested_model=model,provider_calls=1,local_compute_usd=None)
             metadata["test_fixture"] = classifier_factory is not None
+            if ceiling is not None:
+                metadata['reserved_usd'] = str(ceiling)
             saved = canonical_body({"answers":answers,"raw_response":getattr(classifier,"last_response",{})})
             # Preserve a valid response even if charge/model checks subsequently block acceptance.
             connection.execute("""UPDATE backintel.capability_model_requests SET state='completed',response=%s,metadata=%s,finished_at=now()
