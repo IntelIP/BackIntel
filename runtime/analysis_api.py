@@ -305,10 +305,13 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
                      if r['features'].get(feature) is not None}
             if kinds != {isinstance(value, str)}:
                 raise ValueError(f'Correction must preserve the established type of {feature}')
+        target_supplied = 'target' in body.model_fields_set
+        if all(row['features'][key] == value for key, value in body.features.items()) and (not target_supplied or row['target'] == body.target):
+            raise ValueError('Correction must change at least one value')
         row['features'].update(body.features)
         row['groups'].update(feature_groups(domain, row['features']))
-        if body.target is not None:
-            if CONFIG['sources'][domain]['kind']=='classification' and body.target not in (0,1):
+        if target_supplied:
+            if body.target is not None and CONFIG['sources'][domain]['kind']=='classification' and body.target not in (0,1):
                 raise ValueError('Classification target must be 0 or 1')
             row['target']=body.target
             row['split']='unlabeled'  # A late correction never contaminates a historical benchmark.

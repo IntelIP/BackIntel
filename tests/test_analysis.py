@@ -128,6 +128,14 @@ class AdapterChecks(unittest.TestCase):
         answer['findings'][0] = {'claim': 'The estimate is 80%.', 'kind': 'estimate', 'evidence_ids': ['predicted']}
         self.assertEqual(validate_answer(answer, results), answer)
 
+    def test_estimates_cannot_use_observed_values_as_predictions(self):
+        results = [{'evidence_id':'observed','kind':'observed','table':[{'mean':.2}]},
+                   {'evidence_id':'predicted','kind':'estimate','table':[{'mean':.8}]}]
+        answer = {'summary':'Estimated risk is 20%.', 'limitations':[], 'findings':[
+            {'claim':'Estimated risk is 20%.','kind':'estimate','evidence_ids':['observed']}]}
+        with self.assertRaisesRegex(ValueError, 'prediction evidence'):
+            validate_answer(answer, results)
+
     def test_predictions_cannot_be_presented_as_observed_facts(self):
         answer = {'summary': 'Evidence checked.', 'limitations': [], 'findings': [
             {'claim': 'Predicted outcome.', 'kind': 'fact', 'evidence_ids': ['prediction']}]}
@@ -281,6 +289,19 @@ class ApplicationChecks(unittest.TestCase):
             submit.reset_mock();query.side_effect=[[goal],old,recent];records.side_effect=[[],rows]
             service.schedule_snapshot('commerce',{'changed':True,'snapshot':'new'})
             self.assertEqual(submit.call_count,1)
+    def test_changed_or_removed_training_rows_request_a_candidate(self):
+        import datetime
+        from unittest.mock import patch
+        from runtime import analysis_service as service
+        goal = {'id':'arrival-goal','owner':'manager'}
+        old = {'snapshot_id':'old','created_at':datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=2)}
+        original = [{'id':'one','target':1,'split':'train','features':{'age':40}}]
+        for replacement in ([], [{**original[0], 'target':0}], [{**original[0], 'features':{'age':41}}]):
+            with self.subTest(replacement=replacement), patch.object(service,'submit',return_value={'id':'run','status':'queued'}) as submit, patch.object(service.db,'query',side_effect=[[goal],old,None]), patch.object(service.db,'records',side_effect=[original,replacement]):
+                service.schedule_snapshot('commerce', {'snapshot':'new'})
+                self.assertEqual(submit.call_count, 2)
+                self.assertEqual(submit.call_args.kwargs['operation'], 'training')
+
     def test_correction_invalidates_test_member_and_promotion(self):
         from runtime import analysis_store as db, analysis_service as service
         from runtime.analysis_data import digest

@@ -260,6 +260,9 @@ def handle(store, payload):
         # No failed refresh replaces last_success; no response is disguised as real success.
         status = 'cancelled' if isinstance(error, (InterruptedError, PermissionError)) else 'partial'
         reason = safe_error(error)
+        if payload['operation'] == 'import':
+            db.write('UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s',
+                     (Jsonb({'last_refresh_error':reason, 'last_checked_at':time.time()}), r['body']['domain']))
         result = {'status': status, 'summary': 'This run did not complete.', 'limitations': [reason], 'usage': db.usage(identity)}
         db.write('UPDATE backintel.analysis_runs SET status=%s,result=%s,error=%s,updated_at=now() WHERE id=%s', (status, Jsonb(result), reason, identity))
         db.event(identity, 'completed', {'status': status, 'reason': reason})
@@ -319,11 +322,12 @@ def schedule_snapshot(domain, update, *, train=True, connection=None):
             run = submit(g['id'], actor, connection=connection)
             latest = db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC LIMIT 1', (g['id'],), one=True)
             if train and latest:
-                old = {r['id'] for r in db.records(latest['snapshot_id']) if r['target'] is not None and r['split']=='train'}
-                new = {r['id'] for r in db.records(update['snapshot'], connection=connection) if r['target'] is not None and r['split']=='train'}
+                old = {r['id']: r for r in db.records(latest['snapshot_id']) if r['target'] is not None and r['split']=='train'}
+                new = {r['id']: r for r in db.records(update['snapshot'], connection=connection) if r['target'] is not None and r['split']=='train'}
                 attempt = db.query("SELECT created_at FROM backintel.analysis_runs WHERE goal_id=%s AND body->>'operation'='training' ORDER BY created_at DESC LIMIT 1", (g['id'],), one=True)
                 interval = time.time()-(attempt or latest)['created_at'].timestamp()
-                if len(new-old)>=CONFIG['limits']['new_labels'] and interval>=CONFIG['limits']['candidate_interval_seconds']:
+                changed = any(new.get(identity) != row for identity, row in old.items())
+                if (changed or len(new.keys()-old.keys())>=CONFIG['limits']['new_labels']) and interval>=CONFIG['limits']['candidate_interval_seconds']:
                     submit(g['id'], actor, operation='training', connection=connection)
             outcomes.append({'goal_id': g['id'], 'run_id': run['id'], 'status': run['status']})
         except (ValueError, PermissionError, RuntimeError, OSError) as error:

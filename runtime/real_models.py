@@ -148,7 +148,6 @@ def _load(root_value: str, model_json: str):
     model = json.loads(model_json)
     if model.get('implementation_sha256') != file_sha(Path(__file__)):
         raise ValueError('Predictor implementation differs from prepared package; prepare it again')
-    _allow_model_use(model["route"])
     if model["libraries"] != versions():
         raise ValueError("Installed predictor libraries differ from the prepared package")
     root = Path(root_value)
@@ -173,6 +172,7 @@ def _load(root_value: str, model_json: str):
 
 def predict_real(model: dict, feature: dict) -> float:
     body = model["body"]
+    _allow_model_use(body["route"])
     estimator = _load(str(model_root()),json.dumps(body,sort_keys=True))
     values = matrix([feature],body["columns"])
     if body["target"]["kind"] == "classification":

@@ -178,6 +178,27 @@ class CampaignChecks(unittest.TestCase):
                     self.assertFalse(db.query('SELECT id FROM backintel.analysis_snapshots WHERE id=%s', (snapshot,)))
                     self.assertFalse(db.query('SELECT id FROM backintel.analysis_runs WHERE snapshot_id=%s', (snapshot,)))
 
+    def test_failed_queued_import_preserves_refresh_error(self):
+        db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':True}),))
+        run = service.submit_import('commerce', self.actor)
+        with patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=OSError('Fixture source unavailable')):
+            service.execute(run['job_id'], service.handle)
+        source = db.source('commerce')
+        self.assertEqual(source['latest_snapshot'], self.snapshot)
+        self.assertIn('Fixture source unavailable', source['body']['last_refresh_error'])
+        self.assertGreater(source['body']['last_checked_at'], 0)
+        self.assertEqual(db.run(run['id'])['status'], 'partial')
+
+    def test_empty_corrections_preserve_snapshot_and_explicit_null_removes_target(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        service.revise_goal(self.goal, self.actor, paused=True)
+        for change in ({}, {'features':{'age':40}}, {'target':1}):
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'change at least one value'):
+                correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], explanation='Fixture no change', **change), self.actor)
+            self.assertEqual(db.source('commerce')['latest_snapshot'], self.snapshot)
+        correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], target=None, explanation='Fixture remove mistaken label'), self.actor)
+        self.assertIsNone(db.records(db.source('commerce')['latest_snapshot'])[0]['target'])
+
     def test_import_serializes_with_manager_correction(self):
         from runtime.analysis_api import correction, CorrectionInput
         service.revise_goal(self.goal, self.actor, paused=True)

@@ -65,6 +65,9 @@ def validate_answer(answer, results, group=None):
             raise ValueError('Finding lacks permitted calculation evidence')
         if f['kind'] == 'fact' and any(r.get('kind') == 'estimate' for r in results if r['evidence_id'] in f['evidence_ids']):
             raise ValueError('Predicted evidence cannot support a factual finding')
+    for finding in answer['findings']:
+        if finding['kind'] == 'estimate' and any(r.get('kind') != 'estimate' for r in results if r['evidence_id'] in finding['evidence_ids']):
+            raise ValueError('Estimate findings require prediction evidence')
     if not results:
         raise ValueError('Answer lacks current calculation evidence')
     claims = [(answer['summary'], results)] + [(f['claim'], [r for r in results if r['evidence_id'] in f['evidence_ids']]) for f in answer['findings']]

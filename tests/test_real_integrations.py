@@ -54,6 +54,19 @@ class FixtureClassifier:
 
 
 class ProviderIdentityTests(unittest.TestCase):
+    def test_cached_predictor_rechecks_revoked_model_approval(self):
+        from unittest.mock import Mock, patch
+        from runtime import real_models as models
+        estimator = Mock()
+        estimator.predict.return_value = [2.5]
+        body = {'route':'catboost', 'columns':[], 'target':{'kind':'regression'}}
+        with patch.object(models, '_allow_model_use', side_effect=[{}, PermissionError('Fixture approval revoked')]) as approval, patch.object(models, '_load', return_value=estimator) as load, patch.object(models, 'matrix', return_value=[[]]), patch.object(models, 'model_root', return_value='/fixture-model-root'):
+            models.predict_real({'body':body}, {})
+            with self.assertRaisesRegex(PermissionError, 'approval revoked'):
+                models.predict_real({'body':body}, {})
+            self.assertEqual(approval.call_count, 2)
+            load.assert_called_once()
+
     def test_model_cache_identity_changes_with_predictor_implementation(self):
         from runtime import real_models as models
         store = MagicMock()
