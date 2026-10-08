@@ -73,7 +73,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: product-validation-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/validation/
+          path: |
+            artifacts/validation/
+            artifacts/AnalysisValidation/Sandbox/
           if-no-files-found: error
           retention-days: 90
 

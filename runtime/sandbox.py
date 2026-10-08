@@ -92,12 +92,19 @@ def run_candidate(source: str, snapshot: dict, image: str) -> dict:
         except subprocess.TimeoutExpired:
             reason = "time_limit"
         finally:
-            # Kill the named container as well as its CLI. No writable host output exists.
+            # Stop the attached client first: unread output can block Docker teardown.
+            # The named container still needs explicit removal below.
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
             try:
                 cleanup = subprocess.run(["docker", "rm", "--force", name], capture_output=True, timeout=10)
                 receipt["cleanup_confirmed"] = cleanup.returncode == 0 or b"No such container" in cleanup.stderr
-            except (OSError, subprocess.TimeoutExpired):
+                if not receipt["cleanup_confirmed"]:
+                    receipt["cleanup_error"] = cleanup.stderr.decode('utf-8', errors='replace')[:1000]
+            except (OSError, subprocess.TimeoutExpired) as error:
                 receipt["cleanup_confirmed"] = False
+                receipt["cleanup_error"] = str(error)[:1000]
             finally:
                 if process.poll() is None:
                     process.kill()
