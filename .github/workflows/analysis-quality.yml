@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - uses: actions/setup-python@v5
@@ -56,6 +58,8 @@ jobs:
       NODE_PATH: ${{ github.workspace }}/apps/web/node_modules
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - uses: actions/setup-python@v5
@@ -82,3 +86,8 @@ jobs:
         with:
           name: analysis-offline-evidence
           path: artifacts/AnalysisValidation/
+  validate:
+    needs: offline
+    permissions:
+      contents: read
+    uses: ./.github/workflows/product-validation.yml

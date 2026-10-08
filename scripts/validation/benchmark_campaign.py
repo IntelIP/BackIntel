@@ -17,7 +17,6 @@ import time
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
-SCENARIOS = ROOT / 'config/analysis_scenarios.json'
 STATUSES = ('passed', 'failed', 'blocked')
 DOMAINS = ('commerce', 'support', 'maintenance', 'churn', 'credit')
 
@@ -193,7 +192,7 @@ def real_result(spec, domain, receipts, candidate, checkout=None):
 def collect(args, candidate=None, stages=None):
     checkout = Path(args.checkout).resolve()
     candidate = candidate or identity(checkout)
-    manifest = read_json(SCENARIOS)
+    manifest = read_json(checkout / 'config/analysis_scenarios.json')
     output = Path(args.output).resolve()
     units = Path(args.units) if args.units else output / 'units'
     offline_dir = Path(args.offline) if args.offline else output / 'offline'

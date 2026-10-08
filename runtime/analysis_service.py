@@ -122,7 +122,7 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
         unresolved = c.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s AND charge IS NULL', (run_id,)).fetchone()[0]
         if unresolved:
             raise RuntimeError('Reconcile uncertain charges before resuming this run')
-        resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',cancel_requested=false,result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL WHERE job_id=%s AND state IN ('completed','cancelled') AND attempts<max_attempts RETURNING job_id", (job_id,)).fetchone()
+        resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',cancel_requested=false,result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL,max_attempts=GREATEST(max_attempts,attempts+3) WHERE job_id=%s AND state IN ('completed','cancelled','failed') RETURNING job_id", (job_id,)).fetchone()
         if resumed:
             c.execute("UPDATE backintel.analysis_runs SET status='queued',result=NULL,error=NULL,updated_at=now() WHERE id=%s", (run_id,))
     return run_id
@@ -154,10 +154,14 @@ def model_job(identity):
     if child.returncode:
         raise RuntimeError('Model comparison failed: '+safe_error(child.stderr[-1200:]))
     manifest = json.loads(child.stdout)
-    db.check_run(identity)
     candidate = digest([g['id'], manifest['id']])
-    db.write('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
-             (candidate, g['id'], r['snapshot_id'], Jsonb(manifest)))
+    with db.connect() as c, c.transaction():
+        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
+        db.check_run(identity)
+        if db.source(g['domain'])['latest_snapshot'] != r['snapshot_id']:
+            raise ValueError('Source changed during model comparison; compare the latest snapshot before promotion')
+        c.execute('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
+                  (candidate, g['id'], r['snapshot_id'], Jsonb(manifest)))
     ref = db.evidence(identity, 'model_comparison', candidate, manifest)
     return {'status': 'succeeded', 'summary': 'Real predictor comparison completed. Manager approval is required before use.',
             'candidate_id': candidate, 'evidence_id': ref, 'comparison': manifest, 'usage': db.usage(identity)}
@@ -190,9 +194,9 @@ def promote(identity, actor, route='catboost-facts'):
 def threshold_crossed(previous, current, threshold):
     """Compare the same table and group; record counts are not target estimates."""
     def means(result):
-        return {(table['title'], row['group']): row['mean']
+        return {(table['title'], table['group_by'], row['group']): row['mean']
                 for table in result.get('tables', []) for row in table.get('rows', [])
-                if isinstance(row.get('mean'), (int, float))}
+                if 'group_by' in table and isinstance(row.get('mean'), (int, float))}
     before, after = means(previous), means(current)
     return any(abs(after[key] - before[key]) >= threshold and after[key] != before[key]
                for key in before.keys() & after.keys())

@@ -35,7 +35,7 @@ class CampaignReceiptChecks(unittest.TestCase):
             campaign.write_json(root / 'apps/web/package-lock.json', {})
             spec = {'id': 'BI-DATA-001', 'family': 'grounded_answers', 'evidence': 'browser',
                     'mode': 'fixture', 'partition': 'development', 'expected': 'Oracle matches', 'domains': ['commerce']}
-            campaign.write_json(root / 'manifest.json', {'version': 'v1', 'partition_note': 'development', 'scenarios': [spec]})
+            campaign.write_json(root / 'config/analysis_scenarios.json', {'version': 'candidate-only', 'partition_note': 'development', 'scenarios': [spec]})
             browser_path = root / 'offline/browser-evidence.json'
             browser = {'status': 'failed', 'scenarios': [{'id': spec['id'], 'domain': 'commerce',
                        'mode': 'fixture', 'status': 'failed'}]}
@@ -46,7 +46,7 @@ class CampaignReceiptChecks(unittest.TestCase):
             campaign.write_json(root / 'offline/receipt.json', runner)
             args = Namespace(checkout=str(root), output=str(root / 'report'), units=None,
                              offline=str(root / 'offline'), prediction_receipt=[], analyst_receipt=[], label='candidate')
-            with patch.object(campaign, 'SCENARIOS', root / 'manifest.json'):
+            with patch.object(campaign, 'ROOT', Path('/not-the-candidate')):
                 self.assertEqual(campaign.collect(args, candidate)['scenarios'][0]['status'], 'failed')
                 browser['scenarios'][0]['status'] = 'passed'
                 browser['status'] = 'passed'

@@ -115,7 +115,7 @@ def tool(identity, name, args):
                   'missing': {k: sum(row['features'].get(k) is None for row in rows) for k in columns},
                   'caveat': CONFIG['sources'][g['domain']]['caveat']}
     elif name == 'summarize':
-        result = {'table': aggregate(rows, args.get('group'), order=args.get('order','ascending')), 'kind': 'observed', 'target': CONFIG['sources'][g['domain']]['target']}
+        result = {'table': aggregate(rows, args.get('group'), order=args.get('order','ascending')), 'group_by': args.get('group'), 'kind': 'observed', 'target': CONFIG['sources'][g['domain']]['target']}
     elif name == 'predict':
         if not r['body']['model_id']:
             raise ValueError('No manager-approved predictor; risk estimates are unavailable')
@@ -125,7 +125,7 @@ def tool(identity, name, args):
             raise PermissionError('Predictor is not approved for this goal')
         cohort = sorted(rows, key=lambda row: digest(row['id']))[:CONFIG['limits']['test']]
         values = predict(model, cohort)
-        result = {'table': aggregate(cohort, args.get('group'), values, args.get('order','ascending')), 'kind': 'estimate', 'model_id': model['id'],
+        result = {'table': aggregate(cohort, args.get('group'), values, args.get('order','ascending')), 'group_by': args.get('group'), 'kind': 'estimate', 'model_id': model['id'],
                   'sample_size': len(cohort), 'source_size': len(rows), 'caveat': 'Fixed bounded cohort; estimates do not describe every source record.'}
     elif name == 'interpret_text':
         if g['domain'] not in ('commerce', 'support'):
@@ -260,7 +260,7 @@ def analyze(identity):
             if re.search(r'\b(estimated|predict|may take|remaining life|risk)\b',r['body']['question'],re.I) and not any(item.get('tool')=='predict' for item in results):
                 raise ValueError('Requested prediction is unavailable; observed outcomes cannot replace it')
             db.check_run(identity)
-            answer.update({'tables': [{'title': res['tool'], 'rows': res['table'], 'evidence_id': res['evidence_id']} for res in results if 'table' in res],
+            answer.update({'tables': [{'title': res['tool'], 'rows': res['table'], 'evidence_id': res['evidence_id'], **({'group_by': res['group_by']} if 'group_by' in res else {})} for res in results if 'table' in res],
                            'charts': [{'type': 'bar', 'title': res['tool'], 'rows': res['table']} for res in results if 'table' in res],
                            'sources': {'snapshot': r['snapshot_id'], 'domain': g['domain']}, 'usage': db.usage(identity),
                            'model': CONFIG['analyst']['model'], 'mode': mode, 'status': 'succeeded'})

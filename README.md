@@ -50,6 +50,8 @@ Use the [analysis runbook](docs/architecture/analysis-workspace-runbook.md) for 
 
 GitHub workflows check source, both web interfaces, database behavior, and simulated browser/recovery journeys. A fixture pass does not establish live analyst acceptance.
 
+Demo merges use `tabellio.demo.validation.json`: recorded-package installation, current UI workflows, visual and keyboard checks, recovery, role permissions, budget controls, and actual sandbox isolation. GitHub Codex review must also pass. The unchanged `tabellio.validation.json` preserves full-product acceptance, including actual Jev, CatBoost and TabICLv2 execution; a passing demo is not full-product acceptance.
+
 - [Current repository map](docs/architecture/repository-map.md)
 - [Git reconciliation and preserved work](docs/architecture/GitReconciliation.txt)
 - [Benchmark methods](docs/research/AnalysisBenchmarkMethods.txt)

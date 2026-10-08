@@ -16,7 +16,7 @@ from psycopg.types.json import Jsonb
 
 from runtime import analysis_store as db
 from runtime import analysis_service as service
-from runtime.analysis_data import CONFIG, digest
+from runtime.analysis_data import CONFIG, digest, feature_groups
 from runtime.jobs import cancel
 from runtime.analysis_errors import safe_error
 
@@ -284,8 +284,7 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
         if not row or set(body.features)-set(row['features']):
             raise ValueError('Unknown record or feature')
         row['features'].update(body.features)
-        for name in row['groups'].keys() & body.features.keys():
-            row['groups'][name] = row['features'][name]
+        row['groups'].update(feature_groups(domain, row['features']))
         if body.target is not None:
             if CONFIG['sources'][domain]['kind']=='classification' and body.target not in (0,1):
                 raise ValueError('Classification target must be 0 or 1')

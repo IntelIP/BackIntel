@@ -198,11 +198,17 @@ class ApplicationChecks(unittest.TestCase):
         self.assertIn('fixture missing file',source['body']['last_refresh_error'])
     def test_matching_group_thresholds(self):
         from runtime.analysis_service import threshold_crossed
-        before={'tables':[{'title':'risk','rows':[{'group':'A','count':20,'mean':.2},{'group':'B','count':5,'mean':.4}]}]}
-        reordered={'tables':[{'title':'risk','rows':[{'group':'B','count':500,'mean':.4},{'group':'A','count':200,'mean':.2}]}]}
+        before={'tables':[{'title':'risk','group_by':'department','rows':[{'group':'A','count':20,'mean':.2},{'group':'B','count':5,'mean':.4}]}]}
+        reordered={'tables':[{'title':'risk','group_by':'department','rows':[{'group':'B','count':500,'mean':.4},{'group':'A','count':200,'mean':.2}]}]}
         self.assertFalse(threshold_crossed(before,reordered,.1))
         reordered['tables'][0]['rows'][1]['mean']=.5
         self.assertTrue(threshold_crossed(before,reordered,.1))
+        reordered['tables'][0]['group_by']='class'
+        self.assertFalse(threshold_crossed(before,reordered,.1))
+        reordered['tables'].append({**before['tables'][0], 'rows':[{'group':'A','mean':.6}]})
+        self.assertTrue(threshold_crossed(before,reordered,.1))
+        del reordered['tables'][1]['group_by']
+        self.assertFalse(threshold_crossed(before,reordered,.1))
         from runtime import analysis_store as db
         self.assertTrue(db.query("SELECT 'analysis-job-check' LIKE 'analysis-job-%' AS matched",one=True)['matched'])
 

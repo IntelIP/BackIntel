@@ -1,37 +1,27 @@
 {
   "status": "passed",
-  "archive_sha256": "0fb7a22b9396884019aa1992ccb718214c21b85352b302d22c292bf085a4ac18",
-  "candidate": "uncommitted-working-tree",
+  "archive_sha256": "451e1f5183c65417ae5c665e2813278f37738a7d9feae9ccc94178e49e0be505",
+  "mode": "recorded_synthetic_run",
   "exact_commit_product_readiness": "blocked",
   "fresh_extracted_package": true,
   "site_packages_disabled": true,
-  "provider_sdk_required": false,
   "new_provider_calls": 0,
   "checks": [
     "all archived file hashes",
-    "built React served",
+    "stdlib-only CLI installation check",
+    "built frontend served",
     "completed Support packet",
-    "seeded human review",
-    "new review saved and reloaded only in extracted copy",
+    "review saved and reloaded only in extracted copy",
     "immutable packaged files unchanged after review"
   ],
   "initial_check": {
     "status": "passed",
-    "files": 338,
+    "files": 342,
     "new_provider_calls": 0
   },
   "after_review_check": {
     "status": "passed",
-    "files": 338,
+    "files": 342,
     "new_provider_calls": 0
-  },
-  "rendered_browser_check": "passed",
-  "rendered_browser_evidence": "RecordedDemo.png",
-  "rendered_observations": [
-    "completed business-v4",
-    "five prediction-comparison rows",
-    "actual Jev observations",
-    "copied review count",
-    "explicit recorded-playback boundary"
-  ]
+  }
 }

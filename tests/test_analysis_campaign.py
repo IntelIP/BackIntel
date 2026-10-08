@@ -238,6 +238,58 @@ class CampaignChecks(unittest.TestCase):
         service.dispatch()
         self.assertEqual(len(db.query("SELECT body FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'", (self.run['id'],))), 1)
 
+    def test_explicit_resubmission_recovers_exhausted_job(self):
+        db.write("UPDATE backintel.capability_jobs SET state='failed',attempts=max_attempts WHERE job_id=%s", (self.run['job_id'],))
+        db.write("UPDATE backintel.analysis_runs SET status='partial' WHERE id=%s", (self.run['id'],))
+        previous = db.query('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s', (self.run['job_id'],), one=True)['attempts']
+        resumed = service.submit(self.goal, self.actor)
+        self.assertEqual((resumed['id'], resumed['job_id'], resumed['status']), (self.run['id'], self.run['job_id'], 'queued'))
+        with patch('runtime.analysis_agent.analyze', return_value={'summary': 'explicit fixture', 'tables': [], 'mode': 'fixture'}):
+            service.dispatch()
+        self.assertEqual(db.run(self.run['id'])['status'], 'succeeded')
+        self.assertEqual(db.query('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s', (self.run['job_id'],), one=True)['attempts'], previous + 1)
+
+    def test_correction_during_comparison_rejects_late_candidate(self):
+        import json
+        from types import SimpleNamespace
+        from runtime.analysis_api import correction, CorrectionInput
+        training = service.submit(self.goal, self.actor, operation='training')
+        manifest = {'id': 'stale-comparison', 'artifacts': [{'file': 'catboost-facts.joblib'}],
+                    'splits': {'train': [self.rows[0]['id']]}}
+        def compare(*args, **kwargs):
+            with patch.object(service, 'schedule_snapshot', return_value=[]):
+                correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], features={'age': 41}, explanation='fixture correction'), self.actor)
+            return SimpleNamespace(returncode=0, stdout=json.dumps(manifest))
+        with patch.object(service.subprocess, 'run', side_effect=compare):
+            with self.assertRaisesRegex(ValueError, 'Source changed during model comparison'):
+                service.model_job(training['id'])
+        self.assertIsNone(db.query('SELECT id FROM backintel.analysis_models WHERE goal_id=%s', (self.goal,), one=True))
+
+    def test_corrections_update_domain_group_aliases(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        from runtime.analysis_agent import aggregate
+        db.write('UPDATE backintel.analysis_principals SET domains=%s WHERE id=%s', (['commerce', 'support', 'churn', 'credit'], self.actor['id']))
+        self.addCleanup(db.write, 'UPDATE backintel.analysis_principals SET domains=%s WHERE id=%s', (['commerce', 'support'], self.actor['id']))
+        for domain, features, groups, changes, expected in (
+            ('churn', {'Contract': 'Month-to-month', 'InternetService': 'DSL'},
+             {'contract': 'Month-to-month', 'internet_service': 'DSL'},
+             {'Contract': 'Two year', 'InternetService': 'Fiber optic'},
+             {'contract': 'Two year', 'internet_service': 'Fiber optic'}),
+            ('credit', {'NAME_INCOME_TYPE': 'Working', 'NAME_CONTRACT_TYPE': 'Cash loans'},
+             {'income_type': 'Working', 'contract_type': 'Cash loans'},
+             {'NAME_INCOME_TYPE': 'Pensioner', 'NAME_CONTRACT_TYPE': 'Revolving loans'},
+             {'income_type': 'Pensioner', 'contract_type': 'Revolving loans'}),
+        ):
+            with self.subTest(domain=domain):
+                rows = [{**self.rows[0], 'features': features, 'groups': groups}]
+                db.save_snapshot(domain, digest(rows), {'files': [], 'rows': 1}, rows)
+                with patch.object(service, 'schedule_snapshot', return_value=[]):
+                    correction(domain, CorrectionInput(record_id=rows[0]['id'], features=changes, explanation='fixture correction'), self.actor)
+                updated = db.records(db.source(domain)['latest_snapshot'])
+                self.assertEqual(updated[0]['groups'], expected)
+                for group, label in expected.items():
+                    self.assertEqual(aggregate(updated, group)[0]['group'], label)
+
     def test_terminal_worker_timeout_preserves_uncertain_charge_and_finishes_run(self):
         db.write('UPDATE backintel.capability_jobs SET max_attempts=1 WHERE job_id=%s', (self.run['job_id'],))
         request = str(uuid.uuid4())
@@ -431,7 +483,7 @@ class CampaignChecks(unittest.TestCase):
         self.assertEqual(outcomes[self.goal]['status'], 'queued')
 
     def test_failed_refresh_keeps_standing_result(self):
-        first = {'summary': 'standing fixture', 'tables': [{'title': 'summarize', 'rows': [{'group': 'A', 'mean': 1}]}]}
+        first = {'summary': 'standing fixture', 'tables': [{'title': 'summarize', 'group_by': 'department', 'rows': [{'group': 'A', 'mean': 1}]}]}
         with patch('runtime.analysis_agent.analyze', return_value=first):
             service.dispatch()
         standing = db.goal(self.goal)['last_success']
@@ -443,7 +495,7 @@ class CampaignChecks(unittest.TestCase):
             service.dispatch()
         self.assertEqual(db.run(fresh['id'])['status'], 'partial')
         self.assertEqual(db.goal(self.goal)['last_success'], standing)
-        with patch('runtime.analysis_agent.analyze', return_value={'summary': 'refreshed fixture', 'tables': [{'title': 'summarize', 'rows': [{'group': 'A', 'mean': 0}]}]}):
+        with patch('runtime.analysis_agent.analyze', return_value={'summary': 'refreshed fixture', 'tables': [{'title': 'summarize', 'group_by': 'department', 'rows': [{'group': 'A', 'mean': 0}]}]}):
             service.submit(self.goal, self.actor)
             service.dispatch()
         self.assertEqual(db.goal(self.goal)['last_success'], fresh['id'])

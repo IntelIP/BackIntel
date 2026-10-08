@@ -69,13 +69,26 @@ def record(identity, features, target, groups, text='', entity=None, event_at=No
             'label_at': label_at, 'split': None}
 
 
+GROUP_FEATURES = {
+    'commerce': {'department': 'department', 'class': 'class'},
+    'support': {'sla_plan': 'sla_plan', 'channel': 'channel'},
+    'churn': {'contract': 'Contract', 'internet_service': 'InternetService'},
+    'credit': {'income_type': 'NAME_INCOME_TYPE', 'contract_type': 'NAME_CONTRACT_TYPE'},
+    'maintenance': {},  # Engine identity is not a mutable feature.
+}
+
+
+def feature_groups(domain, features):
+    return {group: features.get(feature, '') for group, feature in GROUP_FEATURES[domain].items()}
+
+
 def commerce(paths):
     for i, r in enumerate(csv_rows(paths[0])):
         features = {'age': number(r.get('Age')), 'department': r.get('Department Name', ''),
                     'class': r.get('Class Name', ''), 'division': r.get('Division Name', '')}
         # Rating/feedback counts and recommendation are excluded from predictive inputs.
         yield record(r.get('Unnamed: 0', i), features, number(r.get('Recommended IND')),
-                     {'department': features['department'], 'class': features['class']},
+                     feature_groups('commerce', features),
                      r.get('Review Text', ''))
 
 
@@ -86,7 +99,7 @@ def support(paths):
         features = {k: r.get(k, '') for k in ('customer_segment', 'channel', 'product_area', 'language', 'sla_plan')}
         # Pre-triage scenario: no priority, sentiment, replies, CSAT, reopened or final status.
         yield record(r['ticket_id'], features, duration,
-                     {'sla_plan': r.get('sla_plan', ''), 'channel': r.get('channel', '')},
+                     feature_groups('support', features),
                      r.get('initial_message', ''), r.get('customer_id'), created,
                      created + int(duration * 3600) if created is not None and duration is not None else None)
 
@@ -99,7 +112,7 @@ def churn(paths):
             raise ValueError('Telco Churn requires Yes or No outcomes')
         features = {k: number(v) if k in numeric else v for k, v in r.items() if k not in ('customerID', 'Churn')}
         yield record(r['customerID'], features, float(outcome == 'Yes'),
-                     {'contract': r.get('Contract', ''), 'internet_service': r.get('InternetService', '')})
+                     feature_groups('churn', features))
 
 
 def credit(paths):
@@ -130,7 +143,7 @@ def credit(paths):
         f.update({k: number(r.get(k)) for k in numeric})
         f.update(histories[identity])
         yield record(identity, f, number(r.get('TARGET')),
-                     {'income_type': r.get('NAME_INCOME_TYPE', ''), 'contract_type': r.get('NAME_CONTRACT_TYPE', '')})
+                     feature_groups('credit', f))
 
 
 def engines(path):
