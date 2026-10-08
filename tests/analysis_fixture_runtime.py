@@ -66,10 +66,10 @@ def install_fixtures():
     httpx.Client.send = fixture_send
     service.model_job = fixture_models
     original_import = service._import_source
-    def fixture_import(domain, actor):
+    def fixture_import(domain, actor, **kwargs):
         # A bounded fixture delay exposes the running import for a hard-kill test.
         time.sleep(1)
-        return original_import(domain, actor)
+        return original_import(domain, actor, **kwargs)
     service._import_source = fixture_import
     sys.modules['runtime.analysis_models'] = types.SimpleNamespace(
         predict=lambda model, rows: {row['id']: .25 for row in rows},
