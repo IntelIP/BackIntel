@@ -35,6 +35,12 @@ class CampaignChecks(unittest.TestCase):
         cls.actor = {'id': 'campaign-manager'}
 
     def setUp(self):
+        from runtime import jobs
+        # Inject failures inside the acceptance transaction. Real process
+        # termination is covered independently in test_capabilities.
+        worker = patch.object(jobs, '_run_worker', side_effect=jobs._execute_claimed)
+        worker.start()
+        self.addCleanup(worker.stop)
         # The class guard above permits cleanup only in the disposable fixture DB.
         db.write('DELETE FROM backintel.analysis_requests')
         db.write("UPDATE backintel.capability_jobs SET state='cancelled' WHERE state IN ('queued','retry') AND task_id LIKE 'analysis-job-%'")
@@ -232,8 +238,23 @@ class CampaignChecks(unittest.TestCase):
         service.dispatch()
         self.assertEqual(len(db.query("SELECT body FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'", (self.run['id'],))), 1)
 
+    def test_terminal_worker_timeout_preserves_uncertain_charge_and_finishes_run(self):
+        db.write('UPDATE backintel.capability_jobs SET max_attempts=1 WHERE job_id=%s', (self.run['job_id'],))
+        request = str(uuid.uuid4())
+        db.write('INSERT INTO backintel.analysis_requests(id,run_id,domain,reserved,status) VALUES(%s,%s,%s,%s,%s)',
+                 (request, self.run['id'], 'commerce', Decimal('0.01'), 'uncertain'))
+        with patch('runtime.jobs._run_worker', side_effect=TimeoutError('Job wall-time budget exceeded')):
+            service.dispatch()
+        self.assertEqual(db.run(self.run['id'])['status'], 'partial')
+        self.assertIsNone(db.goal(self.goal)['last_success'])
+        self.assertIsNone(db.query('SELECT charge FROM backintel.analysis_requests WHERE id=%s', (request,), one=True)['charge'])
+        self.assertEqual(len(db.query("SELECT body FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'", (self.run['id'],))), 1)
+
     def test_model_promotion_marks_preserved_answer_stale_after_failed_refresh(self):
         from runtime.analysis_api import goals, findings
+        # The combined suite shares source records with import-failure tests.
+        # This scenario starts with a healthy source and changes only the model.
+        db.write("UPDATE backintel.analysis_sources SET body=body-'last_refresh_error' WHERE id=%s", ('commerce',))
         with patch('runtime.analysis_agent.analyze', return_value={'summary': 'standing fixture', 'tables': []}):
             service.dispatch()
         identity = digest([self.goal, 'model fixture'])

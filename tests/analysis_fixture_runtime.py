@@ -61,6 +61,26 @@ def fixture_models(identity):
             'candidate_id': candidate, 'evidence_id': ref, 'usage': db.usage(identity)}
 
 
+def install_fixtures():
+    agent.credential = lambda: 'offline-fixture-no-provider-credential'
+    httpx.Client.send = fixture_send
+    service.model_job = fixture_models
+    original_import = service._import_source
+    def fixture_import(domain, actor):
+        # A bounded fixture delay exposes the running import for a hard-kill test.
+        time.sleep(1)
+        return original_import(domain, actor)
+    service._import_source = fixture_import
+    sys.modules['runtime.analysis_models'] = types.SimpleNamespace(
+        predict=lambda model, rows: {row['id']: .25 for row in rows},
+        decide=lambda rows, domain: ([], [{'mode': 'fixture'} for _ in rows]))
+
+
+def fixture_handle(store, payload):
+    install_fixtures()
+    return ORIGINAL_HANDLE(store, payload)
+
+
 def main():
     if os.environ.get('BACKINTEL_VALIDATION_MODE') != 'fixture':
         raise RuntimeError('This entrypoint requires explicit fixture mode')
@@ -86,21 +106,13 @@ def main():
             continue
         db.write('UPDATE backintel.analysis_sources SET body=%s WHERE id=%s',
                  (Jsonb({**source['body'], 'mode': 'fixture', 'caveat': 'Synthetic validation fixture. ' + source['body']['caveat']}), source['id']))
-    agent.credential = lambda: 'offline-fixture-no-provider-credential'
-    httpx.Client.send = fixture_send
-    service.model_job = fixture_models
-    original_import = service._import_source
-    def fixture_import(domain, actor):
-        # A bounded fixture delay exposes the running import for a hard-kill test.
-        time.sleep(1)
-        return original_import(domain, actor)
-    service._import_source = fixture_import
-    sys.modules['runtime.analysis_models'] = types.SimpleNamespace(
-        predict=lambda model, rows: {row['id']: .25 for row in rows},
-        decide=lambda rows, domain: ([], [{'mode': 'fixture'} for _ in rows]))
+    install_fixtures()
+    from analysis_fixture_runtime import fixture_handle as worker_handle
+    service.handle = worker_handle
     uvicorn.run('aegra_api.main:app', host='127.0.0.1', port=int(os.environ['BACKINTEL_VALIDATION_PORT']), log_level='warning')
 
 
 ORIGINAL_SEND = httpx.Client.send
+ORIGINAL_HANDLE = service.handle
 if __name__ == '__main__':
     main()

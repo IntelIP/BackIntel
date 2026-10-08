@@ -231,6 +231,13 @@ def handle(store, payload):
     return store.put('analysis_result', f'{identity}:{attempt}', result, int(time.time()))
 
 
+def _finish_run_failure(connection, job_id, job_state, reason):
+    status = 'cancelled' if job_state == 'cancelled' else 'partial'
+    run = connection.execute("UPDATE backintel.analysis_runs SET status=%s,error=%s,updated_at=now() WHERE job_id=%s AND status IN ('queued','running') RETURNING id", (status, reason, job_id)).fetchone()
+    if run:
+        connection.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)', (run[0], 'completed', Jsonb({'status': status, 'reason': reason})))
+
+
 def dispatch(run_id=None):
     # One process owns model work. Drain new arrivals before releasing the worker.
     results = []
@@ -244,18 +251,19 @@ def dispatch(run_id=None):
             with c.transaction():
                 failed = c.execute("UPDATE backintel.capability_jobs SET state=CASE WHEN cancel_requested THEN 'cancelled' ELSE 'failed' END,error=CASE WHEN cancel_requested THEN 'Cancelled after worker interruption' ELSE 'Worker lease expired at attempt limit' END,lease_until=NULL WHERE task_id=ANY(%s) AND state='running' AND lease_until<now() AND (cancel_requested OR attempts>=max_attempts) RETURNING job_id,error,state", (task_ids,)).fetchall()
                 for job_id, reason, job_state in failed:
-                    status = 'cancelled' if job_state == 'cancelled' else 'partial'
-                    run = c.execute("UPDATE backintel.analysis_runs SET status=%s,error=%s,updated_at=now() WHERE job_id=%s AND status IN ('queued','running') RETURNING id", (status, reason, job_id)).fetchone()
-                    if run:
-                        c.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)', (run[0], 'completed', Jsonb({'status': status, 'reason': reason})))
+                    _finish_run_failure(c, job_id, job_state, reason)
             available = runnable(c, task_ids)
             if not available:
                 break
             for job_id in available:
                 r = db.query('SELECT id,body FROM backintel.analysis_runs WHERE job_id=%s', (job_id,), one=True)
                 if r:
-                    results.append(execute(job_id, handle, max_wall_seconds=1800 if r['body']['operation']=='training' else 600,
-                                           usage_reader=lambda identity=r['id']: db.usage(identity)))
+                    result = execute(job_id, handle, max_wall_seconds=1800 if r['body']['operation']=='training' else 600,
+                                     usage_reader=lambda identity=r['id']: db.usage(identity))
+                    results.append(result)
+                    if result['state'] in ('failed', 'cancelled'):
+                        with c.transaction():
+                            _finish_run_failure(c, job_id, result['state'], result.get('error', 'Job stopped before acceptance'))
     return {'status': 'completed', 'jobs': results}
 
 

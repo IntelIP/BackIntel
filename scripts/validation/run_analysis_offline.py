@@ -189,7 +189,7 @@ def main():
     test_url = urlunsplit((parts.scheme, parts.netloc, '/' + database, parts.query, ''))
     env = os.environ.copy()
     env.update(BACKINTEL_APP_DATABASE_URL=test_url, BACKINTEL_TEST_DATABASE_URL=test_url,
-               BACKINTEL_ANALYSIS_CHECK_DB=test_url, PYTHONPATH=str(ROOT),
+               BACKINTEL_ANALYSIS_CHECK_DB=test_url, PYTHONPATH=str(ROOT)+os.pathsep+str(ROOT/'tests'),
                BACKINTEL_VALIDATION_OUTPUT=str(output),
                BACKINTEL_ANALYST_CREDENTIAL_FILE=str(output / 'no-provider-credential.json'))
     for key in ('OPENROUTER_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY'):

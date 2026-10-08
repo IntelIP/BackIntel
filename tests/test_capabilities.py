@@ -273,6 +273,92 @@ class CapabilityTests(unittest.TestCase):
         self.assertEqual(execute(interrupted,handler)["state"],"completed")
         self.assertEqual(self.conn.execute("SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s",(interrupted,)).fetchone()[0],2)
 
+    @staticmethod
+    def blocking_native_handler():
+        def handler(store, payload):
+            import ctypes
+            import json
+            import os
+            from pathlib import Path
+            import subprocess
+            import sys
+            child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(90)'])
+            store.put('unfinished_native_result', 'fixture', {}, 10)
+            Path(payload['marker']).write_text(json.dumps([os.getpid(), child.pid]))
+            # PyDLL deliberately holds the GIL: a Python timer thread cannot
+            # interrupt this call. The external supervisor must stop it.
+            ctypes.PyDLL(None).sleep(90)
+            raise AssertionError('Native call outlived its enforced deadline')
+        return handler
+
+    def assert_processes_stopped(self, pids):
+        import subprocess
+        deadline = time.monotonic()+5
+        while time.monotonic() < deadline:
+            states = [subprocess.run(['ps', '-o', 'stat=', '-p', str(pid)], capture_output=True, text=True).stdout.strip() for pid in pids]
+            if all(not state or state.startswith('Z') for state in states):
+                return
+            time.sleep(0.05)
+        self.fail('Owned native job processes are still running: '+str(pids))
+
+    def test_timeout_interrupts_native_calls_and_children_from_a_thread(self):
+        import tempfile
+        from pathlib import Path
+        store, _, _, _ = self.scenario()
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory)/'started.json'
+            key = enqueue(store, {'marker': str(marker)}, 'native-timeout')
+            self.conn.execute('UPDATE backintel.capability_jobs SET max_attempts=1 WHERE job_id=%s', (key,))
+            started = time.monotonic()
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                result = pool.submit(execute, key, self.blocking_native_handler(), max_wall_seconds=25).result(timeout=35)
+            self.assertEqual(result['state'], 'failed')
+            self.assertIn('wall-time', result['error'])
+            self.assertLess(time.monotonic()-started, 35)
+            self.assert_processes_stopped(json.loads(marker.read_text()))
+        self.assertEqual(store.list('unfinished_native_result'), [])
+        self.assertEqual(store.list('job_attempt_result')[0]['body']['status'], 'failed')
+
+    def test_dispatcher_death_stops_native_work_and_allows_retry(self):
+        import cloudpickle
+        from pathlib import Path
+        import subprocess
+        import sys
+        import tempfile
+        store, _, _, _ = self.scenario()
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory)/'started.json'
+            key = enqueue(store, {'marker': str(marker)}, 'dispatcher-death')
+            payload = Path(directory)/'caller.pickle'
+            payload.write_bytes(cloudpickle.dumps((key, self.blocking_native_handler())))
+            code = 'import cloudpickle,sys; from runtime.jobs import execute; execute(*cloudpickle.load(open(sys.argv[1], "rb")))'
+            with subprocess.Popen([sys.executable, '-c', code, str(payload)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as caller:
+                try:
+                    deadline = time.monotonic()+10
+                    while not marker.exists() and caller.poll() is None and time.monotonic()<deadline:
+                        time.sleep(0.05)
+                    self.assertTrue(marker.exists(), 'Native worker did not start')
+                finally:
+                    caller.kill()
+                    caller.wait(timeout=5)
+            self.assert_processes_stopped(json.loads(marker.read_text()))
+        self.assertEqual(store.list('unfinished_native_result'), [])
+        self.conn.execute("UPDATE backintel.capability_jobs SET lease_until=now()-interval '1 second' WHERE job_id=%s", (key,))
+        result = execute(key, lambda ledger, payload: ledger.put('recovered_native_result', 'fixture', {}, 10))
+        self.assertEqual(result['state'], 'completed')
+        self.assertEqual(self.conn.execute('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s', (key,)).fetchone()[0], 2)
+
+    def test_interrupted_reply_does_not_overwrite_a_committed_result(self):
+        from runtime.jobs import _failed_attempt
+        store, _, _, _ = self.scenario()
+        key = enqueue(store, {}, 'lost-reply')
+        accepted = execute(key, lambda ledger, payload: ledger.put('accepted_native_result', 'fixture', {}, 10))
+        attempts = store.list('job_attempt_result')
+        late = _failed_attempt(self.conn, key, {'attempt': 1}, TimeoutError('Lost reply'), None, None, time.perf_counter())
+        self.assertEqual(late['state'], 'completed')
+        self.assertEqual(late['result'], accepted['result'])
+        self.assertEqual(store.list('job_attempt_result'), attempts)
+
     def test_persistent_due_triggers_repeat_and_backpressure(self):
         store, task, _, _ = self.scenario()
         trigger = schedule(store,"schedule",{"identity":"scheduled"},time.time()-5,"timer",repeat_seconds=1,occurrences=2)

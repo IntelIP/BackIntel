@@ -1,7 +1,16 @@
 """Durable bounded jobs. Aegra's native cron scheduler is the only timer owner."""
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import tempfile
 import time
+
+import cloudpickle
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -119,12 +128,40 @@ class JobCancelled(Exception):
     pass
 
 
+def _run_worker(job_id, job, handler, max_wall_seconds, usage_reader, started, directory):
+    payload = Path(directory) / 'input.pickle'
+    payload.write_bytes(cloudpickle.dumps((job_id, job, handler, max_wall_seconds, usage_reader, started, directory)))
+    # The supervisor watches the deadline and the parent pipe without running
+    # model code. A native call holding the GIL cannot prevent termination.
+    with subprocess.Popen([sys.executable, '-m', 'runtime.job_worker', str(payload), str(started+max_wall_seconds)],
+                          stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                          start_new_session=True) as worker:
+        try:
+            worker.wait(timeout=max(0, max_wall_seconds-(time.perf_counter()-started)))
+        except subprocess.TimeoutExpired:
+            raise TimeoutError('Job wall-time budget exceeded') from None
+        finally:
+            try:
+                os.killpg(worker.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                # macOS can report EPERM for a group whose watchdog has already
+                # killed every member. Do not hide a live-worker permission error.
+                if worker.wait(timeout=1) != -signal.SIGKILL:
+                    raise
+            worker.wait()
+        if worker.returncode:
+            if time.perf_counter()-started >= max_wall_seconds:
+                raise TimeoutError('Job wall-time budget exceeded')
+            raise RuntimeError('Job worker stopped before returning a result')
+    return json.loads((Path(directory) / 'result.json').read_text())
+
+
 def execute(job_id: str, handler=None, *, max_wall_seconds=25, usage_reader=None) -> dict:
+    """Run a serializable handler in isolation; open live resources inside it."""
     if type(max_wall_seconds) is not int or not 25 <= max_wall_seconds <= 1800:
         raise ValueError("Invalid job duration")
-    if handler is None:
-        from runtime.capability_pipeline import handle
-        handler = handle
     with psycopg.connect(dsn(),autocommit=True) as connection:
         connection.execute("SET statement_timeout='30s'")
         job = claim(connection,job_id, max(30,max_wall_seconds+5))
@@ -133,7 +170,47 @@ def execute(job_id: str, handler=None, *, max_wall_seconds=25, usage_reader=None
             if row is None:
                 raise ValueError("Unknown job")
             return {"job_id":job_id,"state":row[0],"result":row[1],"reused":True}
-        started = time.perf_counter()
+    started = time.perf_counter()
+    with tempfile.TemporaryDirectory(prefix='backintel-job-') as directory:
+        try:
+            return _run_worker(job_id, job, handler, max_wall_seconds, usage_reader, started, directory)
+        except Exception as error:
+            try:
+                previous = json.loads((Path(directory) / 'requests.json').read_text())
+            except (OSError, ValueError):
+                previous = None  # A handler cannot start before this file is written.
+            with psycopg.connect(dsn(), autocommit=True) as connection:
+                connection.execute("SET statement_timeout='30s'")
+                return _failed_attempt(connection, job_id, job, error, usage_reader, previous, started)
+
+
+def _failed_attempt(connection, job_id, job, error, usage_reader, previous_requests, started):
+    with connection.transaction():
+        current = connection.execute('SELECT state,attempts,cancel_requested,result_sha256 FROM backintel.capability_jobs WHERE job_id=%s FOR UPDATE', (job_id,)).fetchone()
+        # A commit can win the race with supervisor shutdown. Never overwrite it,
+        # or a newer attempt's result, merely because its reply was interrupted.
+        if current[0] != 'running' or current[1] != job['attempt']:
+            return {'job_id': job_id, 'state': current[0], 'result': current[3], 'reused': True}
+        state = 'cancelled' if current[2] or isinstance(error, JobCancelled) else 'retry' if job['attempt'] < job['max_attempts'] else 'failed'
+        usage = usage_reader() if usage_reader else usage_for(Evidence(connection,job['task_id']), excluding=previous_requests, strict=False) if previous_requests is not None else {
+            'provider_calls':0, 'provider_usd':0, 'local_compute_usd':None, 'provider_fixture_requests':0,
+            'provider_requests_admitted':0, 'provider_request_keys':[]}
+        wall_ms = (time.perf_counter()-started)*1000
+        connection.execute("""UPDATE backintel.capability_jobs SET state=%s,error=%s,lease_until=NULL,
+            due_at=now()+interval '1 second',wall_ms=%s,updated_at=now() WHERE job_id=%s""",
+            (state,str(error)[:2000],wall_ms,job_id))
+        Evidence(connection,job['task_id']).put('job_attempt_result', f"{job_id}:{job['attempt']}",
+            {'job_id':job_id, 'attempt':job['attempt'], 'status':state, 'error':str(error)[:2000], **usage, 'wall_ms':wall_ms}, int(time.time()))
+        connection.execute("SELECT pg_notify('backintel_capability_jobs',%s)", (job_id,))
+    return {'job_id':job_id, 'state':state, 'error':str(error)}
+
+
+def _execute_claimed(job_id, job, handler, max_wall_seconds, usage_reader, started, directory):
+    if handler is None:
+        from runtime.capability_pipeline import handle
+        handler = handle
+    with psycopg.connect(dsn(),autocommit=True) as connection:
+        connection.execute("SET statement_timeout='30s'")
         previous_requests = None
         try:
             with connection.transaction():
@@ -141,6 +218,7 @@ def execute(job_id: str, handler=None, *, max_wall_seconds=25, usage_reader=None
                 store.lock()
                 previous_requests = [r[0] for r in connection.execute(
                     "SELECT request_key FROM backintel.capability_model_requests WHERE task_id=%s", (job["task_id"],)).fetchall()]
+                (Path(directory) / 'requests.json').write_text(json.dumps(previous_requests))
                 if job["payload"].get("fail_once") and job["attempt"] == 1:
                     raise TimeoutError("Injected synthetic transient failure")
                 result = handler(store,job["payload"])
@@ -158,20 +236,7 @@ def execute(job_id: str, handler=None, *, max_wall_seconds=25, usage_reader=None
                 connection.execute("SELECT pg_notify('backintel_capability_jobs',%s)",(job_id,))
             return {"job_id":job_id,"state":"completed","result":result["sha256"],"reused":False}
         except Exception as error:
-            state = "cancelled" if isinstance(error,JobCancelled) else "retry" if job["attempt"] < job["max_attempts"] else "failed"
-            with connection.transaction():
-                usage = usage_reader() if usage_reader else usage_for(Evidence(connection,job["task_id"]), excluding=previous_requests, strict=False) if previous_requests is not None else {
-                    "provider_calls":0,"provider_usd":0,"local_compute_usd":None,"provider_fixture_requests":0,
-                    "provider_requests_admitted":0,"provider_request_keys":[]}
-                connection.execute("""UPDATE backintel.capability_jobs SET state=%s,error=%s,lease_until=NULL,
-                    due_at=now()+interval '1 second',wall_ms=%s,updated_at=now() WHERE job_id=%s AND attempts=%s""",
-                    (state,str(error)[:2000],(time.perf_counter()-started)*1000,job_id,job["attempt"]))
-                Evidence(connection,job["task_id"]).put("job_attempt_result",f"{job_id}:{job['attempt']}",
-                    {"job_id":job_id,"attempt":job["attempt"],"status":state,"error":str(error)[:2000],
-                     **usage,
-                     "wall_ms":(time.perf_counter()-started)*1000},int(time.time()))
-                connection.execute("SELECT pg_notify('backintel_capability_jobs',%s)",(job_id,))
-            return {"job_id":job_id,"state":state,"error":str(error)}
+            return _failed_attempt(connection, job_id, job, error, usage_reader, previous_requests, started)
 
 
 def runnable(connection, task_ids=None) -> list[str]:

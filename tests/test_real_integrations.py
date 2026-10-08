@@ -102,6 +102,12 @@ class RealBoundaryTests(unittest.TestCase):
         initialize()
 
     def setUp(self):
+        from runtime import jobs
+        # Provider accounting fixtures share mock counters and a test connection.
+        # Exercise the transaction engine; real process isolation has separate tests.
+        worker = patch.object(jobs, '_run_worker', side_effect=jobs._execute_claimed)
+        worker.start()
+        self.addCleanup(worker.stop)
         self.conn = psycopg.connect(dsn(),autocommit=True)
         self.addCleanup(self.conn.close)
         task,rows,_ = history("support")
