@@ -179,10 +179,10 @@ def snapshot(store, jobs, requests, triggers=()):
     predictions = store.list("prediction", at)
     analyses = store.list("analysis", at)
     completed = [request for request in requests if request["state"] == "completed"]
-    fixture = any(request.get("metadata", {}).get("test_fixture") for request in completed)
-    actual_answers = any(not request.get("metadata", {}).get("test_fixture") for request in completed)
-    actual = [request for request in requests if not request.get("metadata", {}).get("test_fixture")]
-    unknown_cost = any(request["state"] != "completed" or request.get("metadata", {}).get("cost_usd") is None for request in actual)
+    fixture = any((request.get("metadata") or {}).get("test_fixture") for request in completed)
+    actual_answers = any(not (request.get("metadata") or {}).get("test_fixture") for request in completed)
+    actual = [request for request in requests if not (request.get("metadata") or {}).get("test_fixture")]
+    unknown_cost = any(request["state"] != "completed" or (request.get("metadata") or {}).get("cost_usd") is None for request in actual)
     provider_usd = None if unknown_cost else sum(float(request["metadata"]["cost_usd"]) for request in actual)
     mode = "mixed actual and simulated Jev answers" if fixture and actual_answers else "simulated Jev answers" if fixture else "actual Jev responses" if actual_answers else "Jev has not run"
     cases = []
@@ -228,7 +228,7 @@ def snapshot(store, jobs, requests, triggers=()):
     value = capacity_value(spec["value_assumptions"])
     value["provider_usd"] = provider_usd
     pending = sum(job["state"] in ("queued", "running", "retry") for job in jobs) + sum(trigger["state"] == "pending" for trigger in triggers)
-    blocked = any(request["state"] in ("blocked", "uncertain") for request in requests) or any(job["state"] in ("failed", "blocked") for job in jobs)
+    blocked = any(request["state"] != "completed" for request in requests) or any(job["state"] not in ("completed", "queued", "running", "retry") for job in jobs)
     followups = store.find("real_plan", "followups-v1")
     expected_stages = 1 + len(followups["body"]["arrival_plans"]) if followups else 1
     status = "blocked" if blocked else "running" if pending else "completed" if len(stages) >= expected_stages else "awaiting follow-up execution" if stages else "prepared"

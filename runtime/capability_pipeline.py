@@ -93,7 +93,7 @@ def refresh(store, task_record: dict, event: dict, at: int, observe=False, entit
         if observe and (entities is None or entity in entities):
             episodes.append(attend(store,task_record,entity,analysis,at,finding["attention_value"]))
         else:
-            latest = latest_episode(store,entity)
+            latest = latest_episode(store,entity,task_record['sha256'])
             if latest:
                 episodes.append(latest)
     real = task_record["body"]["observation_provider"]["implementation_mode"] == "real"

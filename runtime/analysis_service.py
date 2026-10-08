@@ -11,7 +11,7 @@ import httpx
 from psycopg.types.json import Jsonb
 
 from runtime import analysis_store as db
-from runtime.analysis_data import CONFIG, adapt, digest, fingerprint, source_files
+from runtime.analysis_data import CONFIG, adapt, adapter_identity, digest, fingerprint, source_files
 from runtime.analysis_errors import safe_error
 from runtime.evidence import Evidence
 from runtime.jobs import enqueue, execute, runnable
@@ -25,7 +25,9 @@ def _import_source(domain, actor):
     paths = source_files(domain)
     if source['latest_snapshot']:
         prior = db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s', (source['latest_snapshot'],), one=True)
-        if prior['body']['files'] == [fingerprint(p) for p in paths] and (domain!='maintenance' or prior['body'].get('unit_mapping')=='dataset-qualified-engine-v2'):
+        if (prior['body']['files'] == [fingerprint(p) for p in paths]
+                and all(prior['body'].get(key) == value for key, value in adapter_identity(domain).items())
+                and (domain!='maintenance' or prior['body'].get('unit_mapping')=='dataset-qualified-engine-v2')):
             return {'snapshot': source['latest_snapshot'], 'changed': False}
     identity, body, rows = adapt(domain, paths)
     if domain=='maintenance':

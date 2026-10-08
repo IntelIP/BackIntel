@@ -186,6 +186,11 @@ def maintenance(paths):
 ADAPTERS = {'commerce': commerce, 'support': support, 'churn': churn, 'credit': credit, 'maintenance': maintenance}
 
 
+def adapter_identity(domain):
+    return {'adapter': fingerprint(Path(__file__))['sha256'],
+            'config_sha256': digest({'source': CONFIG['sources'][domain], 'limits': CONFIG['limits']})}
+
+
 def adapt(domain, paths=None):
     paths = paths or source_files(domain)
     rows = []
@@ -229,9 +234,9 @@ def adapt(domain, paths=None):
         else:
             bucket = int(digest(r['entity'])[:8], 16) % 100
             r['split'] = 'train' if bucket < 70 else 'calibration' if bucket < 85 else 'test'
-    body = {'domain': domain, 'files': [fingerprint(p) for p in paths], 'adapter': 'five-domains-v1',
+    body = {'domain': domain, 'files': [fingerprint(p) for p in paths], **adapter_identity(domain),
             'rows': len(rows), 'total_rows':total_rows, 'cohort_policy':'bounded fixed identity hash', 'split_policy': 'engine-official' if domain == 'maintenance' else 'chronological-label-availability' if cutoffs else 'fixed-entity-hash',
-            'cutoffs': cutoffs, 'config_sha256': digest(CONFIG['sources'][domain]), 'caveat': CONFIG['sources'][domain]['caveat'],
+            'cutoffs': cutoffs, 'caveat': CONFIG['sources'][domain]['caveat'],
             'record_hash': digest(rows)}
     return digest(body), body, rows
 

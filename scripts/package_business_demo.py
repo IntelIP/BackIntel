@@ -126,7 +126,7 @@ def build(root, demo_id, destination):
         shutil.copyfile(root / "docs/demo/DemoPackage.txt", package / "StartHere.txt")
         shutil.copyfile(root / "docs/demo/DemoLicensing.txt", package / "Licensing.txt")
         shutil.copyfile(root / "LICENSE", package / "LICENSE")
-        paths = subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard"], cwd=root, check=True, capture_output=True, text=True).stdout.splitlines()
+        paths = subprocess.run(["git", "ls-files", "--cached"], cwd=root, check=True, capture_output=True, text=True).stdout.splitlines()
         for relative in paths:
             path = root / relative
             if (path.is_file() and not path.is_symlink() and

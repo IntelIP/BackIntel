@@ -5,11 +5,13 @@ services:
     environment:
       POSTGRES_USER: capability_demo
       POSTGRES_DB: test_backintel_demo
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_PASSWORD: ${BACKINTEL_CAPABILITY_DB_PASSWORD:?Load the capability database password from your local credential store}
+    command: ["postgres", "-c", "hba_file=/etc/postgresql/backintel-hba.conf"]
     ports:
       - "127.0.0.1:55437:5432"
     volumes:
       - capability_db:/var/lib/postgresql
+      - ./config/local-postgres-hba.conf:/etc/postgresql/backintel-hba.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U capability_demo -d test_backintel_demo"]
       interval: 2s
@@ -33,6 +35,7 @@ services:
     command: ["sh", "-c", "python -m runtime.bootstrap && exec uvicorn aegra_api.main:app --host 0.0.0.0 --port 2026"]
     environment:
       DATABASE_URL: postgresql://capability_demo@postgres:5432/test_backintel_demo
+      PGPASSWORD: ${BACKINTEL_CAPABILITY_DB_PASSWORD:?Load the capability database password from your local credential store}
       BACKINTEL_APP_DATABASE_URL: postgresql://capability_demo@postgres:5432/test_backintel_demo
       BACKINTEL_TEST_DATABASE_URL: postgresql://capability_demo@postgres:5432/test_backintel_demo
       REDIS_URL: redis://redis:6379/0

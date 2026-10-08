@@ -18,6 +18,45 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_counts_cannot_validate_rates_or_means(self):
+        results = [{'evidence_id':'typed', 'table':[{'group':'A','mean':.2,'count':80}]}]
+        for claim in ('The observed rate is 80%.', 'The mean is 80.', 'There are 20 records.'):
+            with self.subTest(claim=claim), self.assertRaisesRegex(ValueError, 'Narrative number'):
+                validate_answer({'summary':claim,'findings':[],'limitations':[]},results)
+        for claim in ('The observed rate is 20%.', 'The mean is 0.2.', 'There are 80 records.'):
+            validate_answer({'summary':claim,'findings':[],'limitations':[]},results)
+
+    def test_prior_findings_cannot_ground_current_answers(self):
+        results = [{'evidence_id':'old','tool':'prior_findings','previous_result':{'mean':.8}}]
+        answer = {'summary':'Historical context.', 'limitations':[], 'findings':[
+            {'claim':'Current rate is 80%.','kind':'fact','evidence_ids':['old']}]}
+        with self.assertRaisesRegex(ValueError, 'permitted calculation'):
+            validate_answer(answer, results)
+        with self.assertRaisesRegex(ValueError, 'Narrative number'):
+            validate_answer({'summary':'Current mean is 0.8.','findings':[],'limitations':[]},results)
+
+    def test_tool_argument_shapes_are_rejected_before_execution(self):
+        from runtime.analysis_agent import tool
+        for args in ([], None, {'group':[]}, {'order':False}, {'order':'unsupported'}, {'unknown':'field'}):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                tool('not-a-run','summarize',args)
+
+    def test_unchanged_files_reimport_after_adapter_or_configuration_change(self):
+        from unittest.mock import patch
+        from runtime import analysis_service as service
+        original = {'files':[], 'adapter':'old-code', 'config_sha256':'old-config'}
+        for identity in ({'adapter':'new-code','config_sha256':'old-config'},
+                         {'adapter':'old-code','config_sha256':'new-config'}):
+            with self.subTest(identity=identity), patch.object(service.db,'authorize'), \
+                 patch.object(service.db,'source',return_value={'latest_snapshot':'old','body':{'terms_acknowledged':True}}), \
+                 patch.object(service,'source_files',return_value=[]), \
+                 patch.object(service.db,'query',return_value={'body':original}), \
+                 patch.object(service,'adapter_identity',return_value=identity), \
+                 patch.object(service,'adapt',return_value=('new',identity,[])) as adapt, \
+                 patch.object(service.db,'save_snapshot'):
+                self.assertEqual(service._import_source('commerce',{'id':'manager'}), {'snapshot':'new','changed':True})
+                adapt.assert_called_once()
+
     def test_fact_numbers_must_come_from_the_cited_result(self):
         results = [{'evidence_id': 'observed', 'kind': 'observed', 'table': [{'group': 'A', 'mean': .2}]},
                    {'evidence_id': 'predicted', 'kind': 'estimate', 'table': [{'group': 'A', 'mean': .8}]}]

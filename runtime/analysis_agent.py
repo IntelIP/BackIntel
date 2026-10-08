@@ -23,7 +23,7 @@ TOOL_SPECS = {
     'predict': ('Score a bounded cohort with the approved predictor and summarize estimates in the requested order.', {'group': {'type': 'string'},'order':{'type':'string','enum':['ascending','descending']}}),
     'interpret_text': ('Classify up to twenty messages with local Decide.', {}),
     'compare_snapshots': ('Compare source counts and observed means with the preceding snapshot.', {}),
-    'prior_findings': ('Retrieve this goal\'s last completed answer.', {})
+    'prior_findings': ('Retrieve historical context only. Calculate current findings separately; this result cannot be cited as current evidence.', {})
 }
 TOOLS = [{'type': 'function', 'name': name, 'description': spec[0], 'strict':False, 'parameters': {
     'type': 'object', 'properties': spec[1], 'additionalProperties': False}} for name, spec in TOOL_SPECS.items()]
@@ -44,15 +44,17 @@ def credential():
     return json.loads(path.read_text())['key']
 
 
-def numeric_values(value):
+def metric_values(value, names):
     if isinstance(value, dict):
-        return [n for v in value.values() for n in numeric_values(v)]
+        return [n for key, v in value.items() for n in
+                ([float(v)] if key in names and type(v) in (int, float) else metric_values(v, names))]
     if isinstance(value, list):
-        return [n for v in value for n in numeric_values(v)]
-    return [float(value)] if isinstance(value, (int, float)) and not isinstance(value, bool) else []
+        return [n for v in value for n in metric_values(v, names)]
+    return []
 
 
 def validate_answer(answer, results, group=None):
+    results = [r for r in results if r.get('tool') != 'prior_findings' and r.get('kind') != 'historical']
     if set(answer) != set(ANSWER_SCHEMA['required']) or not isinstance(answer['summary'], str) or not isinstance(answer['limitations'], list) or not isinstance(answer['findings'], list):
         raise ValueError('Invalid analyst answer shape')
     ids = {r['evidence_id'] for r in results}
@@ -65,7 +67,8 @@ def validate_answer(answer, results, group=None):
             raise ValueError('Predicted evidence cannot support a factual finding')
     claims = [(answer['summary'], results)] + [(f['claim'], [r for r in results if r['evidence_id'] in f['evidence_ids']]) for f in answer['findings']]
     for text, cited in claims:
-        allowed = numeric_values(cited) + [0.]
+        means = metric_values(cited, {'mean'})
+        counts = metric_values(cited, {'count', 'labeled', 'records', 'sample_size'})
         if not isinstance(text, str) or len(text) > 5000 or re.search(r'\b(causes|caused by|will default|approve the loan|deny the loan)\b', text, re.I):
             raise ValueError('Unsupported causal or lending claim')
         labels={str(row['group']) for result in cited for row in result.get('table',[]) if 'group' in row}
@@ -80,7 +83,18 @@ def validate_answer(answer, results, group=None):
             token=token.replace(',','')
             n=float(token)
             precision=len(token.split('.')[1]) if '.' in token else 0
-            if not any(round(v,precision)==n or (0<=v<=1 and round(v*100,precision)==n) for v in allowed):
+            percentage = re.match(r'\s*(%|percent\b)', text[match.end():], re.I)
+            roles = re.findall(r'\b(mean|average|rate|probability|count|records|cases|rows|tickets|samples)\b', text[:match.start()], re.I)
+            count_suffix = re.match(r'\s+(records|cases|rows|tickets|samples)\b', text[match.end():], re.I)
+            if percentage:
+                allowed = [v*100 for v in means if 0 <= v <= 1]
+            elif count_suffix or roles and roles[-1].lower() in ('count','records','cases','rows','tickets','samples'):
+                allowed = counts
+            elif roles and roles[-1].lower() in ('mean','average','rate','probability'):
+                allowed = means
+            else:
+                allowed = means + counts
+            if not any(round(v,precision)==n for v in allowed):
                 raise ValueError('Narrative number is unsupported by tool results')
     return answer
 
@@ -101,7 +115,17 @@ def aggregate(rows, group=None, predictions=None, order='ascending'):
     return sorted(result,key=lambda r:(r['mean'] is None,(1 if order=='ascending' else -1)*(r['mean'] or 0),r['group']))[:20]
 
 
+def validate_tool_args(name, args):
+    if not isinstance(name, str) or name not in TOOL_SPECS or not isinstance(args, dict):
+        raise ValueError('Invalid tool or argument object')
+    properties = TOOL_SPECS[name][1]
+    if set(args)-set(properties) or any(not isinstance(value, str) or
+            'enum' in properties[key] and value not in properties[key]['enum'] for key, value in args.items()):
+        raise ValueError('Invalid tool argument types or values')
+
+
 def tool(identity, name, args):
+    validate_tool_args(name, args)
     r, g = db.check_run(identity)
     key = digest([name, args, r['snapshot_id'], r['body']['model_id']])
     cached = db.step(identity, key)
@@ -136,7 +160,8 @@ def tool(identity, name, args):
         result = {'observations': [{'record_id': row['id'], **obs} for row, obs in zip(cohort, observations)], 'kind': 'classification', 'sample_size': len(cohort)}
     elif name == 'prior_findings':
         prior = db.run(g['last_success']) if g['last_success'] else None
-        result = {'previous_result': prior['result'] if prior else None}
+        result = {'previous_result': prior['result'] if prior else None, 'kind': 'historical',
+                  'prior_snapshot': prior['snapshot_id'] if prior else None, 'citable': False}
     elif name == 'compare_snapshots':
         prior = db.query('SELECT id FROM backintel.analysis_snapshots WHERE source_id=%s AND id<>%s AND created_at<(SELECT created_at FROM backintel.analysis_snapshots WHERE id=%s) ORDER BY created_at DESC LIMIT 1', (g['domain'], r['snapshot_id'], r['snapshot_id']), one=True)
         result = {'current': aggregate(rows), 'previous': aggregate(db.records(prior['id'])) if prior else None, 'prior_snapshot': prior['id'] if prior else None}
@@ -271,14 +296,15 @@ def analyze(identity):
             if count > CONFIG['analyst']['max_tools']:
                 raise RuntimeError('Analysis tool limit reached')
             try:
+                if not isinstance(call.get('arguments'), str):
+                    raise ValueError('Tool arguments must be JSON text')
                 args = json.loads(call['arguments'])
-                if call['name'] not in TOOL_SPECS or set(args)-set(TOOL_SPECS[call['name']][1]):
-                    raise ValueError('Invalid tool arguments')
-                result = tool(identity, call['name'], args)
+                validate_tool_args(call.get('name'), args)
+                result = tool(identity, call.get('name'), args)
                 if result not in results:
                     results.append(result)
                 db.event(identity, 'tool_completed', {'tool': call['name'], 'evidence_id': result['evidence_id']})
             except (ValueError, RuntimeError) as error:
-                result = {'limitation': safe_error(error), 'tool': call['name']}
+                result = {'limitation': safe_error(error), 'tool': call.get('name', 'unknown')}
             inputs.append({'type': 'function_call_output', 'call_id': call['call_id'], 'output': json.dumps(result)})
     raise RuntimeError('Analysis call limit reached before a supported answer')

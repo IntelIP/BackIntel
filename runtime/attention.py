@@ -2,8 +2,8 @@
 from runtime.simulation import digest
 
 
-def latest_episode(store, entity: str) -> dict | None:
-    history = [r for r in store.list("episode") if r["body"]["entity"] == entity]
+def latest_episode(store, entity: str, task_sha256: str) -> dict | None:
+    history = [r for r in store.list("episode") if r["body"]["entity"] == entity and r["body"].get("task") == task_sha256]
     return max(history,key=lambda r:r["body"]["sequence"],default=None)
 
 
@@ -18,7 +18,7 @@ def attend(store, task_record: dict, entity: str, reason: dict, at: int, value: 
         previous = store.find("episode",key)
         if previous:
             return previous
-        latest = latest_episode(store,entity)
+        latest = latest_episode(store,entity,task_record['sha256'])
         old = latest["body"] if latest else {}
         if latest and at < latest["available_at"]:
             raise ValueError("Cannot backdate attention actions")
@@ -35,7 +35,7 @@ def attend(store, task_record: dict, entity: str, reason: dict, at: int, value: 
             elif value >= policy["entry"]:
                 state["condition"] = "active"
                 if old.get("condition","cleared") == "cleared" or not state["episode_id"]:
-                    state.update(episode_id=digest([entity,reason["sha256"]]),response="open",opened_at=at)
+                    state.update(episode_id=digest([task_record['sha256'],entity,reason["sha256"]]),response="open",opened_at=at)
                     notify = "opened"
                 elif old.get("condition") == "unknown" and (state["last_delivery_at"] is None or at-state["last_delivery_at"] >= policy["cooldown"]):
                     notify = "updated"

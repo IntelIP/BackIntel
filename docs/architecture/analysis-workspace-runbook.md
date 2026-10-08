@@ -16,6 +16,10 @@ Use a BackIntel checkout. Preserve existing services, data volumes, original `ae
 
 Reuse the pinned model image already attached to the capability demo as `backintel-analysis-base:local`. If unavailable, build `Dockerfile.runtime` with `BACKINTEL_WITH_MODELS=1` and that tag. This preserves the approved model-library versions.
 
+Before starting Compose, load a generated database password from your local credential store into `BACKINTEL_ANALYSIS_DB_PASSWORD`. Do not save it in Git, shell history, or a repository `.env` file. PostgreSQL requires password authentication on its published TCP port; the runtime receives the password through its environment.
+
+For an existing database volume created with password-free access, setting `POSTGRES_PASSWORD` does not change the stored role. Use a local Docker administration session and the interactive `psql` command `\password analysis_demo` to set the same stored password before recreating the database and runtime containers. Preserve the data volume. The mounted authentication configuration enforces TCP password checks even on an existing volume. Until the password and runtime environment agree, application connections fail closed. Updating this repository does not reconfigure already-running containers.
+
 ```sh
 cd apps/web
 npm ci

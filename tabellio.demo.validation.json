@@ -253,6 +253,24 @@
         "requiredTelemetry": true,
         "maxUsd": 0
       }
+    },
+    {
+      "id": "database-authentication",
+      "type": "security",
+      "argv": [
+        "python3",
+        "-m",
+        "scripts.validation.check_database_auth"
+      ],
+      "cwd": ".",
+      "timeout": 120,
+      "required": true,
+      "evidencePath": "database-authentication.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
     }
   ]
 }

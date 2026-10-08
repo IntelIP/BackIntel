@@ -5,9 +5,12 @@ services:
     environment:
       POSTGRES_USER: analysis_demo
       POSTGRES_DB: test_backintel_analysis
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_PASSWORD: ${BACKINTEL_ANALYSIS_DB_PASSWORD:?Load the analysis database password from your local credential store}
+    command: ["postgres", "-c", "hba_file=/etc/postgresql/backintel-hba.conf"]
     ports: ["127.0.0.1:55438:5432"]
-    volumes: ["analysis_db:/var/lib/postgresql"]
+    volumes:
+      - analysis_db:/var/lib/postgresql
+      - ./config/local-postgres-hba.conf:/etc/postgresql/backintel-hba.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U analysis_demo -d test_backintel_analysis"]
       interval: 2s
@@ -26,6 +29,7 @@ services:
       dockerfile: Dockerfile.analysis
     environment:
       DATABASE_URL: postgresql://analysis_demo@postgres:5432/test_backintel_analysis
+      PGPASSWORD: ${BACKINTEL_ANALYSIS_DB_PASSWORD:?Load the analysis database password from your local credential store}
       BACKINTEL_APP_DATABASE_URL: postgresql://analysis_demo@postgres:5432/test_backintel_analysis
       BACKINTEL_TEST_DATABASE_URL: postgresql://analysis_demo@postgres:5432/test_backintel_analysis
       REDIS_URL: redis://redis:6379/0

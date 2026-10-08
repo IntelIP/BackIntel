@@ -10,6 +10,11 @@ from scripts.support_demo import prepare_frontends
 
 
 class BusinessDemoTests(unittest.TestCase):
+    def test_cancelled_jobs_and_admitted_requests_block_completed_demo(self):
+        for jobs, requests in (([{'state':'cancelled'}], []), ([], [{'state':'admitted','metadata':None}])):
+            with self.subTest(jobs=jobs,requests=requests):
+                self.assertEqual(self.packet(stages=4,jobs=jobs,requests=requests)['status'], 'blocked')
+
     def test_native_rehearsal_is_scoped_and_cannot_complete_the_live_workflow(self):
         from copy import deepcopy
         from runtime.business_demo import attach_workflow_rehearsal

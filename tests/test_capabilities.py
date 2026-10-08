@@ -24,6 +24,21 @@ from runtime.prediction import (cases, chronological_split, compare, evaluate, f
 
 
 class CapabilityTests(unittest.TestCase):
+    def test_task_revision_does_not_reuse_previous_attention_episode(self):
+        from runtime.attention import latest_episode
+        store, task, _, _ = self.scenario()
+        reason = store.put('event','version-boundary',{'event':'fixture'},0)
+        previous = attend(store,task,'same-entity',reason,0,1)
+        body = copy.deepcopy(task['body'])
+        body['policy']['cooldown'] += 1
+        revised = register_task(store,body)
+        self.assertIsNone(latest_episode(store,'same-entity',revised['sha256']))
+        current = attend(store,revised,'same-entity',reason,1,action='staleness')
+        self.assertIsNone(current['body']['last_observed_at'])
+        self.assertIsNone(current['body']['episode_id'])
+        self.assertEqual(current['body']['sequence'],1)
+        self.assertNotIn(previous['sha256'],current['parents'])
+
     @classmethod
     def setUpClass(cls):
         if not os.environ.get("BACKINTEL_TEST_DATABASE_URL"):
