@@ -12,6 +12,9 @@
 !tests/**
 !config/
 !config/**
+!docs/
+!docs/demo/
+!docs/demo/SupportScenario.json
 !data/
 !data/profiles/
 !data/profiles/**
