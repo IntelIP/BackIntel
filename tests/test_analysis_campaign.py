@@ -199,6 +199,21 @@ class CampaignChecks(unittest.TestCase):
         correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], target=None, explanation='Fixture remove mistaken label'), self.actor)
         self.assertIsNone(db.records(db.source('commerce')['latest_snapshot'])[0]['target'])
 
+    def test_source_terms_changes_share_the_import_lock(self):
+        from runtime.analysis_api import terms, TermsInput
+        started = threading.Event()
+        def revoke():
+            started.set()
+            return terms('commerce', TermsInput(acknowledged=False), self.actor)
+        with ThreadPoolExecutor(max_workers=1) as workers, db.connect() as c:
+            with c.transaction():
+                c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:commerce',))
+                revoked = workers.submit(revoke)
+                self.assertTrue(started.wait(5))
+                with self.assertRaises(TimeoutError):
+                    revoked.result(timeout=.25)
+            self.assertFalse(revoked.result(timeout=5)['body']['terms_acknowledged'])
+
     def test_import_serializes_with_manager_correction(self):
         from runtime.analysis_api import correction, CorrectionInput
         service.revise_goal(self.goal, self.actor, paused=True)

@@ -118,9 +118,11 @@ def sources(p=Depends(access)):
 @app.post('/api/v1/sources/{domain}/terms')
 def terms(domain:str,body:TermsInput,p=Depends(access)):
     db.authorize(p,domain,('manager',))
-    source=db.source(domain)
-    updated={**source['body'],'terms_acknowledged':body.acknowledged,'terms_actor':p['id']}
-    db.write('UPDATE backintel.analysis_sources SET body=%s WHERE id=%s',(Jsonb(updated),domain))
+    with db.connect() as c, c.transaction():
+        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
+        source=db.source(domain, connection=c)
+        updated={**source['body'],'terms_acknowledged':body.acknowledged,'terms_actor':p['id']}
+        db.write('UPDATE backintel.analysis_sources SET body=%s WHERE id=%s',(Jsonb(updated),domain), connection=c)
     return db.source(domain)
 
 

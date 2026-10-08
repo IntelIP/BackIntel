@@ -31,6 +31,12 @@ def backup_reviews(source, target):
 
 def verify(root):
     manifest = json.loads((root / "Manifest.json").read_text())
+    expected = {item['path'] for item in manifest['files']}
+    actual = {path.relative_to(root).as_posix() for path in root.rglob('*')
+              if path.is_file() and path.relative_to(root).parts[0] != '.demo-state'
+              and path.relative_to(root).as_posix() != 'Manifest.json'}
+    if actual != expected:
+        raise ValueError('Package file set differs from its manifest')
     for item in manifest["files"]:
         path = (root / item["path"]).resolve()
         if not path.is_relative_to(root.resolve()) or not path.is_file() or sha(path) != item["sha256"]:
@@ -111,7 +117,7 @@ def build(root, demo_id, destination):
             shutil.copyfile(root / relative, target)
         for name in ("runtime", "scripts"):
             (package / name / "__init__.py").write_text("")
-        (package / "RunDemo.py").write_text("from scripts.package_business_demo import main\nmain()\n")
+        (package / "RunDemo.py").write_text("import sys\nsys.dont_write_bytecode = True\nfrom scripts.package_business_demo import main\nmain()\n")
         shutil.copytree(run / "ReflexApp/reflex_demo", package / "PythonDemo/reflex_demo", ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copytree(run / "ReflexApp/assets", package / "PythonDemo/assets")
         shutil.copyfile(root / "reflex_demo/requirements.txt", package / "PythonDemo/requirements.txt")

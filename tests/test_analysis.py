@@ -128,6 +128,25 @@ class AdapterChecks(unittest.TestCase):
         answer['findings'][0] = {'claim': 'The estimate is 80%.', 'kind': 'estimate', 'evidence_ids': ['predicted']}
         self.assertEqual(validate_answer(answer, results), answer)
 
+    def test_qualitative_rankings_use_cited_group_values(self):
+        results = [{'evidence_id':'observed','kind':'observed','table':[{'group':'A','mean':.2},{'group':'B','mean':.8}]}]
+        answer = {'summary':'Ranking checked.', 'limitations':[], 'findings':[
+            {'claim':'A has the highest rate.','kind':'fact','evidence_ids':['observed']}]}
+        with self.assertRaisesRegex(ValueError, 'ranking'):
+            validate_answer(answer, results)
+        answer['findings'][0]['claim'] = 'B has the highest rate.'
+        self.assertEqual(validate_answer(answer, results)['summary'], 'B has the highest rate.')
+
+    def test_missingness_counts_and_scientific_notation(self):
+        results = [{'evidence_id':'source','tool':'inspect_source','missing':{'age':12}},
+                   {'evidence_id':'observed','kind':'observed','table':[{'mean':.001,'count':1}]}]
+        for claim, evidence in [('12 records are missing age.', 'source'), ('The mean is 1e-3.', 'observed')]:
+            answer = {'summary':claim, 'limitations':[], 'findings':[{'claim':claim,'kind':'fact','evidence_ids':[evidence]}]}
+            validate_answer(answer, results)
+        answer['findings'][0]['claim'] = 'The mean is 1e-2.'
+        with self.assertRaisesRegex(ValueError, 'Narrative number'):
+            validate_answer(answer, results)
+
     def test_estimates_cannot_use_observed_values_as_predictions(self):
         results = [{'evidence_id':'observed','kind':'observed','table':[{'mean':.2}]},
                    {'evidence_id':'predicted','kind':'estimate','table':[{'mean':.8}]}]
