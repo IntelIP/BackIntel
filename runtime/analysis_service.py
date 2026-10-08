@@ -9,6 +9,7 @@ import uuid
 
 import httpx
 from psycopg.types.json import Jsonb
+from psycopg.rows import dict_row
 
 from runtime import analysis_store as db
 from runtime.analysis_data import CONFIG, adapt, adapter_identity, digest, fingerprint, source_files
@@ -102,6 +103,11 @@ def submit(identity, actor, question=None, operation='analysis'):
 
 def _admit_run(c, g, actor, question=None, operation='analysis'):
     identity = g['id']
+    with c.cursor(row_factory=dict_row) as cursor:
+        cursor.execute('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (identity,))
+        g = cursor.fetchone()
+    if g is None:
+        raise ValueError('Unknown goal')
     db.authorize(actor, g['domain'], ('manager',) if operation == 'training' else ('manager', 'analyst'))
     if not g['confirmed'] or g['paused']:
         raise ValueError('Confirm the goal definitions and enable the goal first')

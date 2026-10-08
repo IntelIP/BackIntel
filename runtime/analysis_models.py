@@ -90,6 +90,14 @@ def decide(rows, domain):
     return enriched, observations
 
 
+def runtime_dependencies(domain):
+    _, checkpoint_spec = checkpoint(CONFIG['sources'][domain]['kind'])
+    return {'libraries': versions(), 'checkpoint': checkpoint_spec,
+            'tabiclv2_parameters': json.loads(MODEL_CONFIG.read_text())['tabiclv2']['parameters'],
+            'decide': CONFIG['decide'] if domain in ('commerce','support') else None,
+            'implementation_sha256': file_sha(Path(__file__))}
+
+
 def compare(domain, rows, snapshot):
     import joblib
     import numpy as np
@@ -106,11 +114,7 @@ def compare(domain, rows, snapshot):
     if kind=='classification' and len({r['target'] for r in train})<2:
         raise ValueError('Training requires both classification outcomes')
     start=time.monotonic()
-    _, checkpoint_spec = checkpoint(kind)
-    dependencies = {'libraries': versions(), 'checkpoint': checkpoint_spec,
-                    'tabiclv2_parameters': json.loads(MODEL_CONFIG.read_text())['tabiclv2']['parameters'],
-                    'decide': CONFIG['decide'] if domain in ('commerce','support') else None,
-                    'implementation_sha256': file_sha(Path(__file__))}
+    dependencies = runtime_dependencies(domain)
     identity = digest(['model-comparison-v2',domain,snapshot,CONFIG['limits'],dependencies,[r['id'] for r in train+calibration+test]])
     directory=model_root()/'Analysis'/identity
     manifest=directory/'manifest.json'
@@ -180,7 +184,10 @@ def compare(domain, rows, snapshot):
 
 def predict(model, rows):
     import joblib
-    body=model['body']; directory=model_root()/'Analysis'/body['id']
+    body=model['body']
+    if body.get('dependencies') != runtime_dependencies(body['domain']):
+        raise ValueError('Active model runtime dependencies changed; prepare and approve a new comparison')
+    directory=model_root()/'Analysis'/body['id']
     # A manager chooses the immutable approved route after inspecting the comparison.
     route=body.get('approved_route','catboost-facts')
     name=route+'.joblib'

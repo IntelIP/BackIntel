@@ -219,7 +219,14 @@ def request(identity, index, inputs):
         if prior.get('model') not in config['served_models']:
             raise ValueError('Cached response served an unapproved model')
         return prior
-    sent = db.query("UPDATE backintel.analysis_requests SET status='sent' WHERE id=%s AND status='reserved' RETURNING id", (call_id,), one=True)
+    db.check_run(identity)
+    sent = db.query("""UPDATE backintel.analysis_requests SET status='sent' WHERE id=%s AND status='reserved'
+        AND EXISTS (SELECT 1 FROM backintel.analysis_runs r
+                    JOIN backintel.capability_jobs j ON j.job_id=r.job_id
+                    JOIN backintel.analysis_goals g ON g.id=r.goal_id
+                    WHERE r.id=backintel.analysis_requests.run_id AND NOT j.cancel_requested
+                      AND j.state IN ('queued','running','retry') AND NOT g.paused AND g.version=r.goal_version
+                    FOR UPDATE OF j,g) RETURNING id""", (call_id,), one=True)
     if not sent:
         raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
     try:

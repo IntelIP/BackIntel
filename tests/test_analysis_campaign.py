@@ -87,6 +87,36 @@ class CampaignChecks(unittest.TestCase):
             service.submit(self.goal, self.actor)
         self.assertEqual(db.run(self.run['id'])['status'], 'partial')
 
+    def test_admission_reloads_goal_after_concurrent_edit(self):
+        stale = db.goal(self.goal)
+        service.revise_goal(self.goal, self.actor, question='Revised fixture question')
+        with db.connect() as c, c.transaction(), self.assertRaisesRegex(ValueError, 'Confirm.*goal'):
+            service._admit_run(c, stale, self.actor)
+        service.revise_goal(self.goal, self.actor, confirmed=True)
+        with db.connect() as c, c.transaction():
+            identity = service._admit_run(c, stale, self.actor)
+        current = db.run(identity)
+        self.assertEqual(current['goal_version'], db.goal(self.goal)['version'])
+        self.assertEqual(current['body']['question'], 'Revised fixture question')
+
+    def test_cancellation_before_sent_transition_prevents_provider_post(self):
+        from unittest.mock import MagicMock
+        from runtime import analysis_agent as agent
+        from runtime.jobs import cancel
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.get.return_value.json.return_value = {'data':[{'id':CONFIG['analyst']['model'],'pricing':{'prompt':'0','completion':'0'}}]}
+        query = db.query
+        def cancel_before_dispatch(sql, *args, **kwargs):
+            if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+                with db.connect() as connection:
+                    cancel(connection, self.run['job_id'])
+            return query(sql, *args, **kwargs)
+        with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client), \
+                patch.object(db, 'query', side_effect=cancel_before_dispatch), self.assertRaisesRegex(RuntimeError, 'reservation changed'):
+            agent.request(self.run['id'], 0, [])
+        client.post.assert_not_called()
+
     def test_success_publication_recovers_atomically(self):
         result = {'summary': 'explicit fixture', 'tables': [], 'mode': 'fixture'}
         with patch('runtime.analysis_agent.analyze', return_value=result):
@@ -489,7 +519,7 @@ class CampaignChecks(unittest.TestCase):
             value = original(identity)
             db.write('UPDATE backintel.analysis_goals SET paused=true WHERE id=%s', (identity,))
             return value
-        with patch.object(db, 'goal', side_effect=read), self.assertRaisesRegex(ValueError, 'Goal changed during promotion'):
+        with patch.object(db, 'goal', side_effect=read), self.assertRaisesRegex(ValueError, 'Confirm.*goal|Goal changed during promotion'):
             service.promote(candidate, self.actor)
         self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
         self.assertIsNone(db.goal(self.goal)['active_model'])

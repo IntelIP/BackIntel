@@ -107,10 +107,10 @@ export function App() {
     return ()=>controller.abort()
   },[refresh])
   useEffect(()=>{
-    if (!workspace?.demo) return
+    if (workspace?.demo?.status !== 'running') return
     const interval=setInterval(()=>setRefresh(value=>value+1),1500)
     return ()=>clearInterval(interval)
-  },[Boolean(workspace?.demo)])
+  },[workspace?.demo?.status])
   const cases=(workspace?.cases??[]).filter(item=>item.workflow===workflow)
   const visible=cases.filter(item=>(filter==='all'||(filter==='open'?!item.review:!!item.review))&&`${item.id} ${item.title} ${item.summary}`.toLowerCase().includes(query.toLowerCase()))
   const selected=visible.find(item=>item.id===selectedId)??visible[0]

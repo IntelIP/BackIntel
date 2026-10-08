@@ -147,14 +147,27 @@ class AdapterChecks(unittest.TestCase):
         model = {'body': {'id': 'fixture', 'domain': 'commerce', 'kind': 'regression',
                          'approved_route': 'catboost-facts-decide',
                          'artifacts': [{'file': 'catboost-facts-decide.joblib', 'sha256': 'fixture'}]}}
+        model['body']['dependencies'] = {}
         estimator = Mock()
         estimator.predict.return_value = [0.25]
-        with patch('runtime.analysis_models.decide', return_value=(rows, {})) as enrich, \
+        with patch('runtime.analysis_models.runtime_dependencies', return_value={}), \
+             patch('runtime.analysis_models.decide', return_value=(rows, {})) as enrich, \
              patch('runtime.analysis_models.model_root', return_value=Path('/unused-fixture-models')), \
              patch('runtime.analysis_models.file_sha', return_value='fixture'), \
              patch.dict('sys.modules', {'joblib': Mock(load=Mock(return_value={'vectorizer': Mock(), 'estimator': estimator}))}):
             self.assertEqual(predict(model, rows), {'fixture': 0.25})
         enrich.assert_called_once_with(rows, 'commerce')
+
+    def test_prediction_rejects_changed_runtime_before_loading_model(self):
+        from unittest.mock import Mock, patch
+        from runtime.analysis_models import predict
+        loader = Mock()
+        model = {'body':{'domain':'commerce','dependencies':{'implementation':'old'}}}
+        with patch('runtime.analysis_models.runtime_dependencies', return_value={'implementation':'new'}), \
+                patch.dict('sys.modules', {'joblib':Mock(load=loader)}), \
+                self.assertRaisesRegex(ValueError, 'runtime dependencies changed'):
+            predict(model, [])
+        loader.assert_not_called()
 
     def test_timestamp_offsets_preserve_the_same_instant(self):
         from runtime.analysis_data import timestamp

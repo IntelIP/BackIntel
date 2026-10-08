@@ -206,6 +206,21 @@ class RealBoundaryTests(unittest.TestCase):
         self.assertEqual(FixtureClassifier.calls, 0)
         self.assertEqual(usage_for(store)["provider_calls"], 0)
 
+    def test_default_plan_cache_rejects_changed_history_and_events(self):
+        from copy import deepcopy
+        from runtime.capability_pipeline import followup_events
+        store = Evidence(self.conn, 'changed-history-'+uuid.uuid4().hex[:20])
+        plan = prepare_history(store, 'support')
+        changed = deepcopy(history('support'))
+        changed[0]['policy']['cooldown'] += 1
+        with patch('runtime.real_pipeline.history', return_value=changed), self.assertRaisesRegex(ValueError, 'identity conflicts'):
+            prepare_history(store, 'support')
+        prepare_followups(store, plan)
+        changed_events = [*followup_events('support'), (999, 'fixture', {'operation':'refresh', 'at':999})]
+        with patch('runtime.capability_pipeline.followup_events', return_value=changed_events), self.assertRaisesRegex(ValueError, 'identity conflicts'):
+            prepare_followups(store, plan)
+        self.assertEqual(FixtureClassifier.calls, 0)
+
     def test_missing_credential_preserves_approved_request_slot(self):
         self.approve_fixture()
         test_dsn = dsn()
