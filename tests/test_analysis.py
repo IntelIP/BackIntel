@@ -32,8 +32,22 @@ class AdapterChecks(unittest.TestCase):
             {'claim':'Current rate is 80%.','kind':'fact','evidence_ids':['old']}]}
         with self.assertRaisesRegex(ValueError, 'permitted calculation'):
             validate_answer(answer, results)
-        with self.assertRaisesRegex(ValueError, 'Narrative number'):
+        with self.assertRaisesRegex(ValueError, 'current calculation evidence'):
             validate_answer({'summary':'Current mean is 0.8.','findings':[],'limitations':[]},results)
+
+    def test_qualitative_summary_requires_current_evidence(self):
+        answer = {'summary':'Dresses have the weakest recommendation rate.','findings':[],'limitations':[]}
+        for results in ([], [{'evidence_id':'old','tool':'prior_findings','kind':'historical'}]):
+            with self.subTest(results=results), self.assertRaisesRegex(ValueError, 'current calculation evidence'):
+                validate_answer(answer, results)
+
+    def test_prediction_source_size_is_a_supported_count(self):
+        results = [{'evidence_id':'prediction','tool':'predict','kind':'estimate',
+                    'source_size':10000,'sample_size':200,'table':[{'mean':.2,'count':200}]}]
+        answer = {'summary':'The source has 10,000 records.','findings':[], 'limitations':[]}
+        validate_answer(answer, results)
+        with self.assertRaisesRegex(ValueError, 'Narrative number'):
+            validate_answer({**answer, 'summary':'The estimated rate is 10,000%.'}, results)
 
     def test_tool_argument_shapes_are_rejected_before_execution(self):
         from runtime.analysis_agent import tool

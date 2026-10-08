@@ -65,10 +65,12 @@ def validate_answer(answer, results, group=None):
             raise ValueError('Finding lacks permitted calculation evidence')
         if f['kind'] == 'fact' and any(r.get('kind') == 'estimate' for r in results if r['evidence_id'] in f['evidence_ids']):
             raise ValueError('Predicted evidence cannot support a factual finding')
+    if not results:
+        raise ValueError('Answer lacks current calculation evidence')
     claims = [(answer['summary'], results)] + [(f['claim'], [r for r in results if r['evidence_id'] in f['evidence_ids']]) for f in answer['findings']]
     for text, cited in claims:
         means = metric_values(cited, {'mean'})
-        counts = metric_values(cited, {'count', 'labeled', 'records', 'sample_size'})
+        counts = metric_values(cited, {'count', 'labeled', 'records', 'sample_size', 'source_size'})
         if not isinstance(text, str) or len(text) > 5000 or re.search(r'\b(causes|caused by|will default|approve the loan|deny the loan)\b', text, re.I):
             raise ValueError('Unsupported causal or lending claim')
         labels={str(row['group']) for result in cited for row in result.get('table',[]) if 'group' in row}
