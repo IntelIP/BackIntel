@@ -298,6 +298,13 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
         row=next((r for r in rows if r['id']==body.record_id),None)
         if not row or set(body.features)-set(row['features']):
             raise ValueError('Unknown record or feature')
+        for feature, value in body.features.items():
+            if value is None:
+                continue
+            kinds = {isinstance(r['features'][feature], str) for r in rows
+                     if r['features'].get(feature) is not None}
+            if kinds != {isinstance(value, str)}:
+                raise ValueError(f'Correction must preserve the established type of {feature}')
         row['features'].update(body.features)
         row['groups'].update(feature_groups(domain, row['features']))
         if body.target is not None:

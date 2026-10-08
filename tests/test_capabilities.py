@@ -386,6 +386,9 @@ class CapabilityTests(unittest.TestCase):
             second = release_due(reconnected)
             self.assertNotEqual(first,second)
             self.assertEqual(reconnected.execute("SELECT state,occurrence FROM backintel.capability_triggers WHERE trigger_id=%s",(trigger,)).fetchone(),("fired",2))
+        self.assertEqual(schedule(store,"schedule",{"identity":"scheduled"},time.time(),"timer",repeat_seconds=1,occurrences=2), trigger)
+        with self.assertRaisesRegex(ValueError, "Conflicting trigger identity"):
+            schedule(store,"schedule",{"identity":"scheduled"},time.time(),"timer",repeat_seconds=1,occurrences=3)
         for key in first+second:
             execute(key,lambda ledger,payload:ledger.put("test_result","scheduled",payload,0))
         for i in range(20):

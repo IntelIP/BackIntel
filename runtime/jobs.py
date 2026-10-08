@@ -30,9 +30,9 @@ def schedule(store, kind: str, payload: dict, due_at: float, request_id: str,
     trigger_id = digest([store.task_id,request_id])
     with store.connection.transaction():
         store.lock()
-        existing = store.connection.execute("SELECT kind,payload,repeat_seconds FROM backintel.capability_triggers WHERE trigger_id=%s",(trigger_id,)).fetchone()
+        existing = store.connection.execute("SELECT kind,payload,repeat_seconds,remaining+occurrence FROM backintel.capability_triggers WHERE trigger_id=%s",(trigger_id,)).fetchone()
         if existing:
-            if existing != (kind,payload,repeat_seconds):
+            if existing != (kind,payload,repeat_seconds,occurrences):
                 raise ValueError("Conflicting trigger identity")
             return trigger_id
         pending = store.connection.execute("SELECT count(*) FROM backintel.capability_triggers WHERE task_id=%s AND state='pending'",(store.task_id,)).fetchone()[0]

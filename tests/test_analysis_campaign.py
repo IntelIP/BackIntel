@@ -117,6 +117,110 @@ class CampaignChecks(unittest.TestCase):
             agent.request(self.run['id'], 0, [])
         client.post.assert_not_called()
 
+    def test_revoked_confirmation_stops_dispatch_and_publication(self):
+        from unittest.mock import MagicMock
+        from runtime import analysis_agent as agent
+        service.revise_goal(self.goal, self.actor, confirmed=False)
+        with self.assertRaisesRegex(PermissionError, 'unconfirmed'):
+            db.check_run(self.run['id'])
+        service.revise_goal(self.goal, self.actor, confirmed=True)
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.get.return_value.json.return_value = {'data':[{'id':CONFIG['analyst']['model'],'pricing':{'prompt':'0','completion':'0'}}]}
+        query = db.query
+        def revoke_before_dispatch(sql, *args, **kwargs):
+            if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+                service.revise_goal(self.goal, self.actor, confirmed=False)
+            return query(sql, *args, **kwargs)
+        with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client), patch.object(db, 'query', side_effect=revoke_before_dispatch), self.assertRaisesRegex(RuntimeError, 'reservation changed'):
+            agent.request(self.run['id'], 0, [])
+        client.post.assert_not_called()
+        service.revise_goal(self.goal, self.actor, confirmed=True)
+        def revoke_during_analysis(identity):
+            service.revise_goal(self.goal, self.actor, confirmed=False)
+            return {'summary':'fixture'}
+        with patch.object(agent, 'analyze', side_effect=revoke_during_analysis):
+            service.execute(self.run['job_id'], service.handle)
+        self.assertEqual(db.run(self.run['id'])['status'], 'cancelled')
+        self.assertIsNone(db.goal(self.goal)['last_success'])
+
+    def test_import_publication_and_followups_share_job_acceptance(self):
+        from runtime.jobs import cancel
+        db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':True}),))
+        for boundary in ('cancel_during_adaptation', 'interrupt_before_commit', 'success'):
+            with self.subTest(boundary=boundary):
+                run = service.submit_import('commerce', self.actor)
+                snapshot = digest([self.snapshot, boundary])
+                def adapt(domain, paths):
+                    if boundary == 'cancel_during_adaptation':
+                        with db.connect() as c:
+                            cancel(c, run['job_id'])
+                    return snapshot, {'files':[], 'mode':'fixture'}, self.rows
+                def handler(store, payload):
+                    result = service.handle(store, payload)
+                    if boundary == 'interrupt_before_commit':
+                        raise KeyboardInterrupt('Fixture interruption before acceptance')
+                    return result
+                with patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=adapt):
+                    if boundary == 'interrupt_before_commit':
+                        with self.assertRaises(KeyboardInterrupt):
+                            service.execute(run['job_id'], handler)
+                        db.write("UPDATE backintel.analysis_runs SET status='partial' WHERE id=%s", (run['id'],))
+                    else:
+                        service.execute(run['job_id'], handler)
+                if boundary == 'success':
+                    self.assertEqual(db.source('commerce')['latest_snapshot'], snapshot)
+                    admitted = db.query('SELECT snapshot_id FROM backintel.analysis_runs WHERE goal_id=%s AND snapshot_id=%s', (self.goal, snapshot))
+                    self.assertEqual(len(admitted), 1)
+                    self.assertEqual(db.run(run['id'])['status'], 'succeeded')
+                else:
+                    self.assertEqual(db.source('commerce')['latest_snapshot'], self.snapshot)
+                    self.assertFalse(db.query('SELECT id FROM backintel.analysis_snapshots WHERE id=%s', (snapshot,)))
+                    self.assertFalse(db.query('SELECT id FROM backintel.analysis_runs WHERE snapshot_id=%s', (snapshot,)))
+
+    def test_import_serializes_with_manager_correction(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        service.revise_goal(self.goal, self.actor, paused=True)
+        db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':True}),))
+        adapting, release, correction_read = threading.Event(), threading.Event(), threading.Event()
+        snapshot = digest([self.snapshot, 'import'])
+        original_records = db.records
+        def adapt(domain, paths):
+            adapting.set()
+            if not release.wait(5):
+                raise TimeoutError('Fixture adaptation was not released')
+            return snapshot, {'files':[], 'mode':'fixture'}, self.rows
+        def records(identity, **kwargs):
+            correction_read.set()
+            return original_records(identity, **kwargs)
+        with patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=adapt), patch.object(db, 'records', side_effect=records), ThreadPoolExecutor(max_workers=2) as workers:
+            imported = workers.submit(service.import_source, 'commerce', self.actor)
+            try:
+                self.assertTrue(adapting.wait(5))
+                corrected = workers.submit(correction, 'commerce', CorrectionInput(record_id=self.rows[0]['id'], features={'age':41}, explanation='Fixture correction'), self.actor)
+                self.assertFalse(correction_read.wait(.25))
+            finally:
+                release.set()
+            imported.result(timeout=5)
+            corrected.result(timeout=5)
+        self.assertEqual(db.records(db.source('commerce')['latest_snapshot'])[0]['features']['age'], 41)
+
+    def test_corrections_preserve_feature_types_including_missing_values(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        service.revise_goal(self.goal, self.actor, paused=True)
+        rows = [dict(self.rows[0], features={'age':40, 'department':'A'}),
+                dict(self.rows[0], id='missing', features={'age':None, 'department':None})]
+        snapshot = digest(rows)
+        db.save_snapshot('commerce', snapshot, {'files':[], 'mode':'fixture'}, rows)
+        for features in ({'age':'forty'}, {'department':42}):
+            with self.subTest(features=features), self.assertRaisesRegex(ValueError, 'established type'):
+                correction('commerce', CorrectionInput(record_id='missing', features=features, explanation='Fixture invalid type'), self.actor)
+            self.assertEqual(db.source('commerce')['latest_snapshot'], snapshot)
+        correction('commerce', CorrectionInput(record_id='missing', features={'age':41, 'department':'B'}, explanation='Fixture valid types'), self.actor)
+        correction('commerce', CorrectionInput(record_id='missing', features={'age':None}, explanation='Fixture missing value'), self.actor)
+        saved = next(r for r in db.records(db.source('commerce')['latest_snapshot']) if r['id']=='missing')
+        self.assertEqual(saved['features'], {'age':None, 'department':'B'})
+
     def test_success_publication_recovers_atomically(self):
         result = {'summary': 'explicit fixture', 'tables': [], 'mode': 'fixture'}
         with patch('runtime.analysis_agent.analyze', return_value=result):

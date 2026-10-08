@@ -112,7 +112,7 @@ class AdapterChecks(unittest.TestCase):
                  patch.object(service.db,'query',return_value={'body':original}), \
                  patch.object(service,'adapter_identity',return_value=identity), \
                  patch.object(service,'adapt',return_value=('new',identity,[])) as adapt, \
-                 patch.object(service.db,'save_snapshot'):
+                 patch.object(service.db,'save_snapshot'), patch.object(service.db,'connect'):
                 self.assertEqual(service._import_source('commerce',{'id':'manager'}), {'snapshot':'new','changed':True})
                 adapt.assert_called_once()
 
@@ -277,7 +277,7 @@ class ApplicationChecks(unittest.TestCase):
             query.side_effect=[[goal],old,None];records.side_effect=[[],rows]
             service.schedule_snapshot('commerce',{'changed':True,'snapshot':'new'})
             self.assertEqual(submit.call_count,2)
-            self.assertEqual(submit.call_args.kwargs,{'operation':'training'})
+            self.assertEqual(submit.call_args.kwargs,{'operation':'training','connection':None})
             submit.reset_mock();query.side_effect=[[goal],old,recent];records.side_effect=[[],rows]
             service.schedule_snapshot('commerce',{'changed':True,'snapshot':'new'})
             self.assertEqual(submit.call_count,1)

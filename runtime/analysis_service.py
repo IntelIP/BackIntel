@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 import subprocess
 import sys
 import time
@@ -18,36 +19,42 @@ from runtime.evidence import Evidence
 from runtime.jobs import enqueue, execute, runnable
 
 
-def _import_source(domain, actor):
+def _import_source(domain, actor, *, connection=None, run_id=None):
     db.authorize(actor, domain, ('manager',))
-    source = db.source(domain)
-    if not source['body'].get('terms_acknowledged'):
-        raise PermissionError('Source access and terms must be confirmed before import')
-    paths = source_files(domain)
-    if source['latest_snapshot']:
-        prior = db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s', (source['latest_snapshot'],), one=True)
-        if (prior['body']['files'] == [fingerprint(p) for p in paths]
-                and all(prior['body'].get(key) == value for key, value in adapter_identity(domain).items())
-                and (domain!='maintenance' or prior['body'].get('unit_mapping')=='dataset-qualified-engine-v2')):
-            return {'snapshot': source['latest_snapshot'], 'changed': False}
-    identity, body, rows = adapt(domain, paths)
-    if domain=='maintenance':
-        body['unit_mapping']='dataset-qualified-engine-v2'
-        identity=digest(body)
-    db.save_snapshot(domain, identity, body, rows)
-    return {'snapshot': identity, 'changed': source['latest_snapshot'] != identity}
+    with (nullcontext(connection) if connection is not None else db.connect()) as c, c.transaction():
+        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
+        source = db.source(domain, connection=c)
+        if not source['body'].get('terms_acknowledged'):
+            raise PermissionError('Source access and terms must be confirmed before import')
+        paths = source_files(domain)
+        if source['latest_snapshot']:
+            prior = db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s', (source['latest_snapshot'],), one=True)
+            if (prior['body']['files'] == [fingerprint(p) for p in paths]
+                    and all(prior['body'].get(key) == value for key, value in adapter_identity(domain).items())
+                    and (domain!='maintenance' or prior['body'].get('unit_mapping')=='dataset-qualified-engine-v2')):
+                return {'snapshot': source['latest_snapshot'], 'changed': False}
+        identity, body, rows = adapt(domain, paths)
+        if domain=='maintenance':
+            body['unit_mapping']='dataset-qualified-engine-v2'
+            identity=digest(body)
+        if run_id is not None:
+            db.check_run(run_id)
+            cancelled = c.execute('SELECT cancel_requested FROM backintel.capability_jobs WHERE job_id=%s FOR UPDATE', (db.run(run_id)['job_id'],)).fetchone()[0]
+            if cancelled:
+                raise InterruptedError('Import cancelled')
+        db.save_snapshot(domain, identity, body, rows, connection=c)
+        return {'snapshot': identity, 'changed': source['latest_snapshot'] != identity}
 
-
-def import_source(domain, actor):
+def import_source(domain, actor, *, connection=None, run_id=None):
     db.authorize(actor, domain, ('manager',))
     try:
-        result = _import_source(domain, actor)
+        result = _import_source(domain, actor, connection=connection, run_id=run_id)
     except (OSError, ValueError, PermissionError, RuntimeError) as error:
         db.write('UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s',
-                 (Jsonb({'last_refresh_error':safe_error(error),'last_checked_at':time.time()}),domain))
+                 (Jsonb({'last_refresh_error':safe_error(error),'last_checked_at':time.time()}),domain), connection=connection)
         raise
     db.write("UPDATE backintel.analysis_sources SET body=(body-'last_refresh_error') || %s WHERE id=%s",
-             (Jsonb({'last_checked_at':time.time()}),domain))
+             (Jsonb({'last_checked_at':time.time()}),domain), connection=connection)
     return result
 
 
@@ -94,11 +101,11 @@ def revise_goal(identity, actor, question=None, paused=None, confirmed=None, thr
     return db.goal(identity)
 
 
-def submit(identity, actor, question=None, operation='analysis'):
+def submit(identity, actor, question=None, operation='analysis', *, connection=None):
     g = db.goal(identity)
-    with db.connect() as c, c.transaction():
+    with (nullcontext(connection) if connection is not None else db.connect()) as c, c.transaction():
         run_id = _admit_run(c, g, actor, question, operation)
-    return db.run(run_id)
+        return db.run(run_id, connection=c)
 
 
 def _admit_run(c, g, actor, question=None, operation='analysis'):
@@ -111,7 +118,7 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
     db.authorize(actor, g['domain'], ('manager',) if operation == 'training' else ('manager', 'analyst'))
     if not g['confirmed'] or g['paused']:
         raise ValueError('Confirm the goal definitions and enable the goal first')
-    snapshot = db.source(g['domain'])['latest_snapshot']
+    snapshot = db.source(g['domain'], connection=c)['latest_snapshot']
     if not snapshot:
         raise ValueError('Import the selected source first')
     if question is not None and (not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000):
@@ -223,10 +230,12 @@ def handle(store, payload):
     db.event(identity, 'started', {'operation': payload['operation']})
     try:
         if payload['operation'] == 'import':
-            db.check_run(identity)
-            result = import_source(r['body']['domain'], {'id': r['owner']})
-            db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s',(result['snapshot'],identity))
-            result['goals'] = schedule_snapshot(r['body']['domain'], result)
+            with store.connection.transaction():
+                db.check_run(identity)
+                result = import_source(r['body']['domain'], {'id': r['owner']}, connection=store.connection, run_id=identity)
+                db.check_run(identity)
+                db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s', (result['snapshot'],identity), connection=store.connection)
+                result['goals'] = schedule_snapshot(r['body']['domain'], result, connection=store.connection)
         else:
             result = model_job(identity) if payload['operation'] == 'training' else analyze(identity)
         db.check_run(identity)
@@ -300,22 +309,22 @@ def dispatch(run_id=None):
     return {'status': 'completed', 'jobs': results}
 
 
-def schedule_snapshot(domain, update, *, train=True):
-    # Imports commit before scheduling. Revisit unchanged snapshots as well;
+def schedule_snapshot(domain, update, *, train=True, connection=None):
+    # Import jobs share their publication transaction with follow-up admission;
     # submit's stable run identity reuses jobs already admitted successfully.
     outcomes = []
     for g in db.query('SELECT * FROM backintel.analysis_goals WHERE domain=%s AND confirmed AND NOT paused', (domain,)):
         try:
             actor = {'id': g['owner']}
-            run = submit(g['id'], actor)
+            run = submit(g['id'], actor, connection=connection)
             latest = db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC LIMIT 1', (g['id'],), one=True)
             if train and latest:
                 old = {r['id'] for r in db.records(latest['snapshot_id']) if r['target'] is not None and r['split']=='train'}
-                new = {r['id'] for r in db.records(update['snapshot']) if r['target'] is not None and r['split']=='train'}
+                new = {r['id'] for r in db.records(update['snapshot'], connection=connection) if r['target'] is not None and r['split']=='train'}
                 attempt = db.query("SELECT created_at FROM backintel.analysis_runs WHERE goal_id=%s AND body->>'operation'='training' ORDER BY created_at DESC LIMIT 1", (g['id'],), one=True)
                 interval = time.time()-(attempt or latest)['created_at'].timestamp()
                 if len(new-old)>=CONFIG['limits']['new_labels'] and interval>=CONFIG['limits']['candidate_interval_seconds']:
-                    submit(g['id'], actor, operation='training')
+                    submit(g['id'], actor, operation='training', connection=connection)
             outcomes.append({'goal_id': g['id'], 'run_id': run['id'], 'status': run['status']})
         except (ValueError, PermissionError, RuntimeError, OSError) as error:
             outcomes.append({'goal_id': g['id'], 'status': 'blocked', 'reason': safe_error(error)})

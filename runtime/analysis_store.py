@@ -19,14 +19,14 @@ def connect():
     return psycopg.connect(dsn(), autocommit=True)
 
 
-def query(sql, params=(), one=False):
-    with connect() as c, c.cursor(row_factory=dict_row) as cur:
+def query(sql, params=(), one=False, *, connection=None):
+    with (nullcontext(connection) if connection is not None else connect()) as c, c.cursor(row_factory=dict_row) as cur:
         cur.execute(sql, params or None)
         return cur.fetchone() if one else cur.fetchall()
 
 
-def write(sql, params=()):
-    with connect() as c:
+def write(sql, params=(), *, connection=None):
+    with (nullcontext(connection) if connection is not None else connect()) as c:
         c.execute(sql, params or None)
 
 
@@ -53,8 +53,8 @@ def catalog():
               (domain, domain, Jsonb({**spec, 'terms_acknowledged': False})))
 
 
-def source(domain):
-    s = query('SELECT * FROM backintel.analysis_sources WHERE id=%s', (domain,), one=True)
+def source(domain, *, connection=None):
+    s = query('SELECT * FROM backintel.analysis_sources WHERE id=%s', (domain,), one=True, connection=connection)
     if not s:
         raise ValueError('Unknown source')
     return s
@@ -72,8 +72,8 @@ def save_snapshot(domain, identity, body, rows, *, connection=None):
         e.put('source_snapshot', identity, body, int(time.time())) if not e.find('source_snapshot', identity) else None
 
 
-def records(snapshot):
-    return [r['body'] for r in query('SELECT body FROM backintel.analysis_records WHERE snapshot_id=%s ORDER BY id', (snapshot,))]
+def records(snapshot, *, connection=None):
+    return [r['body'] for r in query('SELECT body FROM backintel.analysis_records WHERE snapshot_id=%s ORDER BY id', (snapshot,), connection=connection)]
 
 
 def goal(identity):
@@ -83,8 +83,8 @@ def goal(identity):
     return g
 
 
-def run(identity):
-    r = query('SELECT * FROM backintel.analysis_runs WHERE id=%s', (identity,), one=True)
+def run(identity, *, connection=None):
+    r = query('SELECT * FROM backintel.analysis_runs WHERE id=%s', (identity,), one=True, connection=connection)
     if r is None:
         raise ValueError('Unknown run')
     return r
@@ -107,8 +107,8 @@ def check_run(identity):
         model=query('SELECT body FROM backintel.analysis_models WHERE id=%s',(r['body']['model_id'],),one=True)
         if not model or model['body'].get('invalidated_by'):
             raise PermissionError('Pinned predictor was invalidated by a source correction')
-    if g['paused'] or g['version'] != r['goal_version']:
-        raise PermissionError('Goal is paused or this run was superseded')
+    if not g['confirmed'] or g['paused'] or g['version'] != r['goal_version']:
+        raise PermissionError('Goal is unconfirmed, paused or this run was superseded')
     if query('SELECT cancel_requested FROM backintel.capability_jobs WHERE job_id=%s', (r['job_id'],), one=True)['cancel_requested']:
         raise InterruptedError('Run cancelled')
     return r, g
