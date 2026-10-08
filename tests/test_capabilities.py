@@ -419,7 +419,19 @@ class CapabilityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "matching prediction"):
             analyze(store, task, [feature], [forecast], event, 1)
 
-    def test_overdue_jobs_preserve_order_across_retry_and_restart(self):
+    def test_direct_claim_cannot_bypass_earlier_work(self):
+        store, task, _, _ = self.scenario()
+        first = enqueue(store, {'fixture':'first'}, 'direct-first')
+        second = enqueue(store, {'fixture':'second'}, 'direct-second')
+        self.assertIsNone(claim(self.conn, second))
+        self.assertIsNotNone(claim(self.conn, first))
+        self.assertIsNone(claim(self.conn, second))
+        self.conn.execute("UPDATE backintel.capability_jobs SET state='failed' WHERE job_id=%s", (first,))
+        self.assertIsNone(claim(self.conn, second))
+        self.conn.execute("UPDATE backintel.capability_jobs SET state='cancelled' WHERE job_id=%s", (first,))
+        self.assertIsNotNone(claim(self.conn, second))
+
+    def test_dispatch_preserves_order_across_retry_and_restart(self):
         store, task, _, _ = self.scenario()
         with self.conn.transaction():
             first = enqueue(store,{"identity":"first"},"first")

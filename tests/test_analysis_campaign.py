@@ -499,13 +499,22 @@ class CampaignChecks(unittest.TestCase):
         self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
         self.assertIsNone(db.goal(self.goal)['active_model'])
 
-    def test_ineligible_goal_does_not_commit_promotion_or_a_run(self):
+    def test_promotion_refresh_uses_newly_active_model(self):
+        candidate = self.candidate_fixture()
+        first = service.promote(candidate, self.actor)
+        self.assertEqual(first['body']['model_id'], candidate)
+        second = digest([candidate, 'replacement'])
+        db.write('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s)',
+                 (second, self.goal, self.snapshot, Jsonb({'artifacts':[{'file':'catboost-facts.joblib'}]})))
+        self.assertEqual(service.promote(second, self.actor)['body']['model_id'], second)
+
+    def test_ineligible_goal_rejects_promotion_without_committing_work(self):
         candidate = self.candidate_fixture()
         before = db.query('SELECT count(*) FROM backintel.analysis_runs', one=True)['count']
         for paused, confirmed in ((True, True), (False, False)):
             with self.subTest(paused=paused, confirmed=confirmed):
                 db.write('UPDATE backintel.analysis_goals SET paused=%s,confirmed=%s WHERE id=%s', (paused, confirmed, self.goal))
-                with self.assertRaisesRegex(ValueError, 'Confirm the goal'):
+                with self.assertRaisesRegex(ValueError, 'Goal changed during promotion'):
                     service.promote(candidate, self.actor)
                 self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
                 self.assertIsNone(db.goal(self.goal)['active_model'])

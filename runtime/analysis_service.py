@@ -192,10 +192,10 @@ def promote(identity, actor, route='catboost-facts'):
             raise ValueError('Requested predictor was not validated in this comparison')
         if locked[1] and locked[0].get('approved_route') != route:
             raise ValueError('A promoted candidate has an immutable predictor route')
-        run_id = _admit_run(c, {**g, 'active_model': identity}, actor)
         changed = c.execute('UPDATE backintel.analysis_goals SET active_model=%s WHERE id=%s AND version=%s AND confirmed AND NOT paused RETURNING id', (identity, g['id'], g['version'])).fetchone()
         if not changed:
             raise ValueError('Goal changed during promotion; reload it and try again')
+        run_id = _admit_run(c, g, actor)
         if not locked[1]:
             body = {**locked[0], 'approved_route': route, 'approved_by': actor['id']}
             c.execute('UPDATE backintel.analysis_models SET promoted=true,body=%s WHERE id=%s', (Jsonb(body), identity))

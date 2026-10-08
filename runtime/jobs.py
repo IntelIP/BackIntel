@@ -100,10 +100,12 @@ def claim(connection, job_id: str, lease_seconds=30) -> dict | None:
     if type(lease_seconds) is not int or not 30 <= lease_seconds <= 1830:
         raise ValueError("Invalid job lease")
     with connection.transaction():
-        row = connection.execute("""UPDATE backintel.capability_jobs SET state='running',attempts=attempts+1,
+        row = connection.execute("""UPDATE backintel.capability_jobs AS j SET state='running',attempts=attempts+1,
             lease_until=now()+%s*interval '1 second',updated_at=now()
             WHERE job_id=%s AND cancel_requested=false AND attempts<max_attempts AND due_at<=now()
             AND (state IN ('queued','retry') OR (state='running' AND lease_until<now()))
+            AND NOT EXISTS (SELECT 1 FROM backintel.capability_jobs earlier WHERE earlier.task_id=j.task_id
+                AND earlier.sequence<j.sequence AND earlier.state IN ('queued','running','retry','failed'))
             RETURNING task_id,payload,attempts,max_attempts""",(lease_seconds,job_id)).fetchone()
         if row:
             Evidence(connection,row[0]).put("job_attempt_start",f"{job_id}:{row[2]}",
