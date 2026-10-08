@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from contextlib import nullcontext
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -108,6 +109,11 @@ def submit(identity, actor, question=None, operation='analysis', *, connection=N
         return db.run(run_id, connection=c)
 
 
+def analysis_identity():
+    files = sorted(Path(__file__).parent.glob('analysis_*.py'))
+    return digest({'implementation':{path.name:fingerprint(path)['sha256'] for path in files}, 'config':CONFIG})
+
+
 def _admit_run(c, g, actor, question=None, operation='analysis'):
     identity = g['id']
     with c.cursor(row_factory=dict_row) as cursor:
@@ -124,7 +130,7 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
     if question is not None and (not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000):
         raise ValueError('Invalid follow-up question')
     question = question or g['body']['question']
-    run_id = digest([identity, g['version'], snapshot, operation, question, g['active_model']])
+    run_id = digest([identity, g['version'], snapshot, operation, question, g['active_model'], analysis_identity()])
     payload = {'run_id': run_id, 'operation': operation}
     c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
               (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model']})))
@@ -164,7 +170,7 @@ def submit_import(domain, actor):
     return db.run(identity)
 
 
-def model_job(identity):
+def model_job(identity, *, connection=None):
     r, g = db.check_run(identity)
     # A subprocess enforces wall time and releases predictor/Decide memory between jobs.
     child = subprocess.run([sys.executable, '-m', 'runtime.analysis_models', '--domain', g['domain'], '--snapshot', r['snapshot_id']],
@@ -173,7 +179,7 @@ def model_job(identity):
         raise RuntimeError('Model comparison failed: '+safe_error(child.stderr[-1200:]))
     manifest = json.loads(child.stdout)
     candidate = digest([g['id'], manifest['id']])
-    with db.connect() as c, c.transaction():
+    with (nullcontext(connection) if connection is not None else db.connect()) as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
         db.check_run(identity)
         if db.source(g['domain'])['latest_snapshot'] != r['snapshot_id']:
@@ -229,33 +235,38 @@ def handle(store, payload):
     db.write("UPDATE backintel.analysis_runs SET status='running',updated_at=now() WHERE id=%s", (identity,))
     db.event(identity, 'started', {'operation': payload['operation']})
     try:
-        if payload['operation'] == 'import':
-            with store.connection.transaction():
-                db.check_run(identity)
-                result = import_source(r['body']['domain'], {'id': r['owner']}, connection=store.connection, run_id=identity)
-                db.check_run(identity)
-                db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s', (result['snapshot'],identity), connection=store.connection)
-                result['goals'] = schedule_snapshot(r['body']['domain'], result, connection=store.connection)
-        else:
-            result = model_job(identity) if payload['operation'] == 'training' else analyze(identity)
-        db.check_run(identity)
-        # Publish success in the job's transaction so interruption rolls back the
-        # run, saved finding, notifications and accepted evidence together.
         with store.connection.transaction():
-            connection = store.connection
-            connection.execute("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
-            if payload['operation'] == 'analysis':
-                g = db.goal(r['goal_id'])
-                previous = db.run(g['last_success']) if g['last_success'] else None
-                standing = r['body']['question'] == g['body']['question'] and r['goal_version'] == g['version']
-                changed = standing and previous and threshold_crossed(previous['result'], result, g['body']['notification_delta'])
-                if standing:
-                    connection.execute('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s AND version=%s', (identity, g['id'], r['goal_version']))
-                if changed:
-                    connection.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)',
-                                       (identity, 'material_change', Jsonb({'message': 'A saved goal threshold was crossed.'})))
-            connection.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)',
-                               (identity, 'completed', Jsonb({'status': 'succeeded'})))
+            if payload['operation'] == 'import':
+                with store.connection.transaction():
+                    db.check_run(identity)
+                    result = import_source(r['body']['domain'], {'id': r['owner']}, connection=store.connection, run_id=identity)
+                    db.check_run(identity)
+                    db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s', (result['snapshot'],identity), connection=store.connection)
+                    result['goals'] = schedule_snapshot(r['body']['domain'], result, connection=store.connection)
+            else:
+                result = model_job(identity, connection=store.connection) if payload['operation'] == 'training' else analyze(identity)
+            db.check_run(identity)
+            # Publish success in the job's transaction so interruption rolls back the
+            # run, saved finding, notifications and accepted evidence together.
+            with store.connection.transaction():
+                connection = store.connection
+                if r['goal_id']:
+                    eligible = db.query('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (r['goal_id'],), one=True, connection=connection)
+                    if not eligible['confirmed'] or eligible['paused'] or eligible['version'] != r['goal_version']:
+                        raise PermissionError('Goal became ineligible before publication')
+                connection.execute("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
+                if payload['operation'] == 'analysis':
+                    g = db.goal(r['goal_id'])
+                    previous = db.run(g['last_success']) if g['last_success'] else None
+                    standing = r['body']['question'] == g['body']['question'] and r['goal_version'] == g['version']
+                    changed = standing and previous and threshold_crossed(previous['result'], result, g['body']['notification_delta'])
+                    if standing:
+                        connection.execute('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s AND version=%s', (identity, g['id'], r['goal_version']))
+                    if changed:
+                        connection.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)',
+                                           (identity, 'material_change', Jsonb({'message': 'A saved goal threshold was crossed.'})))
+                connection.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)',
+                                   (identity, 'completed', Jsonb({'status': 'succeeded'})))
     except Exception as error:
         # No failed refresh replaces last_success; no response is disguised as real success.
         status = 'cancelled' if isinstance(error, (InterruptedError, PermissionError)) else 'partial'

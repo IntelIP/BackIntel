@@ -10,7 +10,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from runtime.analysis_data import CONFIG
+from runtime.analysis_data import CONFIG, digest
 from runtime.evidence import Evidence
 from runtime.ledger import dsn
 
@@ -47,16 +47,24 @@ def authorize(p, domain=None, roles=('manager', 'analyst', 'viewer')):
     return current
 
 
-def catalog():
-    for domain, spec in CONFIG['sources'].items():
-        write('INSERT INTO backintel.analysis_sources(id,domain,body) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING',
-              (domain, domain, Jsonb({**spec, 'terms_acknowledged': False})))
+def catalog(domain=None, *, connection=None):
+    selected = CONFIG['sources'].items() if domain is None else [(domain, CONFIG['sources'][domain])]
+    with (nullcontext(connection) if connection is not None else connect()) as c, c.transaction():
+        for identity, spec in selected:
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+identity,))
+            c.execute("""INSERT INTO backintel.analysis_sources(id,domain,body) VALUES(%s,%s,%s)
+                ON CONFLICT(id) DO UPDATE SET body=EXCLUDED.body,updated_at=now()
+                WHERE backintel.analysis_sources.body->>'source_spec_sha256' IS DISTINCT FROM EXCLUDED.body->>'source_spec_sha256'""",
+                (identity, identity, Jsonb({**spec, 'source_spec_sha256':digest(spec), 'terms_acknowledged':False})))
 
 
 def source(domain, *, connection=None):
     s = query('SELECT * FROM backintel.analysis_sources WHERE id=%s', (domain,), one=True, connection=connection)
     if not s:
         raise ValueError('Unknown source')
+    if s['body'].get('source_spec_sha256') != digest(CONFIG['sources'][domain]):
+        catalog(domain, connection=connection)
+        s = query('SELECT * FROM backintel.analysis_sources WHERE id=%s', (domain,), one=True, connection=connection)
     return s
 
 

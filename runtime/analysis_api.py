@@ -47,6 +47,7 @@ class RunInput(Input):
 
 class TermsInput(Input):
     acknowledged: bool
+    source_spec_sha256: str | None = None
 
 
 class PromotionInput(Input):
@@ -112,7 +113,7 @@ def notifications(p=Depends(access)):
 @app.get('/api/v1/sources')
 def sources(p=Depends(access)):
     db.authorize(p)
-    return db.query('SELECT * FROM backintel.analysis_sources WHERE domain=ANY(%s) ORDER BY domain',(p['domains'],))
+    return [db.source(row['id']) for row in db.query('SELECT id FROM backintel.analysis_sources WHERE domain=ANY(%s) ORDER BY domain',(p['domains'],))]
 
 
 @app.post('/api/v1/sources/{domain}/terms')
@@ -121,6 +122,8 @@ def terms(domain:str,body:TermsInput,p=Depends(access)):
     with db.connect() as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
         source=db.source(domain, connection=c)
+        if body.acknowledged and body.source_spec_sha256 != source['body']['source_spec_sha256']:
+            raise ValueError('Source terms changed; reload and confirm the current terms')
         updated={**source['body'],'terms_acknowledged':body.acknowledged,'terms_actor':p['id']}
         db.write('UPDATE backintel.analysis_sources SET body=%s WHERE id=%s',(Jsonb(updated),domain), connection=c)
     return db.source(domain)

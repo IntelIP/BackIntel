@@ -48,14 +48,14 @@ def fixture_send(client, request, *args, **kwargs):
     return httpx.Response(200, json=value, request=request)
 
 
-def fixture_models(identity):
+def fixture_models(identity, *, connection=None):
     run, goal = db.check_run(identity)
     rows = db.records(run['snapshot_id'])
     candidate = digest(['fixture-model', goal['id'], run['snapshot_id']])
     body = {'id': candidate, 'mode': 'fixture', 'methods': [{'route': 'catboost', 'features': 'facts', 'metrics': {'fixture_error': 0}}],
             'artifacts': [{'file': 'catboost-facts.joblib'}], 'splits': {name: [row['id'] for row in rows if row['split'] == name] for name in ('train', 'calibration', 'test')}}
     db.write('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
-             (candidate, goal['id'], run['snapshot_id'], Jsonb(body)))
+             (candidate, goal['id'], run['snapshot_id'], Jsonb(body)), connection=connection)
     ref = db.evidence(identity, 'model_comparison', candidate, body)
     return {'status': 'succeeded', 'mode': 'fixture', 'summary': 'Explicit fixture predictor comparison.',
             'candidate_id': candidate, 'evidence_id': ref, 'usage': db.usage(identity)}

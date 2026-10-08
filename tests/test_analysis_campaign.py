@@ -257,6 +257,84 @@ class CampaignChecks(unittest.TestCase):
         saved = next(r for r in db.records(db.source('commerce')['latest_snapshot']) if r['id']=='missing')
         self.assertEqual(saved['features'], {'age':None, 'department':'B'})
 
+    def test_analysis_reuse_tracks_implementation_and_configuration(self):
+        self.assertEqual(service.submit(self.goal, self.actor)['id'], self.run['id'])
+        fingerprint = service.fingerprint
+        def changed(path):
+            value = fingerprint(path)
+            return {**value, 'sha256':'fixture-new-code'} if path.name == 'analysis_agent.py' else value
+        with patch.object(service, 'fingerprint', side_effect=changed):
+            self.assertNotEqual(service.submit(self.goal, self.actor)['id'], self.run['id'])
+        with patch.dict(CONFIG['analyst'], {'model':'fixture-new-model'}):
+            self.assertNotEqual(service.submit(self.goal, self.actor)['id'], self.run['id'])
+
+    def test_goal_revocation_at_publication_does_not_replace_answer(self):
+        query = db.query
+        for edit in ({'paused':True}, {'confirmed':False}):
+            with self.subTest(edit=edit):
+                service.revise_goal(self.goal, self.actor, paused=False, confirmed=True)
+                run = service.submit(self.goal, self.actor)
+                def revoke_before_lock(sql, *args, **kwargs):
+                    if sql == 'SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE':
+                        service.revise_goal(self.goal, self.actor, **edit)
+                    return query(sql, *args, **kwargs)
+                with patch('runtime.analysis_agent.analyze', return_value={'summary':'fixture'}), patch.object(db, 'query', side_effect=revoke_before_lock):
+                    service.execute(run['job_id'], service.handle)
+                self.assertEqual(db.run(run['id'])['status'], 'cancelled')
+                self.assertIsNone(db.goal(self.goal)['last_success'])
+
+    def test_changed_source_spec_revokes_old_consent_and_refreshes_catalog(self):
+        db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':True}),))
+        db.catalog('commerce')
+        self.assertTrue(db.source('commerce')['body']['terms_acknowledged'])
+        with patch.dict(CONFIG['sources']['commerce'], {'license':'fixture-changed-terms'}):
+            source = db.source('commerce')
+            self.assertFalse(source['body']['terms_acknowledged'])
+            self.assertEqual(source['body']['license'], 'fixture-changed-terms')
+            self.assertEqual(source['latest_snapshot'], self.snapshot)
+            with self.assertRaisesRegex(PermissionError, 'terms'):
+                service.import_source('commerce', self.actor)
+        db.catalog('commerce')
+
+    def test_source_confirmation_is_bound_to_the_displayed_terms(self):
+        from runtime.analysis_api import terms, TermsInput
+        old_hash = db.source('commerce')['body']['source_spec_sha256']
+        with patch.dict(CONFIG['sources']['commerce'], {'license':'fixture-updated-license'}):
+            current = db.source('commerce')
+            with self.assertRaisesRegex(ValueError, 'terms changed'):
+                terms('commerce', TermsInput(acknowledged=True, source_spec_sha256=old_hash), self.actor)
+            self.assertFalse(db.source('commerce')['body']['terms_acknowledged'])
+            accepted = terms('commerce', TermsInput(acknowledged=True, source_spec_sha256=current['body']['source_spec_sha256']), self.actor)
+            self.assertTrue(accepted['body']['terms_acknowledged'])
+        db.catalog('commerce')
+
+    def test_training_candidate_rolls_back_until_job_acceptance(self):
+        import json
+        from types import SimpleNamespace
+        from runtime.jobs import cancel
+        for boundary in ('cancel', 'interrupt', 'success'):
+            with self.subTest(boundary=boundary):
+                run = service.submit(self.goal, self.actor, question=boundary, operation='training')
+                manifest = {'id':boundary, 'artifacts':[{'file':'catboost-facts.joblib'}], 'mode':'fixture'}
+                candidate = digest([self.goal, boundary])
+                def handler(store, payload):
+                    result = service.handle(store, payload)
+                    if boundary == 'interrupt':
+                        raise KeyboardInterrupt('Fixture interruption before training acceptance')
+                    if boundary == 'cancel':
+                        with db.connect() as c:
+                            cancel(c, run['job_id'])
+                    return result
+                with patch.object(service.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout=json.dumps(manifest))):
+                    if boundary == 'interrupt':
+                        with self.assertRaises(KeyboardInterrupt):
+                            service.execute(run['job_id'], handler)
+                        db.write("UPDATE backintel.capability_jobs SET state='cancelled' WHERE job_id=%s", (run['job_id'],))
+                    else:
+                        service.execute(run['job_id'], handler)
+                saved = db.query('SELECT id FROM backintel.analysis_models WHERE id=%s', (candidate,))
+                self.assertEqual(bool(saved), boundary == 'success')
+
     def test_success_publication_recovers_atomically(self):
         result = {'summary': 'explicit fixture', 'tables': [], 'mode': 'fixture'}
         with patch('runtime.analysis_agent.analyze', return_value=result):
