@@ -18,6 +18,18 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_fact_numbers_must_come_from_the_cited_result(self):
+        results = [{'evidence_id': 'observed', 'kind': 'observed', 'table': [{'group': 'A', 'mean': .2}]},
+                   {'evidence_id': 'predicted', 'kind': 'estimate', 'table': [{'group': 'A', 'mean': .8}]}]
+        answer = {'summary': 'Evidence checked.', 'limitations': [], 'findings': [
+            {'claim': 'The observed rate is 80%.', 'kind': 'fact', 'evidence_ids': ['observed']}]}
+        with self.assertRaisesRegex(ValueError, 'Narrative number'):
+            validate_answer(answer, results)
+        answer['findings'][0]['claim'] = 'The observed rate is 20%.'
+        self.assertEqual(validate_answer(answer, results), answer)
+        answer['findings'][0] = {'claim': 'The estimate is 80%.', 'kind': 'estimate', 'evidence_ids': ['predicted']}
+        self.assertEqual(validate_answer(answer, results), answer)
+
     def test_predictions_cannot_be_presented_as_observed_facts(self):
         answer = {'summary': 'Evidence checked.', 'limitations': [], 'findings': [
             {'claim': 'Predicted outcome.', 'kind': 'fact', 'evidence_ids': ['prediction']}]}
@@ -120,7 +132,7 @@ class AdapterChecks(unittest.TestCase):
         client=MagicMock();client.__enter__.return_value=client
         client.get.return_value.json.return_value={'data':[{'id':agent.CONFIG['analyst']['model'],'pricing':{'prompt':'0.000001','completion':'0.000001'}}]}
         client.post.return_value.json.return_value={'id':'fixture-response','model':'unapproved/model','usage':{'cost':.001},'output':[]}
-        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',return_value=None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
+        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith('UPDATE') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
             with self.assertRaisesRegex(ValueError,'unapproved'):agent.request('fixture-run',0,[])
         payload=client.post.call_args.kwargs['json']
         self.assertEqual(payload['provider']['order'],['OpenAI'])

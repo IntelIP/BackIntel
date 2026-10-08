@@ -82,15 +82,24 @@ def revise_goal(identity, actor, question=None, paused=None, confirmed=None, thr
         body['notification_delta'] = threshold
     version = g['version'] + int(body != g['body'])
     with db.connect() as c, c.transaction():
-        c.execute('UPDATE backintel.analysis_goals SET body=%s,version=%s,paused=%s,confirmed=%s WHERE id=%s',
+        changed = c.execute('UPDATE backintel.analysis_goals SET body=%s,version=%s,paused=%s,confirmed=%s WHERE id=%s AND version=%s AND body=%s AND paused=%s AND confirmed=%s',
                   (Jsonb(body), version, g['paused'] if paused is None else paused,
-                   False if version != g['version'] else g['confirmed'] if confirmed is None else confirmed, identity))
+                   False if version != g['version'] else g['confirmed'] if confirmed is None else confirmed, identity, g['version'], Jsonb(g['body']), g['paused'], g['confirmed']))
+        if not changed.rowcount:
+            raise ValueError('Goal changed during this edit; reload it and try again')
         c.execute('INSERT INTO backintel.analysis_goal_versions(goal_id,version,body,actor) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING', (identity, version, Jsonb(body), actor['id']))
     return db.goal(identity)
 
 
 def submit(identity, actor, question=None, operation='analysis'):
     g = db.goal(identity)
+    with db.connect() as c, c.transaction():
+        run_id = _admit_run(c, g, actor, question, operation)
+    return db.run(run_id)
+
+
+def _admit_run(c, g, actor, question=None, operation='analysis'):
+    identity = g['id']
     db.authorize(actor, g['domain'], ('manager',) if operation == 'training' else ('manager', 'analyst'))
     if not g['confirmed'] or g['paused']:
         raise ValueError('Confirm the goal definitions and enable the goal first')
@@ -102,21 +111,21 @@ def submit(identity, actor, question=None, operation='analysis'):
     question = question or g['body']['question']
     run_id = digest([identity, g['version'], snapshot, operation, question, g['active_model']])
     payload = {'run_id': run_id, 'operation': operation}
-    with db.connect() as c, c.transaction():
-        c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
-                  (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model']})))
-        store = Evidence(c, 'analysis-job-'+run_id)
-        job_id = enqueue(store, payload, run_id)
-        c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, run_id))
-        resumable = c.execute('SELECT status FROM backintel.analysis_runs WHERE id=%s FOR UPDATE', (run_id,)).fetchone()[0] in ('partial', 'cancelled')
-        if resumable:
-            unresolved = c.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s AND charge IS NULL', (run_id,)).fetchone()[0]
-            if unresolved:
-                raise RuntimeError('Reconcile uncertain charges before resuming this run')
-            resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',cancel_requested=false,result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL WHERE job_id=%s AND state IN ('completed','cancelled') AND attempts<max_attempts RETURNING job_id", (job_id,)).fetchone()
-            if resumed:
-                c.execute("UPDATE backintel.analysis_runs SET status='queued',result=NULL,error=NULL,updated_at=now() WHERE id=%s", (run_id,))
-    return db.run(run_id)
+    c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
+              (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model']})))
+    store = Evidence(c, 'analysis-job-'+run_id)
+    job_id = enqueue(store, payload, run_id)
+    c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, run_id))
+    resumable = c.execute('SELECT status FROM backintel.analysis_runs WHERE id=%s FOR UPDATE', (run_id,)).fetchone()[0] in ('partial', 'cancelled')
+    if resumable:
+        db.release_unsent(run_id, connection=c)
+        unresolved = c.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s AND charge IS NULL', (run_id,)).fetchone()[0]
+        if unresolved:
+            raise RuntimeError('Reconcile uncertain charges before resuming this run')
+        resumed=c.execute("UPDATE backintel.capability_jobs SET state='queued',cancel_requested=false,result_sha256=NULL,due_at=now(),error=NULL,lease_until=NULL WHERE job_id=%s AND state IN ('completed','cancelled') AND attempts<max_attempts RETURNING job_id", (job_id,)).fetchone()
+        if resumed:
+            c.execute("UPDATE backintel.analysis_runs SET status='queued',result=NULL,error=NULL,updated_at=now() WHERE id=%s", (run_id,))
+    return run_id
 
 
 def submit_import(domain, actor):
@@ -160,19 +169,22 @@ def promote(identity, actor, route='catboost-facts'):
         raise ValueError('Unknown candidate')
     g = db.goal(m['goal_id'])
     db.authorize(actor, g['domain'], ('manager',))
-    if m['body'].get('invalidated_by'):
-        raise ValueError('This candidate was invalidated by a source correction')
-    if route not in ('catboost-facts', 'tabiclv2-facts', 'catboost-facts-decide', 'tabiclv2-facts-decide') or not any(a['file'] == route+'.joblib' for a in m['body']['artifacts']):
-        raise ValueError('Requested predictor was not validated in this comparison')
     with db.connect() as c, c.transaction():
         locked = c.execute('SELECT body,promoted FROM backintel.analysis_models WHERE id=%s FOR UPDATE', (identity,)).fetchone()
+        if locked[0].get('invalidated_by'):
+            raise ValueError('This candidate was invalidated by a source correction')
+        if route not in ('catboost-facts', 'tabiclv2-facts', 'catboost-facts-decide', 'tabiclv2-facts-decide') or not any(a['file'] == route+'.joblib' for a in locked[0]['artifacts']):
+            raise ValueError('Requested predictor was not validated in this comparison')
         if locked[1] and locked[0].get('approved_route') != route:
             raise ValueError('A promoted candidate has an immutable predictor route')
+        run_id = _admit_run(c, {**g, 'active_model': identity}, actor)
+        changed = c.execute('UPDATE backintel.analysis_goals SET active_model=%s WHERE id=%s AND version=%s AND confirmed AND NOT paused RETURNING id', (identity, g['id'], g['version'])).fetchone()
+        if not changed:
+            raise ValueError('Goal changed during promotion; reload it and try again')
         if not locked[1]:
             body = {**locked[0], 'approved_route': route, 'approved_by': actor['id']}
             c.execute('UPDATE backintel.analysis_models SET promoted=true,body=%s WHERE id=%s', (Jsonb(body), identity))
-        c.execute('UPDATE backintel.analysis_goals SET active_model=%s WHERE id=%s', (identity, g['id']))
-    return submit(g['id'], actor)
+    return db.run(run_id)
 
 
 def threshold_crossed(previous, current, threshold):
@@ -253,6 +265,12 @@ def dispatch(run_id=None):
                 for job_id, reason, job_state in failed:
                     _finish_run_failure(c, job_id, job_state, reason)
             available = runnable(c, task_ids)
+            for abandoned in db.query("SELECT DISTINCT r.run_id FROM backintel.analysis_requests r JOIN backintel.analysis_runs a ON a.id=r.run_id JOIN backintel.capability_jobs j ON j.job_id=a.job_id WHERE r.status='reserved' AND j.state<>'running'"):
+                with db.connect() as cleanup, cleanup.transaction():
+                    Evidence(cleanup, 'analysis-job-'+abandoned['run_id']).lock()
+                    state = cleanup.execute('SELECT j.state FROM backintel.capability_jobs j JOIN backintel.analysis_runs r ON r.job_id=j.job_id WHERE r.id=%s', (abandoned['run_id'],)).fetchone()[0]
+                    if state != 'running':
+                        db.release_unsent(abandoned['run_id'], connection=cleanup)
             if not available:
                 break
             for job_id in available:
@@ -267,7 +285,7 @@ def dispatch(run_id=None):
     return {'status': 'completed', 'jobs': results}
 
 
-def schedule_snapshot(domain, update):
+def schedule_snapshot(domain, update, *, train=True):
     # Imports commit before scheduling. Revisit unchanged snapshots as well;
     # submit's stable run identity reuses jobs already admitted successfully.
     outcomes = []
@@ -276,7 +294,7 @@ def schedule_snapshot(domain, update):
             actor = {'id': g['owner']}
             run = submit(g['id'], actor)
             latest = db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC LIMIT 1', (g['id'],), one=True)
-            if latest:
+            if train and latest:
                 old = {r['id'] for r in db.records(latest['snapshot_id']) if r['target'] is not None and r['split']=='train'}
                 new = {r['id'] for r in db.records(update['snapshot']) if r['target'] is not None and r['split']=='train'}
                 attempt = db.query("SELECT created_at FROM backintel.analysis_runs WHERE goal_id=%s AND body->>'operation'='training' ORDER BY created_at DESC LIMIT 1", (g['id'],), one=True)

@@ -138,6 +138,17 @@ def evidence(identity, kind, key, body):
         return store.put(kind, key, body, int(time.time()))['sha256']
 
 
+def release_unsent(identity, *, connection=None):
+    """Release pre-dispatch reservations while the caller owns the run task lock."""
+    with (nullcontext(connection) if connection is not None else connect()) as c, c.transaction():
+        c.execute('SELECT pg_advisory_xact_lock(81827027)')
+        removed = c.execute("DELETE FROM backintel.analysis_requests WHERE run_id=%s AND status='reserved' AND response IS NULL RETURNING id,reserved", (identity,)).fetchall()
+        for request_id, amount in removed:
+            c.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)',
+                      (identity, 'reservation_released', Jsonb({'request_id': request_id, 'reserved_usd': str(amount), 'reason': 'Attempt ended before provider dispatch'})))
+    return len(removed)
+
+
 def reserve(identity, call_id, amount):
     """The suite lock makes simultaneous domain/run limits one admission decision."""
     if isinstance(amount, bool):

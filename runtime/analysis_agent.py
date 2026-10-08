@@ -56,7 +56,6 @@ def validate_answer(answer, results, group=None):
     if set(answer) != set(ANSWER_SCHEMA['required']) or not isinstance(answer['summary'], str) or not isinstance(answer['limitations'], list) or not isinstance(answer['findings'], list):
         raise ValueError('Invalid analyst answer shape')
     ids = {r['evidence_id'] for r in results}
-    allowed = numeric_values(results) + [0.]
     for f in answer['findings']:
         if set(f) != {'claim', 'kind', 'evidence_ids'} or f['kind'] not in ('fact', 'estimate', 'hypothesis'):
             raise ValueError('Invalid finding shape')
@@ -64,10 +63,12 @@ def validate_answer(answer, results, group=None):
             raise ValueError('Finding lacks permitted calculation evidence')
         if f['kind'] == 'fact' and any(r.get('kind') == 'estimate' for r in results if r['evidence_id'] in f['evidence_ids']):
             raise ValueError('Predicted evidence cannot support a factual finding')
-    for text in [answer['summary']] + [f['claim'] for f in answer['findings']]:
+    claims = [(answer['summary'], results)] + [(f['claim'], [r for r in results if r['evidence_id'] in f['evidence_ids']]) for f in answer['findings']]
+    for text, cited in claims:
+        allowed = numeric_values(cited) + [0.]
         if not isinstance(text, str) or len(text) > 5000 or re.search(r'\b(causes|caused by|will default|approve the loan|deny the loan)\b', text, re.I):
             raise ValueError('Unsupported causal or lending claim')
-        labels={str(row['group']) for result in results for row in result.get('table',[]) if 'group' in row}
+        labels={str(row['group']) for result in cited for row in result.get('table',[]) if 'group' in row}
         for label in labels:
             if any(character.isalpha() for character in label):
                 text=re.sub(r'(?<!\w)'+re.escape(label)+r'(?!\w)','entity',text,flags=re.I)
@@ -157,6 +158,11 @@ def request(identity, index, inputs):
         raise RuntimeError('Analyst input context limit exceeded')
     call_id = digest([identity, index, payload])
     cached = db.query('SELECT status,response FROM backintel.analysis_requests WHERE id=%s', (call_id,), one=True)
+    if cached and cached['status'] == 'reserved':
+        # The job handler holds the task lock; an earlier attempt cannot still
+        # be using a pre-dispatch reservation for this run.
+        db.release_unsent(identity)
+        cached = db.query('SELECT status,response FROM backintel.analysis_requests WHERE id=%s', (call_id,), one=True)
     if cached:
         if cached['status'] != 'complete':
             raise RuntimeError('Unresolved provider request; reconcile before any retry')
@@ -181,7 +187,9 @@ def request(identity, index, inputs):
         if prior.get('model') not in config['served_models']:
             raise ValueError('Cached response served an unapproved model')
         return prior
-    db.write("UPDATE backintel.analysis_requests SET status='sent' WHERE id=%s", (call_id,))
+    sent = db.query("UPDATE backintel.analysis_requests SET status='sent' WHERE id=%s AND status='reserved' RETURNING id", (call_id,), one=True)
+    if not sent:
+        raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
     try:
         with httpx.Client(timeout=120) as client:
             response = client.post('https://openrouter.ai/api/v1/responses', headers={'Authorization': 'Bearer '+key}, json=payload)

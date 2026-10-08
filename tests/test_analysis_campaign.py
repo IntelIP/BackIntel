@@ -304,6 +304,132 @@ class CampaignChecks(unittest.TestCase):
         self.assertEqual(row['features']['age'], 41)
         self.assertEqual(row['target'], 0)
 
+    def candidate_fixture(self):
+        identity = digest([self.goal, 'promotion fixture'])
+        db.write('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s)',
+                 (identity, self.goal, self.snapshot, Jsonb({'artifacts': [{'file': 'catboost-facts.joblib'}]})))
+        return identity
+
+    def test_concurrent_goal_revisions_reject_a_stale_edit_and_keep_history_consistent(self):
+        original = db.goal
+        first_read = threading.local()
+        barrier = threading.Barrier(2)
+        def read(identity):
+            value = original(identity)
+            if not getattr(first_read, 'done', False):
+                first_read.done = True
+                barrier.wait(timeout=5)
+            return value
+        def revise(question):
+            try:
+                return service.revise_goal(self.goal, self.actor, question=question), None
+            except ValueError as error:
+                self.assertIn('Goal changed', str(error))
+                return None, question
+        with patch.object(db, 'goal', side_effect=read), ThreadPoolExecutor(max_workers=2) as workers:
+            results = list(workers.map(revise, ['Manager first edit', 'Manager second edit']))
+        self.assertEqual(sum(result is not None for result, _ in results), 1)
+        current = db.goal(self.goal)
+        history = db.query('SELECT body FROM backintel.analysis_goal_versions WHERE goal_id=%s AND version=%s', (self.goal, current['version']), one=True)
+        self.assertEqual(current['version'], 2)
+        self.assertEqual(history['body'], current['body'])
+        rejected = next(question for _, question in results if question)
+        retried = service.revise_goal(self.goal, self.actor, question=rejected)
+        self.assertEqual(retried['version'], 3)
+        self.assertEqual(retried['body']['question'], rejected)
+
+    def test_promotion_rechecks_invalidation_after_the_initial_model_read(self):
+        candidate = self.candidate_fixture()
+        original = db.goal
+        def read(identity):
+            value = original(identity)
+            db.write("UPDATE backintel.analysis_models SET body=body||%s WHERE id=%s", (Jsonb({'invalidated_by': 'fixture correction'}), candidate))
+            return value
+        with patch.object(db, 'goal', side_effect=read), self.assertRaisesRegex(ValueError, 'invalidated'):
+            service.promote(candidate, self.actor)
+        self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
+        self.assertIsNone(db.goal(self.goal)['active_model'])
+
+    def test_ineligible_goal_does_not_commit_promotion_or_a_run(self):
+        candidate = self.candidate_fixture()
+        before = db.query('SELECT count(*) FROM backintel.analysis_runs', one=True)['count']
+        for paused, confirmed in ((True, True), (False, False)):
+            with self.subTest(paused=paused, confirmed=confirmed):
+                db.write('UPDATE backintel.analysis_goals SET paused=%s,confirmed=%s WHERE id=%s', (paused, confirmed, self.goal))
+                with self.assertRaisesRegex(ValueError, 'Confirm the goal'):
+                    service.promote(candidate, self.actor)
+                self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
+                self.assertIsNone(db.goal(self.goal)['active_model'])
+                self.assertEqual(db.query('SELECT count(*) FROM backintel.analysis_runs', one=True)['count'], before)
+
+    def test_goal_paused_during_promotion_rolls_back_queued_work(self):
+        candidate = self.candidate_fixture()
+        original = db.goal
+        before = db.query('SELECT count(*) FROM backintel.capability_jobs', one=True)['count']
+        def read(identity):
+            value = original(identity)
+            db.write('UPDATE backintel.analysis_goals SET paused=true WHERE id=%s', (identity,))
+            return value
+        with patch.object(db, 'goal', side_effect=read), self.assertRaisesRegex(ValueError, 'Goal changed during promotion'):
+            service.promote(candidate, self.actor)
+        self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
+        self.assertIsNone(db.goal(self.goal)['active_model'])
+        self.assertEqual(db.query('SELECT count(*) FROM backintel.capability_jobs', one=True)['count'], before)
+
+    def test_request_retries_a_reservation_interrupted_before_dispatch(self):
+        from unittest.mock import MagicMock
+        from runtime import analysis_agent as agent
+        from runtime.evidence import Evidence
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.get.return_value.json.return_value = {'data': [{'id': CONFIG['analyst']['model'], 'pricing': {'prompt': '0', 'completion': '0'}}]}
+        value = {'id': 'fixture-response', 'model': CONFIG['analyst']['served_models'][0], 'usage': {'cost': 0}, 'output': []}
+        client.post.return_value.json.return_value = value
+        original = db.query
+        def interrupted(sql, *args, **kwargs):
+            if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+                raise KeyboardInterrupt('Fixture exit before dispatch')
+            return original(sql, *args, **kwargs)
+        with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client):
+            with patch.object(db, 'query', side_effect=interrupted), self.assertRaises(KeyboardInterrupt):
+                with db.connect() as c, c.transaction():
+                    Evidence(c, 'analysis-job-'+self.run['id']).lock()
+                    agent.request(self.run['id'], 0, [])
+            self.assertEqual(db.query('SELECT status FROM backintel.analysis_requests WHERE run_id=%s', (self.run['id'],), one=True)['status'], 'reserved')
+            client.post.assert_not_called()
+            with db.connect() as c, c.transaction():
+                Evidence(c, 'analysis-job-'+self.run['id']).lock()
+                self.assertEqual(agent.request(self.run['id'], 0, []), value)
+        self.assertEqual(client.post.call_count, 1)
+        self.assertEqual(db.query('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s', (self.run['id'],), one=True)['count'], 1)
+        self.assertEqual(len(db.query("SELECT body FROM backintel.analysis_events WHERE run_id=%s AND kind='reservation_released'", (self.run['id'],))), 1)
+
+    def test_exhausted_presend_reservation_releases_global_capacity(self):
+        db.reserve(self.run['id'], 'fixture-presend', Decimal('0.01'))
+        db.write("UPDATE backintel.capability_jobs SET state='running',attempts=max_attempts,lease_until=now()+interval '1 hour' WHERE job_id=%s", (self.run['job_id'],))
+        db.write("UPDATE backintel.analysis_runs SET status='running' WHERE id=%s", (self.run['id'],))
+        service.dispatch()
+        self.assertIsNone(db.query('SELECT id FROM backintel.analysis_requests WHERE id=%s', ('fixture-presend',), one=True))
+        self.assertEqual(db.run(self.run['id'])['status'], 'partial')
+        following = service.submit(self.goal, self.actor, question='Following fixture request')
+        db.reserve(following['id'], 'fixture-following', Decimal('0.01'))
+        self.assertEqual(db.query('SELECT status FROM backintel.analysis_requests WHERE id=%s', ('fixture-following',), one=True)['status'], 'reserved')
+
+    def test_correction_schedules_healthy_goals_after_a_disabled_owner(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        owner = 'disabled-fixture-'+uuid.uuid4().hex
+        db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s)', (owner, hashlib.sha256(owner.encode()).hexdigest(), 'manager', ['commerce']))
+        goal = service.create_goal({'id': owner}, 'commerce', 'Disabled owner fixture')['id']
+        service.revise_goal(goal, {'id': owner}, confirmed=True)
+        db.write('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s', (owner,))
+        with patch.object(service, 'wake'):
+            result = correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], features={'age': 41}, explanation='Fixture correction'), self.actor)
+        outcomes = {item['goal_id']: item for item in result['refreshes']}
+        self.assertTrue(result['changed'])
+        self.assertEqual(db.source('commerce')['latest_snapshot'], result['snapshot'])
+        self.assertEqual(outcomes[goal]['status'], 'blocked')
+        self.assertEqual(outcomes[self.goal]['status'], 'queued')
+
     def test_failed_refresh_keeps_standing_result(self):
         first = {'summary': 'standing fixture', 'tables': [{'title': 'summarize', 'rows': [{'group': 'A', 'mean': 1}]}]}
         with patch('runtime.analysis_agent.analyze', return_value=first):

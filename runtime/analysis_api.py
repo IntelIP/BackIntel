@@ -300,11 +300,12 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
             if body.record_id in splits.get('train',[])+splits.get('calibration',[])+splits.get('test',[]):
                 c.execute('UPDATE backintel.analysis_models SET body=%s WHERE id=%s',(Jsonb({**model['body'],'invalidated_by':identity}),model['id']))
                 c.execute('UPDATE backintel.analysis_goals SET active_model=NULL WHERE active_model=%s',(model['id'],))
-    for g in db.query('SELECT * FROM backintel.analysis_goals WHERE domain=%s AND confirmed AND NOT paused',(domain,)):
-        run=service.submit(g['id'],{'id':g['owner']})
-        try:service.wake(run['id'])
-        except (OSError,httpx.HTTPError):db.event(run['id'],'dispatch_pending',{'message':'Correction queued durably.'})
-    return {'snapshot':identity,'changed':True,'message':'Previous findings remain available and are stale.'}
+    refreshes=service.schedule_snapshot(domain,{'snapshot':identity},train=False)
+    for refresh in refreshes:
+        if 'run_id' in refresh:
+            try:service.wake(refresh['run_id'])
+            except (OSError,httpx.HTTPError):db.event(refresh['run_id'],'dispatch_pending',{'message':'Correction queued durably.'})
+    return {'snapshot':identity,'changed':True,'message':'Previous findings remain available and are stale.','refreshes':refreshes}
 
 
 @app.patch('/api/v1/principals/{identity}')
