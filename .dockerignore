@@ -2,6 +2,7 @@
 !Dockerfile.runtime
 !requirements.models.txt
 !aegra.json
+!aegra.capabilities.json
 !runtime/
 !runtime/**
 !migrations/
