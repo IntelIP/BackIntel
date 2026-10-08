@@ -1,9 +1,9 @@
 {
   "status": "passed",
   "archive": "BackIntelDemoBusinessV4.zip",
-  "archive_sha256": "451e1f5183c65417ae5c665e2813278f37738a7d9feae9ccc94178e49e0be505",
+  "archive_sha256": "e8291843ac09271b329550c3ee7ede644bc9476d2e5db713ffee668f9e02eaea",
   "mode": "recorded_synthetic_run",
-  "files": 342,
+  "files": 341,
   "new_provider_calls": 0,
   "exact_commit_product_readiness": "blocked"
 }

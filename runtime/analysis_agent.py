@@ -247,9 +247,11 @@ def request(identity, index, inputs):
         AND EXISTS (SELECT 1 FROM backintel.analysis_runs r
                     JOIN backintel.capability_jobs j ON j.job_id=r.job_id
                     JOIN backintel.analysis_goals g ON g.id=r.goal_id
+                JOIN backintel.analysis_sources s ON s.id=g.domain
                     WHERE r.id=backintel.analysis_requests.run_id AND NOT j.cancel_requested
                       AND j.state IN ('queued','running','retry') AND g.confirmed AND NOT g.paused AND g.version=r.goal_version
-                    FOR UPDATE OF j,g) RETURNING id""", (call_id,), one=True)
+                    AND s.body->'terms_acknowledged'='true'::jsonb
+                FOR UPDATE OF j,g,s) RETURNING id""", (call_id,), one=True)
     if not sent:
         raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
     try:

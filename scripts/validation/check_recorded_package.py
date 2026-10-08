@@ -66,10 +66,10 @@ def main():
                 (Path(temporary) / name).resolve().relative_to(Path(temporary).resolve())
             zipped.extractall(temporary)
         root = Path(temporary) / 'BackIntelDemo'
-        check = subprocess.run([sys.executable, '-S', 'RunDemo.py', '--check'], cwd=root,
+        check = subprocess.run([sys.executable, '-B', '-S', 'RunDemo.py', '--check'], cwd=root,
                                check=True, capture_output=True, text=True, timeout=20)
         initial = json.loads(check.stdout)
-        playback = subprocess.run([sys.executable, '-S', str(Path(__file__).resolve()), '--package-root', str(root)],
+        playback = subprocess.run([sys.executable, '-B', '-S', str(Path(__file__).resolve()), '--package-root', str(root)],
                                   cwd=root, check=True, capture_output=True, text=True, timeout=30)
         after = json.loads(playback.stdout)
     receipt = {'status': 'passed', 'archive_sha256': digest, 'mode': 'recorded_synthetic_run',

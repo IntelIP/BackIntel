@@ -48,6 +48,8 @@ class CampaignChecks(unittest.TestCase):
                       'target': 1, 'groups': {'department': 'A'}, 'text': 'fixture', 'split': 'train'}]
         self.snapshot = digest(self.rows)
         db.save_snapshot('commerce', self.snapshot, {'files': [], 'rows': 1, 'mode': 'fixture'}, self.rows)
+        db.catalog()
+        db.write("UPDATE backintel.analysis_sources SET body=body || %s", (Jsonb({'terms_acknowledged':True}),))
         self.goal = service.create_goal(self.actor, 'commerce', 'What is the observed recommendation rate?')['id']
         service.revise_goal(self.goal, self.actor, confirmed=True)
         self.run = service.submit(self.goal, self.actor)
@@ -256,6 +258,83 @@ class CampaignChecks(unittest.TestCase):
         correction('commerce', CorrectionInput(record_id='missing', features={'age':None}, explanation='Fixture missing value'), self.actor)
         saved = next(r for r in db.records(db.source('commerce')['latest_snapshot']) if r['id']=='missing')
         self.assertEqual(saved['features'], {'age':None, 'department':'B'})
+
+    def test_duplicate_submission_does_not_block_an_active_worker(self):
+        entered, release = threading.Event(), threading.Event()
+        def analyze(identity):
+            entered.set()
+            if not release.wait(5):
+                raise TimeoutError('Fixture analysis was not released')
+            return {'summary':'fixture'}
+        with patch('runtime.analysis_agent.analyze', side_effect=analyze), ThreadPoolExecutor(max_workers=2) as workers:
+            running = workers.submit(service.execute, self.run['job_id'], service.handle)
+            try:
+                self.assertTrue(entered.wait(5))
+                duplicate = workers.submit(service.submit, self.goal, self.actor)
+                self.assertEqual(duplicate.result(timeout=2)['id'], self.run['id'])
+            finally:
+                release.set()
+            self.assertEqual(running.result(timeout=5)['state'], 'completed')
+
+    def test_revoked_source_terms_block_admission_and_dispatch(self):
+        from unittest.mock import MagicMock
+        from runtime import analysis_agent as agent
+        db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':False}),))
+        for operation in ('analysis', 'training'):
+            with self.assertRaisesRegex(PermissionError, 'terms'):
+                service.submit(self.goal, self.actor, operation=operation)
+        with self.assertRaisesRegex(PermissionError, 'terms'):
+            db.check_run(self.run['id'])
+        db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':True}),))
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.get.return_value.json.return_value = {'data':[{'id':CONFIG['analyst']['model'],'pricing':{'prompt':'0','completion':'0'}}]}
+        query = db.query
+        def revoke_before_send(sql, *args, **kwargs):
+            if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+                db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':False}),))
+            return query(sql, *args, **kwargs)
+        with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client), patch.object(db, 'query', side_effect=revoke_before_send), self.assertRaisesRegex(RuntimeError, 'reservation changed'):
+            agent.request(self.run['id'], 0, [])
+        client.post.assert_not_called()
+
+    def test_revoked_source_terms_block_publication(self):
+        from runtime.analysis_api import terms, TermsInput
+        original = db.run_domain
+        def revoke_before_publication(run):
+            terms('commerce', TermsInput(acknowledged=False), self.actor)
+            return original(run)
+        with patch('runtime.analysis_agent.analyze', return_value={'summary':'fixture'}), patch.object(db, 'run_domain', side_effect=revoke_before_publication):
+            service.execute(self.run['job_id'], service.handle)
+        self.assertEqual(db.run(self.run['id'])['status'], 'cancelled')
+        self.assertIsNone(db.goal(self.goal)['last_success'])
+
+    def test_promotion_rejects_a_superseded_source_snapshot(self):
+        candidate = self.candidate_fixture()
+        db.save_snapshot('commerce', digest([self.snapshot, 'new']), {'files':[], 'mode':'fixture'}, self.rows)
+        with self.assertRaisesRegex(ValueError, 'snapshot is no longer current'):
+            service.promote(candidate, self.actor)
+        self.assertIsNone(db.goal(self.goal)['active_model'])
+
+    def test_implementation_change_marks_previous_answer_stale(self):
+        from runtime.analysis_api import goals
+        db.write("UPDATE backintel.analysis_sources SET body=body-'last_refresh_error' WHERE id='commerce'")
+        with patch('runtime.analysis_agent.analyze', return_value={'summary':'fixture'}):
+            service.execute(self.run['job_id'], service.handle)
+        self.assertEqual(next(g for g in goals(db.authorize(self.actor)) if g['id']==self.goal)['freshness'], 'current')
+        with patch.object(service, 'analysis_identity', return_value='fixture-new-code'):
+            self.assertEqual(next(g for g in goals(db.authorize(self.actor)) if g['id']==self.goal)['freshness'], 'stale')
+
+    def test_correction_after_spec_change_reuses_the_locked_connection(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        connect = db.connect
+        def bounded_connection():
+            c = connect()
+            c.execute("SET lock_timeout='1s'")
+            return c
+        with patch.dict(CONFIG['sources']['commerce'], {'license':'fixture-new-terms'}), patch.object(db, 'connect', side_effect=bounded_connection), self.assertRaisesRegex(PermissionError, 'terms'):
+            correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], features={'age':41}, explanation='Fixture edit'), self.actor)
+        db.catalog('commerce')
 
     def test_analysis_reuse_tracks_implementation_and_configuration(self):
         self.assertEqual(service.submit(self.goal, self.actor)['id'], self.run['id'])
@@ -643,14 +722,14 @@ class CampaignChecks(unittest.TestCase):
         second_started = threading.Event()
         original_records = db.records
 
-        def records(snapshot):
+        def records(snapshot, **kwargs):
             if not reading.is_set():
                 reading.set()
                 if not release.wait(5):
                     raise TimeoutError('Fixture correction was not released')
             else:
                 second_read.set()
-            return original_records(snapshot)
+            return original_records(snapshot, **kwargs)
 
         def edit_target():
             second_started.set()

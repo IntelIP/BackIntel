@@ -146,7 +146,7 @@ def goals(p=Depends(access)):
     for g in result:
         source=db.source(g['domain'])
         previous=db.run(g['last_success']) if g['last_success'] else None
-        g['freshness']='refresh_failed' if source['body'].get('last_refresh_error') else 'current' if previous and previous['snapshot_id']==source['latest_snapshot'] and previous['goal_version']==g['version'] and previous['body'].get('model_id')==g['active_model'] else 'stale' if previous else 'unanswered'
+        g['freshness']='refresh_failed' if source['body'].get('last_refresh_error') else 'current' if previous and previous['snapshot_id']==source['latest_snapshot'] and previous['goal_version']==g['version'] and previous['body'].get('model_id')==g['active_model'] and previous['body'].get('analysis_identity')==service.analysis_identity() else 'stale' if previous else 'unanswered'
     return result
 
 
@@ -298,8 +298,10 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
     db.authorize(p,domain,('manager',))
     with db.connect() as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
-        source=db.source(domain)
-        rows=db.records(source['latest_snapshot'])
+        source=db.source(domain, connection=c)
+        if not source['body'].get('terms_acknowledged'):
+            raise PermissionError('Source terms are not acknowledged')
+        rows=db.records(source['latest_snapshot'], connection=c)
         row=next((r for r in rows if r['id']==body.record_id),None)
         if not row or set(body.features)-set(row['features']):
             raise ValueError('Unknown record or feature')
@@ -320,7 +322,7 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
                 raise ValueError('Classification target must be 0 or 1')
             row['target']=body.target
             row['split']='unlabeled'  # A late correction never contaminates a historical benchmark.
-        prior=db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s',(source['latest_snapshot'],),one=True)['body']
+        prior=db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s',(source['latest_snapshot'],),one=True,connection=c)['body']
         updated={**prior,'corrected_from':source['latest_snapshot'],'correction':{**body.model_dump(),'actor':p['id']},'record_hash':digest(rows)}
         identity=digest(updated)
         db.save_snapshot(domain,identity,updated,rows,connection=c)

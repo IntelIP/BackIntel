@@ -29,6 +29,10 @@ def backup_reviews(source, target):
         copied.execute("PRAGMA journal_mode=DELETE")
 
 
+def copy_execution_package(source, target):
+    shutil.copytree(source, target, ignore=shutil.ignore_patterns('AudienceAccess.json'))
+
+
 def verify(root):
     manifest = json.loads((root / "Manifest.json").read_text())
     expected = {item['path'] for item in manifest['files']}
@@ -109,7 +113,7 @@ def build(root, demo_id, destination):
         for name in ("Validation.json", "Replay.json", "Budget.json", "NumericRoundingChecks.json", "ResumeApproval.json", "AuthorizationClosure.Resumed.json", "ReactInterpretationRunning.png", "ReactReviewed.png", "ReflexReviewed.png"):
             shutil.copyfile(run / name, records / name)
         shutil.copyfile(receipt_path, records / "Integration.json")
-        shutil.copytree(receipt_path.parent / "Package", records / "ExecutionPackage")
+        copy_execution_package(receipt_path.parent / "Package", records / "ExecutionPackage")
         shutil.copytree(root / "frontend/dist", package / "Frontend")
         for relative in ("runtime/decision_workspace.py", "scripts/package_business_demo.py"):
             target = package / relative

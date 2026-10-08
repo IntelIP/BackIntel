@@ -39,7 +39,7 @@ def _import_source(domain, actor, *, connection=None, run_id=None):
             body['unit_mapping']='dataset-qualified-engine-v2'
             identity=digest(body)
         if run_id is not None:
-            db.check_run(run_id)
+            db.check_run(run_id, connection=c)
             cancelled = c.execute('SELECT cancel_requested FROM backintel.capability_jobs WHERE job_id=%s FOR UPDATE', (db.run(run_id)['job_id'],)).fetchone()[0]
             if cancelled:
                 raise InterruptedError('Import cancelled')
@@ -116,6 +116,10 @@ def analysis_identity():
 
 def _admit_run(c, g, actor, question=None, operation='analysis'):
     identity = g['id']
+    c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
+    source = db.source(g['domain'], connection=c)
+    if not source['body'].get('terms_acknowledged'):
+        raise PermissionError('Source terms are not acknowledged')
     with c.cursor(row_factory=dict_row) as cursor:
         cursor.execute('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (identity,))
         g = cursor.fetchone()
@@ -124,16 +128,22 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
     db.authorize(actor, g['domain'], ('manager',) if operation == 'training' else ('manager', 'analyst'))
     if not g['confirmed'] or g['paused']:
         raise ValueError('Confirm the goal definitions and enable the goal first')
-    snapshot = db.source(g['domain'], connection=c)['latest_snapshot']
+    snapshot = source['latest_snapshot']
     if not snapshot:
         raise ValueError('Import the selected source first')
     if question is not None and (not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000):
         raise ValueError('Invalid follow-up question')
     question = question or g['body']['question']
-    run_id = digest([identity, g['version'], snapshot, operation, question, g['active_model'], analysis_identity()])
+    implementation = analysis_identity()
+    run_id = digest([identity, g['version'], snapshot, operation, question, g['active_model'], implementation])
+    existing = c.execute('SELECT r.status,j.state FROM backintel.analysis_runs r JOIN backintel.capability_jobs j ON j.job_id=r.job_id WHERE r.id=%s', (run_id,)).fetchone()
+    # An active worker owns the job lock and needs the source/goal locks to finish.
+    # Replays must return without waiting for that worker while holding these locks.
+    if existing and (existing[0] not in ('partial', 'cancelled') or existing[1] == 'running'):
+        return run_id
     payload = {'run_id': run_id, 'operation': operation}
     c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
-              (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model']})))
+              (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model'], 'analysis_identity': implementation})))
     store = Evidence(c, 'analysis-job-'+run_id)
     job_id = enqueue(store, payload, run_id)
     c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, run_id))
@@ -181,8 +191,8 @@ def model_job(identity, *, connection=None):
     candidate = digest([g['id'], manifest['id']])
     with (nullcontext(connection) if connection is not None else db.connect()) as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
-        db.check_run(identity)
-        if db.source(g['domain'])['latest_snapshot'] != r['snapshot_id']:
+        db.check_run(identity, connection=c)
+        if db.source(g['domain'], connection=c)['latest_snapshot'] != r['snapshot_id']:
             raise ValueError('Source changed during model comparison; compare the latest snapshot before promotion')
         c.execute('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
                   (candidate, g['id'], r['snapshot_id'], Jsonb(manifest)))
@@ -198,9 +208,13 @@ def promote(identity, actor, route='catboost-facts'):
     g = db.goal(m['goal_id'])
     db.authorize(actor, g['domain'], ('manager',))
     with db.connect() as c, c.transaction():
+        c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
+        source = db.source(g['domain'], connection=c)
         locked = c.execute('SELECT body,promoted FROM backintel.analysis_models WHERE id=%s FOR UPDATE', (identity,)).fetchone()
         if locked[0].get('invalidated_by'):
             raise ValueError('This candidate was invalidated by a source correction')
+        if m['snapshot_id'] != source['latest_snapshot']:
+            raise ValueError('Candidate snapshot is no longer current; compare the current snapshot')
         if route not in ('catboost-facts', 'tabiclv2-facts', 'catboost-facts-decide', 'tabiclv2-facts-decide') or not any(a['file'] == route+'.joblib' for a in locked[0]['artifacts']):
             raise ValueError('Requested predictor was not validated in this comparison')
         if locked[1] and locked[0].get('approved_route') != route:
@@ -238,19 +252,23 @@ def handle(store, payload):
         with store.connection.transaction():
             if payload['operation'] == 'import':
                 with store.connection.transaction():
-                    db.check_run(identity)
+                    db.check_run(identity, connection=store.connection)
                     result = import_source(r['body']['domain'], {'id': r['owner']}, connection=store.connection, run_id=identity)
-                    db.check_run(identity)
+                    db.check_run(identity, connection=store.connection)
                     db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s', (result['snapshot'],identity), connection=store.connection)
                     result['goals'] = schedule_snapshot(r['body']['domain'], result, connection=store.connection)
             else:
                 result = model_job(identity, connection=store.connection) if payload['operation'] == 'training' else analyze(identity)
-            db.check_run(identity)
+            db.check_run(identity, connection=store.connection)
             # Publish success in the job's transaction so interruption rolls back the
             # run, saved finding, notifications and accepted evidence together.
             with store.connection.transaction():
                 connection = store.connection
                 if r['goal_id']:
+                    domain = db.run_domain(r)
+                    connection.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
+                    if not db.source(domain, connection=connection)['body'].get('terms_acknowledged'):
+                        raise PermissionError('Source terms are not acknowledged')
                     eligible = db.query('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (r['goal_id'],), one=True, connection=connection)
                     if not eligible['confirmed'] or eligible['paused'] or eligible['version'] != r['goal_version']:
                         raise PermissionError('Goal became ineligible before publication')

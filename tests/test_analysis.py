@@ -392,6 +392,7 @@ class ApplicationChecks(unittest.TestCase):
         os.environ['BACKINTEL_APP_DATABASE_URL']=os.environ['BACKINTEL_ANALYSIS_CHECK_DB']
         os.environ['BACKINTEL_TEST_DATABASE_URL']=os.environ['BACKINTEL_ANALYSIS_CHECK_DB']
         initialize();db.catalog()
+        db.write("UPDATE backintel.analysis_sources SET body=body || '{\"terms_acknowledged\":true}'::jsonb")
         for role in ('manager','analyst','viewer'):
             db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
                      (role,hashlib.sha256(('fixture-'+role).encode()).hexdigest(),role,['commerce']))

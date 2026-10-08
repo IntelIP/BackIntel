@@ -102,15 +102,19 @@ def run_domain(r):
     return goal(r['goal_id'])['domain'] if r['goal_id'] else r['body']['domain']
 
 
-def check_run(identity):
-    r = run(identity)
+def check_run(identity, *, connection=None):
+    r = run(identity, connection=connection)
     if r['body']['operation'] == 'import':
         authorize({'id': r['owner']}, run_domain(r), ('manager',))
+        if not source(run_domain(r), connection=connection)['body'].get('terms_acknowledged'):
+            raise PermissionError('Source terms are not acknowledged')
         if query('SELECT cancel_requested FROM backintel.capability_jobs WHERE job_id=%s', (r['job_id'],), one=True)['cancel_requested']:
             raise InterruptedError('Import cancelled')
         return r, {'domain': run_domain(r)}
     g = goal(r['goal_id'])
     authorize({'id': r['owner']}, g['domain'], ('manager', 'analyst'))
+    if not source(g['domain'], connection=connection)['body'].get('terms_acknowledged'):
+        raise PermissionError('Source terms are not acknowledged')
     if r['body']['operation']=='analysis' and r['body'].get('model_id'):
         model=query('SELECT body FROM backintel.analysis_models WHERE id=%s',(r['body']['model_id'],),one=True)
         if not model or model['body'].get('invalidated_by'):
