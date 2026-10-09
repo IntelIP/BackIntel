@@ -18,6 +18,18 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_real_stage_requests_send_the_current_operator_token(self):
+        from unittest.mock import patch
+        from scripts import capability_demo, real_capabilities
+        with patch.dict(os.environ, {'BACKINTEL_CAPABILITY_TOKEN': 'fixture-operator-token'}), patch.object(capability_demo, 'api_request', side_effect=[[{'assistant_id': 'assistant'}], {'thread_id': 'thread'}, {'status': 'completed'}]) as request:
+            self.assertEqual(real_capabilities.submit('prepare', 'support', 'fixture', 'request'), {'status': 'completed'})
+            self.assertEqual(request.call_count, 3)
+            for call in request.call_args_list:
+                self.assertEqual(call.kwargs['headers'], {'Authorization': 'Bearer fixture-operator-token'})
+        with patch.dict(os.environ, {'BACKINTEL_CAPABILITY_TOKEN': ''}), patch.object(capability_demo, 'api_request') as request, self.assertRaisesRegex(RuntimeError, 'operator token'):
+            real_capabilities.submit('prepare', 'support', 'fixture', 'request')
+        request.assert_not_called()
+
     def test_factual_prose_cannot_add_unmeasured_qualitative_assertions(self):
         results = [{'tool': 'summarize', 'kind': 'observed', 'evidence_id': 'summary', 'table': [{'group': 'A', 'mean': .2, 'count': 10}]},
                    {'tool': 'inspect_source', 'evidence_id': 'source', 'records': 10, 'missing': {'age': 0}}]

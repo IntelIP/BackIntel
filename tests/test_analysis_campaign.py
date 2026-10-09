@@ -429,6 +429,23 @@ class CampaignChecks(unittest.TestCase):
             finally:
                 db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
 
+    def test_terms_recheck_manager_after_initial_authorization(self):
+        from runtime.analysis_api import terms, TermsInput
+        authorize = db.authorize
+        db.write("UPDATE backintel.analysis_sources SET body=body||%s WHERE id='commerce'", (Jsonb({'terms_acknowledged': False}),))
+        source = db.source('commerce')
+        for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='analyst'", "domains=ARRAY['support']"):
+            def revoke(*args, **kwargs):
+                current = authorize(*args, **kwargs)
+                db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
+                return current
+            try:
+                with self.subTest(change=change), patch.object(db, 'authorize', side_effect=revoke), self.assertRaisesRegex(PermissionError, 'Current manager authority'):
+                    terms('commerce', TermsInput(acknowledged=True, source_spec_sha256=source['body']['source_spec_sha256']), self.actor)
+                self.assertEqual(db.source('commerce')['body'], source['body'])
+            finally:
+                db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
+
     def test_refresh_skips_retired_sources_and_still_dispatches(self):
         with patch.object(db, 'query', side_effect=[[{'domain': 'retired'}, {'domain': 'commerce'}], self.actor]), patch.object(service, 'import_source', return_value={'snapshot': self.snapshot}) as importer, patch.object(service, 'schedule_snapshot', return_value=[]), patch.object(service, 'dispatch', return_value={'fixture': True}) as dispatch:
             result = service.refresh()

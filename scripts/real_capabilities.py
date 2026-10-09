@@ -6,8 +6,7 @@ import argparse
 import json
 import uuid
 
-from scripts.capability_demo import BASE, ROOT
-from scripts.jev.run_review_batch import request
+from scripts.capability_demo import BASE, ROOT, request
 from runtime.simulation import encoded
 
 

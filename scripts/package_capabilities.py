@@ -43,7 +43,7 @@ def package(connection, task_ids: list[str], output: Path, *, mode="development"
                 if task["body"]["observation_provider"]["implementation_mode"] != "simulated" or usage["provider_calls"]:
                     raise ValueError("Development packaging requires simulated semantic extraction")
             else:
-                routes = {(m["body"]["route"],m["body"]["feature_set"]) for m in store.list("model") if m["body"].get("implementation_mode") == "real"}
+                routes = {(m["body"]["route"],m["body"]["feature_set"]) for m in store.list("model") if m["body"].get("implementation_mode") == "real" and m['body'].get('task') == task['sha256']}
                 expected = {(r,f) for r in ("catboost","tabiclv2") for f in ("structured","semantic")}
                 if task["body"]["observation_provider"]["implementation_mode"] != "real" or not expected.issubset(routes):
                     raise ValueError("Actual predictor packaging requires all four real model routes")
@@ -59,7 +59,7 @@ def package(connection, task_ids: list[str], output: Path, *, mode="development"
                              "predictor_fixture":"Text findings: deterministic test fixtures; no paid Jev calls"}[mode]
             records = []
             for audience in task["body"]["audiences"]:
-                artifact = get_artifact(store, audience["id"])
+                artifact = get_artifact(store, audience["id"], task_sha=task['sha256'])
                 allowed = {"simulated","native_baseline"} if mode == "development" else {"real","native_baseline"}
                 if any(r["prediction"] and r["prediction"]["body"]["implementation_mode"] not in allowed for r in artifact["body"]["rows"]):
                     raise ValueError("Packaging mode must match actual predictor execution")
@@ -70,7 +70,7 @@ def package(connection, task_ids: list[str], output: Path, *, mode="development"
                 for row in artifact["body"]["rows"]:
                     save(folder / "Evidence" / (row["source"] + ".json"), artifact["body"]["evidence"][row["source"]])
                 records.append({"audience": audience["id"], "artifact_sha256": artifact["sha256"], "visible_entities": len(artifact["body"]["rows"])})
-            artifact = get_artifact(store, "operator")
+            artifact = get_artifact(store, "operator", task_sha=task['sha256'])
             candidate = create_candidate(store, artifact, "operator", DEVELOPMENT_SOURCE)
             if candidate["body"]["run"]["status"] != "candidate":
                 raise RuntimeError("Generated view failed its actual sandbox or source checks")

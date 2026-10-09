@@ -24,6 +24,42 @@ from runtime.prediction import (cases, chronological_split, compare, evaluate, f
 
 
 class CapabilityTests(unittest.TestCase):
+    def test_artifact_lookup_can_pin_the_current_task_revision(self):
+        from unittest.mock import MagicMock
+        from runtime.artifacts import get_artifact
+        store = MagicMock()
+        old = {'kind': 'artifact', 'sha256': 'old', 'available_at': 99, 'body': {'task': 'old-task', 'audience': {'id': 'operator'}}}
+        current = {'kind': 'artifact', 'sha256': 'current', 'available_at': 1, 'body': {'task': 'current-task', 'audience': {'id': 'operator'}}}
+        store.list.return_value = [old, current]
+        store.get.side_effect = lambda sha: {'old': old, 'current': current}[sha]
+        self.assertEqual(get_artifact(store, 'operator', task_sha='current-task'), current)
+        with self.assertRaises(PermissionError):
+            get_artifact(store, 'operator', 'old', task_sha='current-task')
+        store.list.return_value = [old]
+        with self.assertRaises(LookupError):
+            get_artifact(store, 'operator', task_sha='current-task')
+
+    def test_packaging_cannot_reuse_old_revision_reports_or_real_model_routes(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import MagicMock, patch
+        from scripts import package_capabilities as packaging
+        store = MagicMock()
+        old_artifact = {'kind': 'artifact', 'sha256': 'old-report', 'available_at': 99, 'body': {'task': 'old-task', 'audience': {'id': 'operator'}}}
+        old_models = [{'body': {'task': 'old-task', 'route': route, 'feature_set': feature, 'implementation_mode': 'real'}} for route in ('catboost', 'tabiclv2') for feature in ('structured', 'semantic')]
+        for mode, provider, error in [('development', 'simulated', 'No accepted report'), ('real', 'real', 'all four real model routes')]:
+            task = {'sha256': 'current-task', 'available_at': 1, 'body': {'audiences': [{'id': 'operator'}], 'observation_provider': {'implementation_mode': provider}}}
+            store.list.side_effect = lambda kind: {'task': [task], 'artifact': [old_artifact], 'model': old_models}.get(kind, [])
+            with self.subTest(mode=mode), TemporaryDirectory() as directory, patch.object(packaging, 'Evidence', return_value=store), patch.object(packaging, 'usage_for', return_value={'provider_fixture_requests': 0, 'provider_calls': 0 if mode=='development' else 1, 'provider_usd': 0}), patch.object(packaging, 'create_candidate') as create, patch.object(packaging, 'issue_grants') as grants:
+                with self.assertRaisesRegex((LookupError, ValueError), error):
+                    packaging.package(MagicMock(), ['fixture'], Path(directory), mode=mode)
+                receipt = json.loads((Path(directory)/'Package.json').read_text())
+                self.assertEqual(receipt['status'], 'failed')
+                self.assertIn(error, receipt['error']['message'])
+                self.assertFalse((Path(directory)/'Reports/fixture/operator/Report.json').exists())
+                create.assert_not_called()
+                grants.assert_not_called()
+
     def test_operational_prediction_cache_changes_with_implementation(self):
         from unittest.mock import MagicMock, patch
         from runtime import prediction

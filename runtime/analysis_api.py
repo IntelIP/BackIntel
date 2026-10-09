@@ -121,6 +121,10 @@ def terms(domain:str,body:TermsInput,p=Depends(access)):
     db.authorize(p,domain,('manager',))
     with db.connect() as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
+        manager=c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s AND enabled
+            AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND role='manager'
+            AND %s=ANY(domains) FOR UPDATE""", (p['id'],domain)).fetchone()
+        if not manager: raise PermissionError('Current manager authority is required to change source terms')
         source=db.source(domain, connection=c)
         if body.acknowledged and body.source_spec_sha256 != source['body']['source_spec_sha256']:
             raise ValueError('Source terms changed; reload and confirm the current terms')

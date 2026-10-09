@@ -73,13 +73,13 @@ def create_artifacts(store, task_record: dict, result: dict) -> list[dict]:
     return artifacts
 
 
-def get_artifact(store, actor: str, sha: str | None = None) -> dict:
+def get_artifact(store, actor: str, sha: str | None = None, *, task_sha: str | None = None) -> dict:
     if sha:
         artifact = store.get(sha)
-        if artifact["kind"] != "artifact" or artifact["body"]["audience"]["id"] != actor:
+        if artifact["kind"] != "artifact" or artifact["body"]["audience"]["id"] != actor or (task_sha is not None and artifact['body']['task'] != task_sha):
             raise PermissionError("Artifact is outside this audience")
         return artifact
-    eligible = [r for r in store.list("artifact") if r["body"]["audience"]["id"] == actor]
+    eligible = [r for r in store.list("artifact") if r["body"]["audience"]["id"] == actor and (task_sha is None or r['body']['task'] == task_sha)]
     if not eligible:
         raise LookupError("No accepted report is available for this audience")
     return max(eligible, key=lambda r: (r["available_at"], r["sha256"]))
