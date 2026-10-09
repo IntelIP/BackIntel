@@ -219,7 +219,7 @@ def model_job(identity, *, connection=None):
     if child.returncode:
         raise RuntimeError('Model comparison failed: '+safe_error(child.stderr[-1200:]))
     manifest = json.loads(child.stdout)
-    candidate = digest([g['id'], manifest['id']])
+    candidate = digest([g['id'], manifest['id'], manifest['artifacts']])
     with (nullcontext(connection) if connection is not None else db.connect()) as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
         db.check_run(identity, connection=c)
@@ -364,6 +364,13 @@ def dispatch(run_id=None):
             return {'status': 'worker_busy'}
         # The exclusive worker lock proves any remaining running analysis job is orphaned.
         c.execute("UPDATE backintel.capability_jobs SET lease_until=now() WHERE state='running' AND task_id LIKE %s", ('analysis-job-%',))
+        with c.transaction():
+            stranded=c.execute("""SELECT j.job_id,j.error,j.state FROM backintel.capability_jobs j
+                JOIN backintel.analysis_runs r ON r.job_id=j.job_id
+                WHERE j.task_id LIKE 'analysis-job-%' AND j.state IN ('failed','cancelled')
+                AND r.status IN ('queued','running') FOR UPDATE OF j,r""").fetchall()
+            for job_id, reason, job_state in stranded:
+                _finish_run_failure(c, job_id, job_state, reason)
         while True:
             task_ids = [r['task_id'] for r in db.query("SELECT DISTINCT task_id FROM backintel.capability_jobs WHERE task_id LIKE 'analysis-job-%' AND state IN ('queued','retry','running')")]
             with c.transaction():

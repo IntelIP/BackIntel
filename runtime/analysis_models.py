@@ -186,25 +186,31 @@ def compare(domain, rows, snapshot, *, trusted_comparisons=()):
     identity = digest(['model-comparison-v2',domain,snapshot,CONFIG['limits'],dependencies,[r['id'] for r in train+calibration+test]])
     directory=model_root()/'Analysis'/identity
     manifest=directory/'manifest.json'
-    prior=next((record for record in trusted_comparisons if record.get('id') == identity), None)
+    prior=None
     directory.mkdir(parents=True,exist_ok=True)
     output={'id':identity,'domain':domain,'snapshot':snapshot,'kind':kind,'mode':'real','methods':[],
             'splits':{k:[r['id'] for r in group] for k,group in zip(('train','calibration','test'),(train,calibration,test))},
             'preparation':'training-only DictVectorizer; explicit numeric missing flags; unseen categories omitted',
             'dependencies':dependencies, 'artifacts':[], 'caveat':CONFIG['sources'][domain]['caveat'], 'provider_calls':0,'provider_usd':0,'local_compute_usd':None}
-    if prior is not None:
+    for candidate in trusted_comparisons:
+        if candidate.get('id') != identity:
+            continue
         # Rebind cached files to this request; recompute every reported score below.
         for key, value in output.items():
-            if key not in ('methods','artifacts') and prior.get(key) != value:
+            if key not in ('methods','artifacts') and candidate.get(key) != value:
                 raise ValueError('Cached comparison metadata mismatch: '+key)
         features=['facts','facts-decide'] if domain in ('commerce','support') else ['facts']
         files=[f'{route}-{feature}.joblib' for feature in features for route in ('catboost','tabiclv2')]
         if domain in ('commerce','support'):
             files.append('observations.json')
-        artifacts=prior.get('artifacts',[])
-        expected={name:file_sha(directory/name) for name in files}
-        if len(artifacts)!=len(files) or {a['file']:a['sha256'] for a in artifacts}!=expected:
-            raise ValueError('Model artifact identity mismatch')
+        artifacts=candidate.get('artifacts',[])
+        try:
+            expected={name:file_sha(directory/name) for name in files}
+        except FileNotFoundError:
+            continue
+        if len(artifacts)==len(files) and {a['file']:a['sha256'] for a in artifacts}==expected:
+            prior=candidate
+            break
     y=np.array([r['target'] for r in train]); yt=[r['target'] for r in test]
     baseline=float(np.mean(y))
     yc=[r['target'] for r in calibration]

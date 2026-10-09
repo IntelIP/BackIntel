@@ -482,12 +482,19 @@ class AdapterChecks(unittest.TestCase):
             forged = deepcopy(original)
             forged['artifacts'][0] = models.fingerprint(artifact)
             manifest.write_text(json.dumps(forged))
-            with self.assertRaisesRegex(ValueError, 'Model artifact identity mismatch'):
-                models.compare('maintenance', rows, 'pinned-snapshot', trusted_comparisons=[original])
-            loader.assert_not_called()
-            models.compare('maintenance', rows, 'pinned-snapshot')
+            repaired = models.compare('maintenance', rows, 'pinned-snapshot', trusted_comparisons=[original])
             loader.assert_not_called()
             self.assertNotEqual(artifact.read_bytes(), b'forged executable model')
+            reused = models.compare('maintenance', rows, 'pinned-snapshot', trusted_comparisons=[original, repaired])
+            self.assertEqual(reused['artifacts'], repaired['artifacts'])
+            self.assertEqual(loader.call_count, 2)
+            for path in manifest.parent.iterdir():
+                path.unlink()
+            loader.reset_mock()
+            recovered = models.compare('maintenance', rows, 'pinned-snapshot', trusted_comparisons=[original, repaired])
+            loader.assert_not_called()
+            self.assertEqual(len(recovered['artifacts']), 2)
+            self.assertTrue(all((manifest.parent/item['file']).is_file() for item in recovered['artifacts']))
 
     def test_model_bytes_rejects_tampering_before_deserialization(self):
         import hashlib

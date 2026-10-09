@@ -864,7 +864,7 @@ class CampaignChecks(unittest.TestCase):
             with self.subTest(boundary=boundary):
                 run = service.submit(self.goal, self.actor, question=boundary, operation='training')
                 manifest = {'id':boundary, 'artifacts':[{'file':'catboost-facts.joblib'}], 'mode':'fixture'}
-                candidate = digest([self.goal, boundary])
+                candidate = digest([self.goal, boundary, manifest['artifacts']])
                 def handler(store, payload):
                     result = service.handle(store, payload)
                     if boundary == 'interrupt':
@@ -1202,6 +1202,29 @@ class CampaignChecks(unittest.TestCase):
                 self.assertEqual(updated[0]['groups'], expected)
                 for group, label in expected.items():
                     self.assertEqual(aggregate(updated, group)[0]['group'], label)
+
+    def test_dispatch_reconciles_terminal_jobs_left_by_an_interruption(self):
+        for index, (job_state, run_state) in enumerate((('failed', 'partial'), ('cancelled', 'cancelled'))):
+            with self.subTest(job_state=job_state):
+                db.write("UPDATE backintel.analysis_runs SET status='running' WHERE id=%s", (self.run['id'],))
+                db.write('UPDATE backintel.capability_jobs SET state=%s,error=%s WHERE job_id=%s',
+                         (job_state, 'fixture interrupted finalization', self.run['job_id']))
+                service.dispatch()
+                service.dispatch()
+                self.assertEqual(db.run(self.run['id'])['status'], run_state)
+                self.assertEqual(len(db.query("SELECT sequence FROM backintel.analysis_events WHERE run_id=%s AND kind='completed'", (self.run['id'],))), index+1)
+
+    def test_rebuilt_model_files_create_a_distinct_candidate(self):
+        import json
+        from types import SimpleNamespace
+        training = service.submit(self.goal, self.actor, operation='training')
+        candidates = []
+        for fingerprint in ('a'*64, 'b'*64):
+            manifest = {'id':'same-comparison-inputs', 'artifacts':[{'file':'catboost-facts.joblib', 'sha256':fingerprint}]}
+            with patch.object(service.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout=json.dumps(manifest))):
+                candidates.append(service.model_job(training['id'])['candidate_id'])
+        self.assertNotEqual(*candidates)
+        self.assertEqual(len(db.query('SELECT id FROM backintel.analysis_models WHERE id=ANY(%s)', (candidates,))), 2)
 
     def test_terminal_worker_timeout_preserves_uncertain_charge_and_finishes_run(self):
         db.write('UPDATE backintel.capability_jobs SET max_attempts=1 WHERE job_id=%s', (self.run['job_id'],))
