@@ -65,7 +65,7 @@ import json,sys
 from pathlib import Path
 from runtime import analysis_store as db
 from runtime.analysis_data import CONFIG,source_files
-from scripts.analysis_benchmark_support import raw_oracle,score_answer,fingerprint
+from scripts.analysis_benchmark_support import raw_oracle,score_answer,fingerprint,digest
 receipt=json.loads(sys.stdin.read());results=[]
 folders=('runtime','scripts','config','migrations')
 expected={name:sha for name,sha in receipt['candidate']['files'].items() if name.split('/')[0] in folders}
@@ -104,7 +104,7 @@ for domain in CONFIG['sources']:
    model=db.query('SELECT body,snapshot_id FROM backintel.analysis_models WHERE id=%s',(comparison['candidate_id'],),one=True)
    body=model['body']
    if model['snapshot_id']!=snapshot or body.get('mode')!='real' or not {'baseline','catboost','tabiclv2'}.issubset({m['route'] for m in body['methods']}):raise RuntimeError('Required real methods missing')
-   if body.get('dependencies',{}).get('implementation_sha256')!=fingerprint(Path('runtime/analysis_models.py'))['sha256']:raise RuntimeError('Model implementation differs')
+   if body.get('dependencies',{}).get('implementation_sha256')!=digest({name:fingerprint(Path('runtime')/name)['sha256'] for name in ('analysis_models.py','real_models.py','simulation.py')}):raise RuntimeError('Model implementation differs')
   charges=db.query('SELECT run_id,id,status,charge,reserved FROM backintel.analysis_requests WHERE run_id=ANY(%s)',(run_ids,))
   expected_charges=[c for c in receipt['charges'] if c['run_id'] in run_ids]
   if sorted(json.loads(json.dumps(charges,default=str)),key=lambda c:c['id'])!=sorted(expected_charges,key=lambda c:c['id']):raise RuntimeError('Cost ledger differs from receipt')

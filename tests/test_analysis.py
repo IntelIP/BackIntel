@@ -18,6 +18,20 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_source_counts_keep_their_metric_and_field_identity(self):
+        results = [{'evidence_id':'source','tool':'inspect_source','records':100,'labeled':90,'missing':{'age':5,'income':7}}]
+        for claim in ('There are 5 records.', 'There are 90 records.', 'There are 100 labeled records.',
+                      '7 records missing age.', '5 records missing income.', '5 records are missing.'):
+            with self.subTest(claim=claim), self.assertRaisesRegex(ValueError,'Narrative number'):
+                validate_answer({'summary':claim,'findings':[],'limitations':[]},results)
+        for claim in ('There are 100 records.', 'There are 90 labeled records.', '5 records missing age.',
+                      '7 records missing income.', '100 records and 90 labeled records.'):
+            with self.subTest(claim=claim):
+                validate_answer({'summary':claim,'findings':[],'limitations':[]},results)
+        with self.assertRaisesRegex(ValueError,'Narrative number'):
+            validate_answer({'summary':'There are 5 records.','findings':[],'limitations':[]},
+                            [{'evidence_id':'source','records':100,'missing':{'records':5}}])
+
     def test_decide_cache_binds_implementation_libraries_weights_and_metadata(self):
         import json
         from types import SimpleNamespace

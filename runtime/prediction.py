@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 import statistics
 import time
+from pathlib import Path
 
 from runtime.contracts import current_sources, number
 from runtime.observations import effective_observation
@@ -233,7 +234,8 @@ def evaluate(store, model: dict, holdout: list[dict], at: int) -> dict:
 
 
 def _evaluate(store, model: dict, holdout: list[dict], at: int) -> dict:
-    key = digest([model["sha256"], [[r["feature"]["sha256"],r["outcome"]["sha256"]] for r in holdout]])
+    implementation = digest({name:Path(__file__).with_name(name).read_text() for name in ('prediction.py','real_models.py','simulation.py')})
+    key = digest([model["sha256"], [[r["feature"]["sha256"],r["outcome"]["sha256"]] for r in holdout], implementation])
     existing = store.find("evaluation", key)
     if existing:
         return existing
@@ -246,7 +248,7 @@ def _evaluate(store, model: dict, holdout: list[dict], at: int) -> dict:
             raise ValueError("Evaluation target contract mismatch")
     predictions = [predict(model,r["feature"]) for r in holdout]
     scores = metrics(model["body"]["target"]["kind"], [r["outcome"]["body"]["value"] for r in holdout], predictions)
-    body = {"model":model["sha256"], "status":"passed", "metrics":scores, "predictions":predictions,
+    body = {"model":model["sha256"], "status":"passed", "metrics":scores, "predictions":predictions, "implementation_sha256":implementation,
             "cases":[[r["feature"]["sha256"],r["outcome"]["sha256"]] for r in holdout],
             "cutoffs":[r["feature"]["body"]["cutoff"] for r in holdout],
             "wall_ms":(time.perf_counter()-started)*1000, "prediction_bytes":len(encoded(predictions)),

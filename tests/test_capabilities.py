@@ -24,6 +24,26 @@ from runtime.prediction import (cases, chronological_split, compare, evaluate, f
 
 
 class CapabilityTests(unittest.TestCase):
+    def test_evaluation_cache_changes_with_scoring_implementation(self):
+        from unittest.mock import MagicMock,patch
+        from runtime import prediction
+        store = MagicMock(); saved = {}
+        store.find.side_effect=lambda kind,key:saved.get(key)
+        def put(kind,key,body,*args):
+            record={'body':body};saved[key]=record;return record
+        store.put.side_effect=put
+        model={'sha256':'model','body':{'target':{'kind':'regression'},'prepared_at':0,'task':'task','implementation_mode':'simulated'}}
+        holdout=[{'feature':{'sha256':'feature','body':{'cutoff':0}},'outcome':{'sha256':'outcome','available_at':1,'body':{'task':'task','value':1}}}]
+        with patch.object(prediction,'validate_case'), patch.object(prediction,'predict',return_value=1) as predict, patch.object(prediction.Path,'read_text',return_value='original') as code:
+            first=prediction.evaluate(store,model,holdout,1)
+            self.assertEqual(prediction.evaluate(store,model,holdout,1),first)
+            self.assertEqual(predict.call_count,1)
+            code.return_value='updated';predict.return_value=0
+            second=prediction.evaluate(store,model,holdout,1)
+            self.assertNotEqual(first['body']['implementation_sha256'],second['body']['implementation_sha256'])
+            self.assertNotEqual(first['body']['metrics'],second['body']['metrics'])
+            self.assertEqual(predict.call_count,2)
+
     def test_cleared_episode_stays_closed_after_staleness(self):
         store,task,*_ = self.scenario()
         reason = store.put('event','attention-regression',{'event':'fixture'},0)

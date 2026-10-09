@@ -46,9 +46,7 @@ def credential():
 
 def metric_values(value, names):
     if isinstance(value, dict):
-        if 'count' in names and isinstance(value.get('missing'), dict):
-            return [float(v) for v in value['missing'].values() if type(v) in (int, float)] + metric_values({k:v for k,v in value.items() if k != 'missing'}, names)
-        return [n for key, v in value.items() for n in
+        return [n for key, v in value.items() if key != 'missing' for n in
                 ([float(v)] if key in names and type(v) in (int, float) else metric_values(v, names))]
     if isinstance(value, list):
         return [n for v in value for n in metric_values(v, names)]
@@ -63,6 +61,24 @@ def grouped_rows(value):
     if isinstance(value,list):
         return [row for child in value for row in grouped_rows(child)]
     return []
+
+
+def count_values(value, clause):
+    if re.search(r'\bmissing\b', clause, re.I):
+        def missing_fields(item):
+            if isinstance(item, dict):
+                return [item['missing']] if isinstance(item.get('missing'), dict) else [fields for child in item.values() for fields in missing_fields(child)]
+            return [fields for child in item for fields in missing_fields(child)] if isinstance(item, list) else []
+        fields = missing_fields(value)
+        named = {name for mapping in fields for name in mapping if re.search(r'(?<!\w)'+re.escape(name.replace('_',' '))+r'(?!\w)', clause.replace('_',' '), re.I)}
+        return [float(mapping[name]) for mapping in fields for name in named if name in mapping and type(mapping[name]) in (int,float)] if len(named)==1 else []
+    if re.search(r'\b(labeled|labelled|known values)\b', clause, re.I):
+        return metric_values(value, {'labeled'})
+    if re.search(r'\b(sample|sampled|samples|cohort)\b', clause, re.I):
+        return metric_values(value, {'sample_size'}) or metric_values(value, {'count'})
+    if re.search(r'\b(source|total)\b', clause, re.I):
+        return metric_values(value, {'source_size','records'}) or metric_values(value, {'count'})
+    return metric_values(value, {'count','records'})
 
 
 def validate_answer(answer, results, group=None):
@@ -137,18 +153,22 @@ def validate_answer(answer, results, group=None):
             if bind_group and named:
                 metrics=[row for row in grouped_rows(metrics) if str(row['group']) in named]
             means = metric_values(metrics, {'mean'})
-            counts = metric_values(metrics, {'count', 'labeled', 'records', 'sample_size', 'source_size'})
+            boundaries = list(re.finditer(r';|,(?=\s)|\b(?:and|but)\b', text, re.I))
+            start = max([0]+[b.end() for b in boundaries if b.end()<=match.start()])
+            end = min([len(text)]+[b.start() for b in boundaries if b.start()>=match.end()])
+            clause = text[start:end]
+            counts = count_values(metrics, clause)
             percentage = re.match(r'\s*(%|percent\b)', text[match.end():], re.I)
             roles = re.findall(r'\b(mean|average|rate|probability|count|records|cases|rows|tickets|samples)\b', text[:match.start()], re.I)
             count_suffix = re.match(r'\s+(records|cases|rows|tickets|samples)\b', text[match.end():], re.I)
             if percentage:
                 allowed = [v*100 for v in means if 0 <= v <= 1]
-            elif count_suffix or roles and roles[-1].lower() in ('count','records','cases','rows','tickets','samples'):
+            elif count_suffix or re.search(r'\b(missing|labeled|labelled|known values|sample size|source size)\b',clause,re.I) or roles and roles[-1].lower() in ('count','records','cases','rows','tickets','samples'):
                 allowed = counts
             elif roles and roles[-1].lower() in ('mean','average','rate','probability'):
                 allowed = means
             else:
-                allowed = means + counts
+                allowed = means
             if not any(round(v,precision)==n for v in allowed):
                 raise ValueError('Narrative number is unsupported by tool results')
     # The primary UI summary uses the same typed, cited claims as the findings.

@@ -11,6 +11,23 @@ from scripts import analysis_benchmark_support as scoring
 
 
 class BenchmarkChecks(unittest.TestCase):
+    def test_real_validator_accepts_the_producers_dependency_digest(self):
+        import ast
+        from unittest.mock import patch
+        from runtime import analysis_models as models
+        tree=ast.parse((scoring.ROOT/'scripts/validation/check_analysis.py').read_text())
+        assignment=next(node for node in ast.walk(tree) if isinstance(node,ast.Assign) and any(isinstance(target,ast.Name) and target.id=='verify' for target in node.targets))
+        code=assignment.value.func.value.value.replace('REQUIRE_COMPARISONS','True')
+        guard=next(node for node in ast.walk(ast.parse(code)) if isinstance(node,ast.If) and isinstance(node.body[0],ast.Raise) and 'Model implementation differs' in ast.unparse(node.body[0]))
+        check=compile(ast.Module(body=[guard],type_ignores=[]),'<comparison identity check>','exec')
+        with patch.object(models,'versions',return_value={}), patch.object(models,'checkpoint',return_value=(None,{})):
+            body={'dependencies':models.runtime_dependencies('churn')}
+        scope={'body':body,'Path':Path,'fingerprint':scoring.fingerprint,'digest':scoring.digest}
+        exec(check,scope)
+        body['dependencies']['implementation_sha256']=scoring.fingerprint(scoring.ROOT/'runtime/analysis_models.py')['sha256']
+        with self.assertRaisesRegex(RuntimeError,'Model implementation differs'):
+            exec(check,scope)
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
