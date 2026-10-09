@@ -320,6 +320,25 @@ class CapabilityTests(unittest.TestCase):
             time.sleep(0.05)
         self.fail('Owned native job processes are still running: '+str(pids))
 
+    def test_cancellation_interrupts_native_calls_and_descendants(self):
+        import tempfile
+        from pathlib import Path
+        store, _, _, _ = self.scenario()
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory)/'started.json'
+            key = enqueue(store, {'marker':str(marker)}, 'native-cancel')
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                running = pool.submit(execute,key,self.blocking_native_handler(),max_wall_seconds=1800)
+                deadline = time.monotonic()+10
+                while not marker.exists() and not running.done() and time.monotonic()<deadline:
+                    time.sleep(.05)
+                self.assertTrue(marker.exists(),'Native worker did not start')
+                cancel(self.conn,key)
+                result = running.result(timeout=5)
+            self.assertEqual(result['state'],'cancelled')
+            self.assert_processes_stopped(json.loads(marker.read_text()))
+        self.assertEqual(store.list('unfinished_native_result'),[])
+
     def test_timeout_interrupts_native_calls_and_children_from_a_thread(self):
         import tempfile
         from pathlib import Path

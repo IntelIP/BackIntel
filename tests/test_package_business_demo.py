@@ -62,6 +62,32 @@ class RecordedPackageTests(unittest.TestCase):
             backup_reviews(original, root / "Records/ReviewsSeed.sqlite3")
             files = [{"path": str(p.relative_to(root)), "sha256": sha(p)} for p in root.rglob("*") if p.is_file()]
             (root / "Manifest.json").write_text(json.dumps({"demo_id": "business-v4", "files": files}))
+            state = root / '.demo-state'
+            outside = Path(directory) / 'OutsideState'
+            outside.mkdir()
+            state.symlink_to(outside, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, 'without links'): server(root, 0)
+            self.assertEqual(list(outside.iterdir()), [])
+            state.unlink()
+            state.mkdir()
+            for name in ('Reviews.sqlite3', 'Reviews.sqlite3-wal', 'Reviews.sqlite3-shm', 'Reviews.sqlite3-journal'):
+                linked = state / name
+                target = outside / name
+                linked.symlink_to(target)
+                with self.assertRaisesRegex(ValueError, 'without links'): server(root, 0)
+                self.assertFalse(target.exists())
+                linked.unlink()
+            linked = state / 'Reviews.sqlite3'
+            original_hash = sha(original)
+            linked.symlink_to(original)
+            with self.assertRaisesRegex(ValueError, 'without links'): server(root, 0)
+            self.assertEqual(sha(original), original_hash)
+            linked.unlink()
+            import os
+            os.link(original, linked)
+            with self.assertRaisesRegex(ValueError, 'linked external file'): server(root, 0)
+            self.assertEqual(sha(original), original_hash)
+            linked.unlink()
             api = server(root, 0)
             worker = threading.Thread(target=api.serve_forever, daemon=True)
             worker.start()

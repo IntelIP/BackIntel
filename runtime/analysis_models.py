@@ -90,12 +90,25 @@ def decide(rows, domain):
     return enriched, observations
 
 
-def runtime_dependencies(domain):
-    _, checkpoint_spec = checkpoint(CONFIG['sources'][domain]['kind'])
-    return {'libraries': versions(), 'checkpoint': checkpoint_spec,
-            'tabiclv2_parameters': json.loads(MODEL_CONFIG.read_text())['tabiclv2']['parameters'],
-            'decide': CONFIG['decide'] if domain in ('commerce','support') else None,
-            'implementation_sha256': file_sha(Path(__file__))}
+def runtime_dependencies(domain, route=None):
+    tabicl = route is None or route.startswith('tabiclv2-')
+    semantic = domain in ('commerce','support') and (route is None or route.endswith('facts-decide'))
+    packages = ['scikit-learn','numpy','joblib']
+    if route is None or route.startswith('catboost-'):
+        packages.append('catboost')
+    if tabicl:
+        packages.append('tabicl')
+    if tabicl or semantic:
+        packages.append('torch')
+    if semantic:
+        packages.append('gliner2')
+    checkpoint_spec = checkpoint(CONFIG['sources'][domain]['kind'])[1] if tabicl else None
+    implementation = {name:file_sha(Path(__file__).with_name(name))
+                      for name in ('analysis_models.py','real_models.py','simulation.py')}
+    return {'libraries': versions(packages), 'checkpoint': checkpoint_spec,
+            'tabiclv2_parameters': json.loads(MODEL_CONFIG.read_text())['tabiclv2']['parameters'] if tabicl else None,
+            'decide': CONFIG['decide'] if semantic else None,
+            'implementation_sha256': digest(implementation)}
 
 
 def compare(domain, rows, snapshot):
@@ -198,11 +211,19 @@ def compare(domain, rows, snapshot):
 def predict(model, rows):
     import joblib
     body=model['body']
-    if body.get('dependencies') != runtime_dependencies(body['domain']):
+    # Validate only the approved predictor's runtime, not unused comparison routes.
+    route=body.get('approved_route','catboost-facts')
+    current=runtime_dependencies(body['domain'],route)
+    recorded=body.get('dependencies') or {}
+    expected={key:recorded.get(key) for key in current}
+    if 'libraries' in current:
+        expected['libraries']={name:recorded.get('libraries',{}).get(name) for name in current['libraries']}
+    for key in ('checkpoint','tabiclv2_parameters','decide'):
+        if key in current and current[key] is None:
+            expected[key]=None
+    if expected != current:
         raise ValueError('Active model runtime dependencies changed; prepare and approve a new comparison')
     directory=model_root()/'Analysis'/body['id']
-    # A manager chooses the immutable approved route after inspecting the comparison.
-    route=body.get('approved_route','catboost-facts')
     name=route+'.joblib'
     expected=next((f['sha256'] for f in body['artifacts'] if f['file']==name),None)
     if expected is None or file_sha(directory/name)!=expected:

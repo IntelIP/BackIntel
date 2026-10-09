@@ -31,8 +31,8 @@ def file_sha(path: Path) -> str:
     return checksum.hexdigest()
 
 
-def versions() -> dict:
-    return {name:version(name) for name in ("catboost","tabicl","torch","scikit-learn","numpy")}
+def versions(packages=("catboost","tabicl","torch","scikit-learn","numpy")) -> dict:
+    return {name:version(name) for name in packages}
 
 
 def checkpoint(kind: str) -> tuple[Path,dict]:

@@ -167,6 +167,56 @@ class AdapterChecks(unittest.TestCase):
         results[0]['kind'] = 'observed'
         self.assertEqual(validate_answer(answer, results), answer)
 
+    def test_run_identity_includes_shared_predictor_implementation(self):
+        from unittest.mock import patch
+        from runtime import analysis_service as service
+        original = service.analysis_identity()
+        fingerprint = service.fingerprint
+        def changed(path):
+            value = fingerprint(path)
+            return {**value,'sha256':'changed shared predictor'} if path.name == 'real_models.py' else value
+        with patch.object(service,'fingerprint',side_effect=changed):
+            self.assertNotEqual(service.analysis_identity(),original)
+
+    def test_inspect_source_counts_blank_categories_but_not_zero_or_false(self):
+        from unittest.mock import patch
+        from runtime import analysis_agent as agent
+        rows = [{'features':{'category':value,'amount':0},'groups':{},'target':None}
+                for value in (None,'',False,0,'present')]
+        run = {'snapshot_id':'fixture','body':{'model_id':None}}
+        with patch.object(agent.db,'check_run',return_value=(run,{'domain':'commerce'})), \
+             patch.object(agent.db,'step',return_value=None), \
+             patch.object(agent.db,'records',return_value=rows), \
+             patch.object(agent.db,'evidence',return_value='fixture'), \
+             patch.object(agent.db,'save_step',side_effect=lambda identity,key,kind,body:body):
+            result = agent.tool('fixture','inspect_source',{})
+        self.assertEqual(result['missing'],{'amount':0,'category':2})
+
+    def test_catboost_prediction_does_not_require_unused_tabicl_checkpoint(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        from runtime import analysis_models as models
+        estimator = Mock()
+        estimator.predict.return_value = [.25]
+        loader = Mock(return_value={'vectorizer':Mock(),'estimator':estimator})
+        with patch.object(models,'versions',side_effect=lambda packages:{name:'fixture' for name in packages}), \
+             patch.object(models,'file_sha',return_value='fixture'), \
+             patch.object(models,'checkpoint',return_value=(None,{'sha256':'fixture'})) as checkpoint, \
+             patch.object(models,'model_root',return_value=Path('/unused-fixture-models')), \
+             patch.dict('sys.modules',{'joblib':SimpleNamespace(load=loader)}):
+            dependencies = models.runtime_dependencies('maintenance')
+            checkpoint.reset_mock()
+            checkpoint.side_effect = RuntimeError('Unused checkpoint unavailable')
+            model = {'body':{'id':'fixture','domain':'maintenance','kind':'regression',
+                            'approved_route':'catboost-facts','dependencies':dependencies,
+                            'artifacts':[{'file':'catboost-facts.joblib','sha256':'fixture'}]}}
+            self.assertEqual(models.predict(model,[{'id':'row','features':{'x':1}}]),{'row':.25})
+            checkpoint.assert_not_called()
+            model['body']['approved_route'] = 'tabiclv2-facts'
+            with self.assertRaisesRegex(RuntimeError,'checkpoint unavailable'):
+                models.predict(model,[])
+            loader.assert_called_once()
+
     def test_credit_cohort_does_not_depend_on_application_order(self):
         from unittest.mock import patch
         from runtime.analysis_data import CONFIG, digest

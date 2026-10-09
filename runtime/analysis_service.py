@@ -110,8 +110,9 @@ def submit(identity, actor, question=None, operation='analysis', *, connection=N
 
 
 def analysis_identity():
-    files = sorted(Path(__file__).parent.glob('analysis_*.py'))
-    return digest({'implementation':{path.name:fingerprint(path)['sha256'] for path in files}, 'config':CONFIG})
+    root = Path(__file__).resolve().parents[1]
+    files = sorted([*(root / 'runtime').glob('*.py'), root / 'config/real_models.json'])
+    return digest({'implementation':{str(path.relative_to(root)):fingerprint(path)['sha256'] for path in files}, 'config':CONFIG})
 
 
 def _admit_run(c, g, actor, question=None, operation='analysis'):

@@ -34,6 +34,13 @@ def copy_execution_package(source, target):
 
 
 def verify(root):
+    state = root / ".demo-state"
+    for path in (state, *(state / name for name in (
+            "Reviews.sqlite3", "Reviews.sqlite3-wal", "Reviews.sqlite3-shm", "Reviews.sqlite3-journal"))):
+        if path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
+            raise ValueError("Demo review state must remain inside the package without links")
+        if path.is_file() and path.stat().st_nlink > 1:
+            raise ValueError("Demo review state must not share a linked external file")
     manifest = json.loads((root / "Manifest.json").read_text())
     expected = {item['path'] for item in manifest['files']}
     actual = {path.relative_to(root).as_posix() for path in root.rglob('*')

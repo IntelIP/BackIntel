@@ -166,7 +166,7 @@ def tool(identity, name, args):
         columns = sorted({k for row in rows for k in row['features']})
         result = {'records': len(rows), 'features': columns, 'groups': sorted({k for row in rows for k in row['groups']}),
                   'labeled': sum(row['target'] is not None for row in rows),
-                  'missing': {k: sum(row['features'].get(k) is None for row in rows) for k in columns},
+                  'missing': {k: sum(row['features'].get(k) in (None, '') for row in rows) for k in columns},
                   'caveat': CONFIG['sources'][g['domain']]['caveat']}
     elif name == 'summarize':
         result = {'table': aggregate(rows, args.get('group'), order=args.get('order','ascending')), 'group_by': args.get('group'), 'kind': 'observed', 'target': CONFIG['sources'][g['domain']]['target']}

@@ -139,9 +139,19 @@ def _run_worker(job_id, job, handler, max_wall_seconds, usage_reader, started, d
                           stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                           start_new_session=True) as worker:
         try:
-            worker.wait(timeout=max(0, max_wall_seconds-(time.perf_counter()-started)))
-        except subprocess.TimeoutExpired:
-            raise TimeoutError('Job wall-time budget exceeded') from None
+            with psycopg.connect(dsn(), autocommit=True) as control:
+                control.execute("SET statement_timeout='1s'")
+                while worker.poll() is None:
+                    state = control.execute('SELECT cancel_requested,attempts FROM backintel.capability_jobs WHERE job_id=%s', (job_id,)).fetchone()
+                    if not state or state[0] or state[1] != job['attempt']:
+                        raise JobCancelled('Cancelled or lease ownership changed during execution')
+                    remaining = max_wall_seconds-(time.perf_counter()-started)
+                    if remaining <= 0:
+                        raise TimeoutError('Job wall-time budget exceeded')
+                    try:
+                        worker.wait(timeout=min(1, remaining))
+                    except subprocess.TimeoutExpired:
+                        continue
         finally:
             try:
                 os.killpg(worker.pid, signal.SIGKILL)
