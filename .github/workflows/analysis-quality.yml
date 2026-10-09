@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg18
+        image: mirror.gcr.io/pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
         env:
           POSTGRES_USER: validation
           POSTGRES_PASSWORD: local-validation-only
@@ -47,7 +47,7 @@ jobs:
           --health-cmd "pg_isready -U validation -d postgres"
           --health-interval 2s --health-retries 20
       redis:
-        image: redis:7.2.5-alpine
+        image: mirror.gcr.io/library/redis:7.2.5-alpine@sha256:6aaf3f5e6bc8a592fbfe2cccf19eb36d27c39d12dab4f4b01556b7449e7b1f44
         ports: ['6379:6379']
         options: >-
           --health-cmd "redis-cli ping"
@@ -77,6 +77,8 @@ jobs:
         env:
           BACKINTEL_UNIT_OUTPUT: artifacts/AnalysisValidation/ci-regression
         run: python scripts/validation/check_units.py
+      - name: Reuse the service image for isolated Redis recovery
+        run: docker tag "$(docker inspect --format '{{.Image}}' '${{ job.services.redis.id }}')" redis:7.2.5-alpine
       - name: Five-domain simulated browser and native-clock checks
         env:
           BACKINTEL_VALIDATION_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
