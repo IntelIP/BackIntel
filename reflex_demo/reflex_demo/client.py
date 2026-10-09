@@ -22,8 +22,8 @@ def read_workspace():
         return json.load(response)
 
 
-def write_decision(case_id, decision, reason, revision, source_sha256):
-    request = Request(BASE + "/cases/" + quote(case_id, safe="") + "/decision", method="PUT", data=json.dumps({"decision": decision, "reason": reason, "expected_revision": revision, "expected_source_sha256": source_sha256}).encode(), headers={"Content-Type": "application/json"})
+def write_decision(case_id, decision, reason, revision, context_sha256):
+    request = Request(BASE + "/cases/" + quote(case_id, safe="") + "/decision", method="PUT", data=json.dumps({"decision": decision, "reason": reason, "expected_revision": revision, "expected_context_sha256": context_sha256}).encode(), headers={"Content-Type": "application/json"})
     try:
         with urlopen(request, timeout=5) as response:
             return json.load(response)

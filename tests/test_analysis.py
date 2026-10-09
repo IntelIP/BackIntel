@@ -167,6 +167,70 @@ class AdapterChecks(unittest.TestCase):
         results[0]['kind'] = 'observed'
         self.assertEqual(validate_answer(answer, results), answer)
 
+    def test_cached_comparison_rebinds_metadata_and_recomputes_scores(self):
+        import json
+        from copy import deepcopy
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        from runtime import analysis_models as models
+
+        class Vectorizer:
+            def __init__(self, **kwargs): pass
+            def fit_transform(self, rows): return self.transform(rows)
+            def transform(self, rows): return rows
+
+        class Estimator:
+            def __init__(self, **kwargs): pass
+            def fit(self, rows, targets): return self
+            def predict(self, rows): return [row['x'] for row in rows]
+
+        files = {}
+        def dump(value, path):
+            files[path] = value
+            path.write_bytes(b'fixture model, not a real predictor')
+
+        loader = Mock(side_effect=lambda path: files[path])
+        modules = {'numpy': SimpleNamespace(array=lambda x:x, mean=lambda x:sum(x)/len(x)),
+                   'torch': SimpleNamespace(set_num_threads=lambda n:None),
+                   'catboost': SimpleNamespace(CatBoostClassifier=Estimator, CatBoostRegressor=Estimator),
+                   'sklearn.feature_extraction': SimpleNamespace(DictVectorizer=Vectorizer),
+                   'sklearn.feature_extraction.text': SimpleNamespace(TfidfVectorizer=Vectorizer),
+                   'sklearn.linear_model': SimpleNamespace(LogisticRegression=Estimator, Ridge=Estimator),
+                   'joblib': SimpleNamespace(dump=dump, load=loader)}
+        rows = [{'id':str(i), 'features':{'x':i}, 'target':i, 'split':split}
+                for split, start, count in [('train',0,16),('calibration',16,8),('test',24,8)]
+                for i in range(start,start+count)]
+        def score(kind, actual, predicted):
+            return {'mae':sum(abs(a-p) for a,p in zip(actual,predicted))/len(actual)}
+        with tempfile.TemporaryDirectory() as directory, patch.dict('sys.modules', modules), \
+             patch.object(models, 'model_root', return_value=Path(directory)), \
+             patch.object(models, 'runtime_dependencies', return_value={'fixture':'pinned'}), \
+             patch.object(models, 'checkpoint', return_value=(None,{})), \
+             patch.object(models, '_tabicl', return_value=Estimator()), \
+             patch.object(models, 'sample', side_effect=lambda rows,split:[r for r in rows if r['split']==split]), \
+             patch.object(models, 'metrics', side_effect=score):
+            original = models.compare('maintenance', rows, 'pinned-snapshot')
+            manifest = Path(directory)/'Analysis'/original['id']/'manifest.json'
+            for key, value in [('id','wrong'), ('domain','wrong'), ('snapshot','wrong'),
+                               ('dependencies',{}), ('splits',{}), ('artifacts',[])]:
+                with self.subTest(key=key):
+                    changed = deepcopy(original)
+                    changed[key] = value
+                    manifest.write_text(json.dumps(changed))
+                    with self.assertRaises(ValueError):
+                        models.compare('maintenance', rows, 'pinned-snapshot')
+            changed = deepcopy(original)
+            for method in changed['methods']:
+                method['metrics'] = {'fabricated':999}
+                method['calibration_metrics'] = {'fabricated':999}
+                method['predictions'] = {'invented':999}
+            manifest.write_text(json.dumps(changed))
+            rebuilt = models.compare('maintenance', rows, 'pinned-snapshot')
+            self.assertEqual(loader.call_count, 2)
+            for before, after in zip(original['methods'], rebuilt['methods']):
+                for key in ('metrics','calibration_metrics','predictions'):
+                    self.assertEqual(after.get(key), before.get(key))
+
     def test_decide_prediction_enriches_records_once(self):
         from unittest.mock import Mock, patch
         from runtime.analysis_models import predict

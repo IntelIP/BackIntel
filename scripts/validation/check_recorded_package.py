@@ -29,13 +29,14 @@ def check_extracted(root):
         assert packet['demo']['status'] == 'completed'
         case = packet['cases'][0]
         body = {'expected_revision': (case.get('review') or {}).get('revision', 0),
-                'expected_source_sha256': case['evidence']['sha256'], 'decision': 'follow_up',
+                'expected_context_sha256': case['context_sha256'], 'decision': 'follow_up',
                 'reason': 'Fresh extracted-package validation'}
         request = Request(base + f"/api/cases/{case['id']}/decision", data=json.dumps(body).encode(),
                           method='PUT', headers={'Content-Type': 'application/json', 'Origin': base})
         with urlopen(request, timeout=10) as response:
             saved = json.load(response)
-        assert saved['review']['revision'] == body['expected_revision'] + 1
+            # Older contexts retain their audit revisions but cannot approve this result.
+            assert saved['review']['revision'] > body['expected_revision']
         with urlopen(base + '/api/workspace', timeout=10) as response:
             reloaded = json.load(response)
         assert next(row for row in reloaded['cases'] if row['id'] == case['id'])['review'] == saved['review']

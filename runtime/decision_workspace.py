@@ -30,6 +30,12 @@ def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def decision_context(case):
+    # Bind review to everything shown before the decision, not a later outcome.
+    return fingerprint({key: value for key, value in case.items()
+                        if key not in ('review', 'history', 'outcome', 'context_sha256')})
+
+
 def preview(text):
     """Readable excerpt only; original source text stays intact in evidence."""
     text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
@@ -136,6 +142,8 @@ class DecisionStore:
                 PRIMARY KEY (case_id, revision))""")
             if "source_sha256" not in {row["name"] for row in connection.execute("PRAGMA table_info(reviews)")}:
                 connection.execute("ALTER TABLE reviews ADD COLUMN source_sha256 TEXT")
+            if "context_sha256" not in {row["name"] for row in connection.execute("PRAGMA table_info(reviews)")}:
+                connection.execute("ALTER TABLE reviews ADD COLUMN context_sha256 TEXT")
 
     def connect(self):
         connection = sqlite3.connect(self.database, timeout=5)
@@ -147,8 +155,9 @@ class DecisionStore:
             if case_id not in self.cases:
                 raise KeyError("Case not found")
             item = deepcopy(self.cases[case_id])
+            item["context_sha256"] = decision_context(item)
             with self.connect() as connection:
-                rows = connection.execute("SELECT decision,reason,revision,recorded_at FROM reviews WHERE case_id=? AND source_sha256=? ORDER BY revision DESC", (case_id, item["evidence"]["sha256"])).fetchall()
+                rows = connection.execute("SELECT decision,reason,revision,recorded_at FROM reviews WHERE case_id=? AND context_sha256=? ORDER BY revision DESC", (case_id, item["context_sha256"])).fetchall()
             item["history"] = [dict(row) for row in rows]
             item["review"] = item["history"][0] if rows else None
             if not rows:
@@ -190,8 +199,8 @@ class DecisionStore:
                 raise OSError("Source evidence unavailable. Refresh before saving.")
             if case_id not in self.cases:
                 raise KeyError("Case not found")
-            if not isinstance(body, dict) or set(body) != {"decision", "reason", "expected_revision", "expected_source_sha256"}:
-                raise ValueError("Decision must include decision, reason, expected_revision, and expected_source_sha256 only")
+            if not isinstance(body, dict) or set(body) != {"decision", "reason", "expected_revision", "expected_context_sha256"}:
+                raise ValueError("Decision must include decision, reason, expected_revision, and expected_context_sha256 only")
             if not isinstance(body["decision"], str) or body["decision"] not in DECISIONS:
                 raise ValueError("Choose a supported decision")
             if not isinstance(body["reason"], str) or not body["reason"].strip() or len(body["reason"]) > 2000:
@@ -199,15 +208,16 @@ class DecisionStore:
             if type(body["expected_revision"]) is not int or body["expected_revision"] < 0:
                 raise ValueError("Expected revision must be a nonnegative integer")
             source_sha256 = self.cases[case_id]["evidence"]["sha256"]
-            if body["expected_source_sha256"] != source_sha256:
-                raise Conflict("This source changed. Refresh before saving.")
+            context_sha256 = decision_context(self.cases[case_id])
+            if body["expected_context_sha256"] != context_sha256:
+                raise Conflict("This case or its analysis changed. Refresh before saving.")
             with self.connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
-                revision = connection.execute("SELECT COALESCE(MAX(revision),0) FROM reviews WHERE case_id=? AND source_sha256=?", (case_id, source_sha256)).fetchone()[0]
+                revision = connection.execute("SELECT COALESCE(MAX(revision),0) FROM reviews WHERE case_id=? AND context_sha256=?", (case_id, context_sha256)).fetchone()[0]
                 if body["expected_revision"] != revision:
                     raise Conflict("This case changed in another view. Refresh before saving.")
                 next_revision = connection.execute("SELECT COALESCE(MAX(revision),0)+1 FROM reviews WHERE case_id=?", (case_id,)).fetchone()[0]
-                connection.execute("INSERT INTO reviews (case_id,revision,decision,reason,recorded_at,source_sha256) VALUES (?,?,?,?,?,?)", (case_id, next_revision, body["decision"], body["reason"].strip(), datetime.now(timezone.utc).isoformat(), source_sha256))
+                connection.execute("INSERT INTO reviews (case_id,revision,decision,reason,recorded_at,source_sha256,context_sha256) VALUES (?,?,?,?,?,?,?)", (case_id, next_revision, body["decision"], body["reason"].strip(), datetime.now(timezone.utc).isoformat(), source_sha256, context_sha256))
             return self.case(case_id)
 
 

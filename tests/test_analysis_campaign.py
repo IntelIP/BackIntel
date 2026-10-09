@@ -618,30 +618,36 @@ class CampaignChecks(unittest.TestCase):
             service.dispatch()
         self.assertEqual(db.run(resumed['id'])['status'], 'succeeded')
 
-    def test_viewer_model_response_contains_only_aggregate_summary(self):
+    def test_test_evidence_is_withheld_across_api_routes_until_promotion(self):
         from fastapi.testclient import TestClient
         from runtime.analysis_api import app
         private = 'private-record-identifier'
-        method = {'route': 'catboost', 'features': 'facts', 'metrics': {'accuracy': .8}, 'predictions': {private: .9}}
-        manifest = {'methods': [method], 'splits': {'test': [private]}, 'artifacts': [{'file': private}]}
+        method = {'route': 'catboost', 'features': 'facts', 'metrics': {'heldout_error': 123},
+                  'calibration_metrics': {'selection_error': .2}, 'predictions': {private: .9}}
+        manifest = {'id': 'disclosure-fixture', 'methods': [method], 'splits': {'test': [private]},
+                    'artifacts': [{'file': private}]}
+        candidate = digest([self.goal, 'viewer'])
         db.write('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s)',
-                 (digest([self.goal, 'viewer']), self.goal, self.snapshot, Jsonb(manifest)))
-        client = TestClient(app)
-        route = '/api/v1/goals/' + self.goal + '/models'
-        viewer = client.get(route, headers={'Authorization': 'Bearer campaign-viewer'})
-        self.assertEqual(viewer.status_code, 200, viewer.text)
-        self.assertNotIn(private, viewer.text)
-        self.assertEqual(viewer.json()[0]['body'], {'methods': [{k:method[k] for k in ('route','features','metrics')}]})
-        manager = client.get(route, headers={'Authorization': 'Bearer campaign-manager'})
-        self.assertEqual(manager.json()[0]['body'], manifest)
+                 (candidate, self.goal, self.snapshot, Jsonb(manifest)))
         db.write('UPDATE backintel.analysis_runs SET result=%s WHERE id=%s', (Jsonb({'comparison': manifest}), self.run['id']))
-        for route in ('/api/v1/runs?goal_id='+self.goal, '/api/v1/runs/'+self.run['id']):
-            response = client.get(route, headers={'Authorization': 'Bearer campaign-viewer'})
-            self.assertEqual(response.status_code, 200, response.text)
-            self.assertNotIn(private, response.text)
+        db.write('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s', (self.run['id'], self.goal))
         evidence = db.evidence(self.run['id'], 'model_comparison', 'viewer-model', manifest)
-        self.assertEqual(client.get('/api/v1/evidence/'+evidence, headers={'Authorization': 'Bearer campaign-viewer'}).status_code, 403)
-        self.assertEqual(client.get('/api/v1/evidence/'+evidence, headers={'Authorization': 'Bearer campaign-manager'}).status_code, 200)
+        client = TestClient(app)
+        routes = ['/api/v1/goals/'+self.goal+'/models', '/api/v1/runs?goal_id='+self.goal,
+                  '/api/v1/runs/'+self.run['id'], '/api/v1/goals/'+self.goal+'/findings', '/api/v1/evidence/'+evidence]
+        for promoted in (False, True):
+            db.write('UPDATE backintel.analysis_models SET promoted=%s WHERE id=%s', (promoted, candidate))
+            for role in ('viewer', 'manager'):
+                for route in routes:
+                    with self.subTest(promoted=promoted, role=role, route=route):
+                        response = client.get(route, headers={'Authorization': 'Bearer campaign-'+role})
+                        if role == 'viewer' and route.endswith(evidence):
+                            self.assertEqual(response.status_code, 403)
+                            continue
+                        self.assertEqual(response.status_code, 200, response.text)
+                        self.assertIn('selection_error', response.text)
+                        self.assertEqual('heldout_error' in response.text, promoted)
+                        self.assertEqual(private in response.text, promoted and role == 'manager')
 
     def test_correction_during_comparison_rejects_late_candidate(self):
         import json
@@ -795,6 +801,24 @@ class CampaignChecks(unittest.TestCase):
             service.promote(candidate, self.actor)
         self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
         self.assertIsNone(db.goal(self.goal)['active_model'])
+
+    def test_reactivating_a_model_restores_its_exact_standing_answer(self):
+        candidate = self.candidate_fixture()
+        with patch('runtime.analysis_agent.analyze', return_value={'summary': 'fixture result', 'tables': []}):
+            first = service.promote(candidate, self.actor)
+            service.dispatch()
+            self.assertEqual(db.goal(self.goal)['last_success'], first['id'])
+            second = digest([candidate, 'second'])
+            db.write('INSERT INTO backintel.analysis_models(id,goal_id,snapshot_id,body) VALUES(%s,%s,%s,%s)',
+                     (second, self.goal, self.snapshot, Jsonb({'artifacts':[{'file':'catboost-facts.joblib'}]})))
+            newer = service.promote(second, self.actor)
+            service.dispatch()
+            self.assertEqual(db.goal(self.goal)['last_success'], newer['id'])
+            restored = service.promote(candidate, self.actor)
+        self.assertEqual(restored['id'], first['id'])
+        self.assertEqual(restored['status'], 'succeeded')
+        self.assertEqual(db.goal(self.goal)['last_success'], first['id'])
+        self.assertEqual(service.submit(self.goal, self.actor)['id'], first['id'])
 
     def test_promotion_refresh_uses_newly_active_model(self):
         candidate = self.candidate_fixture()

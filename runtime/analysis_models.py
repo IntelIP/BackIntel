@@ -118,17 +118,25 @@ def compare(domain, rows, snapshot):
     identity = digest(['model-comparison-v2',domain,snapshot,CONFIG['limits'],dependencies,[r['id'] for r in train+calibration+test]])
     directory=model_root()/'Analysis'/identity
     manifest=directory/'manifest.json'
-    if manifest.exists():
-        prior=json.loads(manifest.read_text())
-        for artifact in prior['artifacts']:
-            if file_sha(directory/artifact['file']) != artifact['sha256']:
-                raise ValueError('Model artifact identity mismatch')
-        return prior
+    prior=json.loads(manifest.read_text()) if manifest.exists() else None
     directory.mkdir(parents=True,exist_ok=True)
     output={'id':identity,'domain':domain,'snapshot':snapshot,'kind':kind,'mode':'real','methods':[],
             'splits':{k:[r['id'] for r in group] for k,group in zip(('train','calibration','test'),(train,calibration,test))},
             'preparation':'training-only DictVectorizer; explicit numeric missing flags; unseen categories omitted',
             'dependencies':dependencies, 'artifacts':[], 'caveat':CONFIG['sources'][domain]['caveat'], 'provider_calls':0,'provider_usd':0,'local_compute_usd':None}
+    if prior is not None:
+        # Rebind cached files to this request; recompute every reported score below.
+        for key, value in output.items():
+            if key not in ('methods','artifacts') and prior.get(key) != value:
+                raise ValueError('Cached comparison metadata mismatch: '+key)
+        features=['facts','facts-decide'] if domain in ('commerce','support') else ['facts']
+        files=[f'{route}-{feature}.joblib' for feature in features for route in ('catboost','tabiclv2')]
+        if domain in ('commerce','support'):
+            files.append('observations.json')
+        artifacts=prior.get('artifacts',[])
+        expected={name:file_sha(directory/name) for name in files}
+        if len(artifacts)!=len(files) or {a['file']:a['sha256'] for a in artifacts}!=expected:
+            raise ValueError('Model artifact identity mismatch')
     y=np.array([r['target'] for r in train]); yt=[r['target'] for r in test]
     baseline=float(np.mean(y))
     yc=[r['target'] for r in calibration]
@@ -161,16 +169,21 @@ def compare(domain, rows, snapshot):
         x=vectorizer.fit_transform([matrix_features(r) for r in a]); xx=vectorizer.transform([matrix_features(r) for r in cal+b])
         for route in ('catboost','tabiclv2'):
             check_limits(); method_start=time.monotonic()
-            if route=='catboost':
-                cls=CatBoostClassifier if kind=='classification' else CatBoostRegressor
-                estimator=cls(iterations=80,depth=4,learning_rate=.08,random_seed=42,thread_count=2,verbose=False,allow_writing_files=False)
+            artifact=directory/f'{route}-{feature_set}.joblib'
+            if prior is not None:
+                package=joblib.load(artifact)
+                estimator=package['estimator']
+                xx=package['vectorizer'].transform([matrix_features(r) for r in cal+b])
             else:
-                path,_=checkpoint(kind); estimator=_tabicl(kind,path)
-            estimator.fit(x,y)
+                if route=='catboost':
+                    cls=CatBoostClassifier if kind=='classification' else CatBoostRegressor
+                    estimator=cls(iterations=80,depth=4,learning_rate=.08,random_seed=42,thread_count=2,verbose=False,allow_writing_files=False)
+                else:
+                    path,_=checkpoint(kind); estimator=_tabicl(kind,path)
+                estimator.fit(x,y)
+                joblib.dump({'vectorizer':vectorizer,'estimator':estimator},artifact)
             predicted=estimator.predict_proba(xx)[:,list(estimator.classes_).index(1)] if kind=='classification' else estimator.predict(xx)
             calibrated, predicted = predicted[:len(cal)], predicted[len(cal):]
-            artifact=directory/f'{route}-{feature_set}.joblib'
-            joblib.dump({'vectorizer':vectorizer,'estimator':estimator},artifact)
             output['artifacts'].append(fingerprint(artifact))
             output['methods'].append({'route':route,'features':feature_set,'artifact':artifact.name,
                 'metrics':metrics(kind,yt,predicted),'calibration_metrics':metrics(kind,yc,calibrated),'wall_seconds':time.monotonic()-method_start,

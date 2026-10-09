@@ -19,13 +19,13 @@ class State(rx.State):
     tab: str = "finding"
     demo: dict[str, Any] = {}
     show_demo: bool = False
-    bound_source: str = ""
+    bound_context: str = ""
     bound_revision: int = 0
 
     @rx.var
     def source_changed(self) -> bool:
         row = self._case()
-        return bool(row and self.bound_source and row["evidence"]["sha256"] != self.bound_source)
+        return bool(row and self.bound_context and row["context_sha256"] != self.bound_context)
 
     @rx.var
     def evidence_unavailable(self) -> bool:
@@ -120,7 +120,7 @@ class State(rx.State):
         return self.demo.get("boundaries", [])
 
     def _bind_source(self, row):
-        self.bound_source = row["evidence"]["sha256"] if row else ""
+        self.bound_context = row["context_sha256"] if row else ""
         self.bound_revision = row["review"]["revision"] if row and row["review"] else 0
 
     @rx.var
@@ -231,7 +231,7 @@ class State(rx.State):
         if not row or self.source_changed or self.evidence_unavailable:
             return
         try:
-            saved = write_decision(row["id"], self.decision, form_data.get("reason", ""), self.bound_revision, self.bound_source)
+            saved = write_decision(row["id"], self.decision, form_data.get("reason", ""), self.bound_revision, self.bound_context)
             self.cases = [saved if case["id"] == saved["id"] else case for case in self.cases]
             self.status = "all"
             self.selected_id = saved["id"]
@@ -287,7 +287,7 @@ def reader():
         rx.el.form(rx.el.div("Your decision", class_name="composer-top"), rx.el.div(rx.foreach([("follow_up", "Follow up"), ("no_action", "No action"), ("need_more_information", "Need more info")], lambda choice: rx.el.button(choice[1], type="button", on_click=State.set_decision(choice[0]), class_name=rx.cond(State.decision == choice[0], "decision-active", ""))), class_name="decision-options"),
             rx.el.label("Reason and next step", html_for="reason", class_name="sr-only"), rx.el.textarea(id="reason", name="reason", value=State.reason, on_change=State.set_reason, placeholder="Add your reason and next step…", max_length=2000, required=True),
             rx.el.div(rx.el.span("Same API · Decisions shared with React", class_name="quiet-note"), rx.el.button("Save decision", type="submit", disabled=(State.reason.strip() == "") | State.source_changed | State.evidence_unavailable, class_name="save-button"), class_name="composer-footer"),
-            rx.cond(State.source_changed, rx.el.div("New source information arrived. Your draft is preserved. ", rx.el.button("Refresh case", on_click=State.refresh_case), class_name="save-error", role="alert")),
+            rx.cond(State.source_changed, rx.el.div("New case information arrived. Your draft is preserved. ", rx.el.button("Refresh case", on_click=State.refresh_case), class_name="save-error", role="alert")),
             rx.cond(State.evidence_unavailable, rx.el.p("Current evidence is unavailable. Saving is disabled until the workspace refreshes.", class_name="save-error", role="alert")),
             rx.cond(State.notice != "", rx.el.p(State.notice, role="status", class_name="save-success")),
             rx.cond(State.error != "", rx.el.div(State.error, rx.el.button("Refresh case", on_click=State.refresh_case), role="alert", class_name="save-error")), on_submit=State.save, class_name="decision-composer"),

@@ -140,6 +140,9 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
     # An active worker owns the job lock and needs the source/goal locks to finish.
     # Replays must return without waiting for that worker while holding these locks.
     if existing and (existing[0] not in ('partial', 'cancelled') or existing[1] == 'running'):
+        if existing[0] == 'succeeded' and operation == 'analysis' and question == g['body']['question']:
+            # This identity pins the current goal, snapshot, model and implementation.
+            c.execute('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s', (run_id, identity))
         return run_id
     payload = {'run_id': run_id, 'operation': operation}
     c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',

@@ -6,7 +6,7 @@ import * as api from './api'
 
 vi.mock('./api', async importOriginal=>({ ...await importOriginal<typeof import('./api')>(), loadWorkspace:vi.fn(), saveDecision:vi.fn() }))
 
-const item:Case={id:'GH-1',workflow:'issues',title:'An issue to review',summary:'Original issue summary',created_at:'2024-02-01T00:00:00Z',source_kind:'GitHub issue',simulated:false,facts:[{label:'Opened',value:'2024-02-01'}],finding:{text:'Check the source',status:'Rule-based suggestion'},prediction:{status:'experimental',explanation:'Did not beat baseline',estimates:{baseline:0.4}},evidence:{text:'<script>unsafe()</script>',url:'https://github.com/example/project/issues/1',sha256:'a'.repeat(64),collected_at:'2024-02-01T00:00:00Z'},review:null,history:[],outcome:null}
+const item:Case={context_sha256:'c'.repeat(64),id:'GH-1',workflow:'issues',title:'An issue to review',summary:'Original issue summary',created_at:'2024-02-01T00:00:00Z',source_kind:'GitHub issue',simulated:false,facts:[{label:'Opened',value:'2024-02-01'}],finding:{text:'Check the source',status:'Rule-based suggestion'},prediction:{status:'experimental',explanation:'Did not beat baseline',estimates:{baseline:0.4}},evidence:{text:'<script>unsafe()</script>',url:'https://github.com/example/project/issues/1',sha256:'a'.repeat(64),collected_at:'2024-02-01T00:00:00Z'},review:null,history:[],outcome:null}
 const workspace:Workspace={schema:'backintel-decision-workspace/v1',cases:[item,{...item,id:'EQ-1',workflow:'equipment',title:'Equipment example',simulated:true}],source_mode:'retained-public-issue-evidence'}
 const demo:Demo={title:'Support workflow demonstration',persona:'Support lead',problem:'Prepare reports for review',today:['Read reports manually'],status:'prepared',jev_mode:'Jev has not run',demo_id:'business-test',captured_at:'2026-09-30T12:00:00Z',actual_provider_calls:0,stages:[{id:'interpret',title:'Interpret report text',technology:'Jev',count:0,status:'pending',explanation:'Answer a fixed question'}],comparisons:[],value:{assumptions:{cases_per_week:600,manual_minutes_per_case:8,assisted_minutes_per_case:3,labour_usd_per_hour:40},capacity_hours_per_week:50,capacity_value_usd_per_week:2000,provider_usd:0,compute_usd:null,net_benefit_usd:null,explanation:'Capacity value is an assumption, not measured savings.'},stack:[{name:'LangGraph',role:'Run bounded steps'}],boundaries:['Synthetic inputs and future outcomes']}
 
@@ -18,7 +18,7 @@ describe('review journey',()=>{
     expect(screen.getByRole('button',{name:'Save decision'})).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Reason and next step'),{target:{value:'Ask owner'}})
     fireEvent.click(screen.getByRole('button',{name:'Save decision'}))
-    await waitFor(()=>expect(api.saveDecision).toHaveBeenCalledWith('GH-1','follow_up','Ask owner',0,item.evidence.sha256))
+    await waitFor(()=>expect(api.saveDecision).toHaveBeenCalledWith('GH-1','follow_up','Ask owner',0,item.context_sha256))
     await screen.findByRole('button',{name:'Reviewed'})
     fireEvent.mouseDown(screen.getByRole('tab',{name:'Later outcome'}),{button:0,ctrlKey:false})
     expect(await screen.findByText('Later archived outcome')).toBeInTheDocument()
@@ -95,17 +95,17 @@ describe('review journey',()=>{
   it('preserves a draft but requires explicit source refresh before saving',async()=>{
     render(<App/>);await screen.findByRole('heading',{name:item.title})
     fireEvent.change(screen.getByLabelText('Reason and next step'),{target:{value:'Preserve this note'}})
-    const changed={...item,evidence:{...item.evidence,sha256:'b'.repeat(64)}}
+    const changed={...item,context_sha256:'d'.repeat(64),finding:{...item.finding,text:'Changed analysis'}}
     vi.mocked(api.loadWorkspace).mockResolvedValue({...workspace,cases:[changed]})
     fireEvent.click(screen.getByRole('button',{name:'Refresh workspace'}))
-    expect(await screen.findByRole('alert')).toHaveTextContent('New source information arrived')
+    expect(await screen.findByRole('alert')).toHaveTextContent('New case information arrived')
     expect(screen.getByLabelText('Reason and next step')).toHaveValue('Preserve this note')
     expect(screen.getByRole('button',{name:'Save decision'})).toBeDisabled()
     fireEvent.click(screen.getByRole('button',{name:'Refresh case'}))
     await waitFor(()=>expect(screen.getByRole('button',{name:'Save decision'})).toBeEnabled())
     vi.mocked(api.saveDecision).mockResolvedValue({...changed,review:{decision:'follow_up',reason:'Preserve this note',revision:1,recorded_at:demo.captured_at}})
     fireEvent.click(screen.getByRole('button',{name:'Save decision'}))
-    await waitFor(()=>expect(api.saveDecision).toHaveBeenCalledWith(item.id,'follow_up','Preserve this note',0,changed.evidence.sha256))
+    await waitFor(()=>expect(api.saveDecision).toHaveBeenCalledWith(item.id,'follow_up','Preserve this note',0,changed.context_sha256))
   })
   it('disables saving against an unavailable background snapshot',async()=>{
     vi.mocked(api.loadWorkspace).mockResolvedValue({...workspace,demo:{...demo,status:'unavailable'}})

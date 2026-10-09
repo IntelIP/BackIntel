@@ -39,7 +39,7 @@ class RecordedPackageTests(unittest.TestCase):
                 with urlopen(base + "/api/workspace") as response:
                     case = json.load(response)["cases"][0]
                 body = {"decision": "follow_up", "reason": "Synthetic demo review", "expected_revision": 0,
-                        "expected_source_sha256": case["evidence"]["sha256"]}
+                        "expected_context_sha256": case["context_sha256"]}
                 request = Request(base + f"/api/cases/{case['id']}/decision", data=json.dumps(body).encode(), method="PUT",
                                   headers={"Content-Type": "application/json", "Origin": base})
                 with urlopen(request) as response:

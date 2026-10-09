@@ -1,7 +1,7 @@
 export type Decision = 'follow_up' | 'no_action' | 'need_more_information'
 export type Review = { decision: Decision; reason: string; revision: number; recorded_at: string }
 export type Case = {
-  id: string; workflow: 'issues' | 'equipment'; title: string; summary: string;
+  context_sha256: string; id: string; workflow: 'issues' | 'equipment'; title: string; summary: string;
   created_at: string; source_kind: string; simulated: boolean;
   facts: { label: string; value: string }[];
   finding: { text: string; status: string };
@@ -35,9 +35,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export function loadWorkspace(signal?: AbortSignal) { return request<Workspace>('/workspace', { signal }) }
-export function saveDecision(id: string, decision: Decision, reason: string, revision: number, sourceSha256: string) {
+export function saveDecision(id: string, decision: Decision, reason: string, revision: number, contextSha256: string) {
   return request<Case>(`/cases/${encodeURIComponent(id)}/decision`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decision, reason, expected_revision: revision, expected_source_sha256: sourceSha256 }),
+    body: JSON.stringify({ decision, reason, expected_revision: revision, expected_context_sha256: contextSha256 }),
   })
 }

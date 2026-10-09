@@ -34,15 +34,15 @@ function CaseReader({ item, unavailable, onSaved, onRefresh, onBack }: { item: C
   const [error, setError] = useState('')
   const saveInProgress = useRef(false)
   const [tab, setTab] = useState('finding')
-  const boundSource = useRef(item.evidence.sha256)
+  const boundContext = useRef(item.context_sha256)
   const boundRevision = useRef(item.review?.revision ?? 0)
-  const sourceChanged = boundSource.current !== item.evidence.sha256
+  const sourceChanged = boundContext.current !== item.context_sha256
 
   async function refreshCase() {
     try {
       const current = (await loadWorkspace()).cases.find(row => row.id === item.id)
       if (!current) throw new Error('This case is no longer in the current packet.')
-      boundSource.current = current.evidence.sha256; boundRevision.current = current.review?.revision ?? 0
+      boundContext.current = current.context_sha256; boundRevision.current = current.review?.revision ?? 0
       onSaved(current); setError(''); setNotice('Case refreshed. Review your existing note before saving.')
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not refresh the case.') }
     onRefresh()
@@ -52,7 +52,7 @@ function CaseReader({ item, unavailable, onSaved, onRefresh, onBack }: { item: C
     if (!reason.trim() || saveInProgress.current || sourceChanged || unavailable) return
     saveInProgress.current = true; setSaving(true); setError(''); setNotice('')
     try {
-      const updated = await saveDecision(item.id, decision, reason.trim(), boundRevision.current, boundSource.current)
+      const updated = await saveDecision(item.id, decision, reason.trim(), boundRevision.current, boundContext.current)
       boundRevision.current = updated.review?.revision ?? 0
       onSaved(updated); setNotice(updated.outcome ? 'Decision saved. Later outcome is now available.' : 'Decision saved. No later outcome is available yet.')
     } catch (err) {
@@ -82,7 +82,7 @@ function CaseReader({ item, unavailable, onSaved, onRefresh, onBack }: { item: C
       <label className="sr-only" htmlFor="decision-reason">Reason and next step</label><textarea id="decision-reason" maxLength={2000} placeholder="Add your reason and next step…" value={reason} onChange={e=>{setReason(e.target.value);setNotice('')}} />
       <div className="composer-footer"><span className="quiet-note"><SealCheck size={13} />Evidence stays linked to your decision</span><Button variant="primary" disabled={!reason.trim() || saving || sourceChanged || unavailable} onClick={submit}>{saving?'Saving…':'Save decision'}</Button></div>
       {unavailable && <p role="alert" className="save-error">Current evidence is unavailable. Saving is disabled until the workspace refreshes.</p>}
-      {sourceChanged && <div role="alert" className="save-error">New source information arrived. Refresh the case before saving. Your draft is preserved. <Button onClick={refreshCase}>Refresh case</Button></div>}
+      {sourceChanged && <div role="alert" className="save-error">New case information arrived. Refresh the case before saving. Your draft is preserved. <Button onClick={refreshCase}>Refresh case</Button></div>}
       {notice && <p role="status" className="save-success">{notice}</p>}{error && <div role="alert" className="save-error">{error} {error.includes('Refresh') && <Button onClick={refreshCase}>Refresh case</Button>}</div>}
     </div>
   </main>

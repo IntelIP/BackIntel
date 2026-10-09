@@ -8,7 +8,7 @@ import unittest
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from runtime.decision_workspace import Conflict, DecisionStore, WorkspaceServer, issue_cases, load_cases
+from runtime.decision_workspace import Conflict, DecisionStore, WorkspaceServer, decision_context, issue_cases, load_cases
 
 
 class DecisionWorkspaceTests(unittest.TestCase):
@@ -17,7 +17,36 @@ class DecisionWorkspaceTests(unittest.TestCase):
         self.path = Path(self.tmp.name) / "reviews.sqlite3"
         self.cases, self.mode = load_cases(None)
         self.store = DecisionStore(self.path, self.cases)
-        self.body = {"decision": "follow_up", "reason": "Verify the original report with its owner.", "expected_revision": 0, "expected_source_sha256": self.cases[0]["evidence"]["sha256"]}
+        self.body = {"decision": "follow_up", "reason": "Verify the original report with its owner.", "expected_revision": 0, "expected_context_sha256": decision_context(self.cases[0])}
+
+    def test_review_is_bound_to_prediction_and_finding_with_unchanged_source(self):
+        from copy import deepcopy
+        case_id = self.cases[0]['id']
+        original = deepcopy(self.cases)
+        self.store.decide(case_id, self.body)
+        for key, value in [('finding', {'text': 'New result', 'status': 'updated'}),
+                           ('prediction', {'status': 'updated', 'explanation': 'New model', 'estimates': {'new': .9}})]:
+            with self.subTest(key=key):
+                cases = deepcopy(original)
+                cases[0][key] = value
+                changed = DecisionStore(self.path, cases)
+                shown = changed.case(case_id)
+                self.assertIsNone(shown['review'])
+                self.assertIsNone(shown['outcome'])
+                self.assertEqual(shown['evidence'], original[0]['evidence'])
+                with self.assertRaises(Conflict):
+                    changed.decide(case_id, self.body)
+                updated = changed.decide(case_id, dict(self.body, expected_context_sha256=shown['context_sha256']))
+                self.assertIsNotNone(updated['review'])
+        self.assertEqual(DecisionStore(self.path, original).case(case_id)['review']['revision'], 1)
+
+    def test_legacy_source_only_review_does_not_approve_unknown_analysis(self):
+        case_id = self.cases[0]['id']
+        self.store.decide(case_id, self.body)
+        with self.store.connect() as connection:
+            connection.execute('UPDATE reviews SET context_sha256=NULL')
+        self.assertIsNone(self.store.case(case_id)['review'])
+        self.assertIsNone(self.store.case(case_id)['outcome'])
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -87,7 +116,7 @@ class DecisionWorkspaceTests(unittest.TestCase):
         self.assertIsNone(changed.case(case_id)["outcome"])
         with self.assertRaises(Conflict):
             changed.decide(case_id, self.body)
-        updated = changed.decide(case_id, dict(self.body, expected_source_sha256="b" * 64))
+        updated = changed.decide(case_id, dict(self.body, expected_context_sha256=decision_context(self.cases[0])))
         self.assertEqual(updated["review"]["revision"], 2)
 
     def test_packet_refresh_waits_for_decision_commit_and_response(self):
@@ -127,7 +156,7 @@ class DecisionWorkspaceTests(unittest.TestCase):
                 release.set()
             saved = decision.result(timeout=5)
             self.assertEqual(saved['review']['revision'], 1)
-            self.assertEqual(saved['evidence']['sha256'], self.body['expected_source_sha256'])
+            self.assertEqual(saved['context_sha256'], self.body['expected_context_sha256'])
             self.assertIsNone(refresh_result.result(timeout=5)['cases'][0]['review'])
 
     def public_source(self):

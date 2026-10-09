@@ -244,19 +244,25 @@ def evidence(identity:str,p=Depends(access)):
     actor=db.authorize(p,g['domain'])
     if actor['role']=='viewer' and (r['kind']=='model_comparison' or r['kind']=='calculation' and r['body'].get('tool')=='interpret_text'):
         raise PermissionError('Raw interpretation and model evidence requires analyst access')
+    if r['kind']=='model_comparison':
+        return {**r,'body':comparison_response(r['body'],g['id'],actor)}
     return r
 
 
-def model_summary(body):
-    return {'methods':[{key:method[key] for key in ('route','features','metrics') if key in method}
+def model_summary(body,promoted=False):
+    keys=('route','features','calibration_metrics') + (('metrics',) if promoted else ())
+    return {'methods':[{key:method[key] for key in keys if key in method}
                        for method in body.get('methods',[])]}
 
+def comparison_response(body,goal_id,actor):
+    approved=db.query("SELECT id FROM backintel.analysis_models WHERE goal_id=%s AND body->>'id'=%s AND promoted LIMIT 1",
+                      (goal_id,body.get('id')),one=True)
+    return body if approved and actor['role']!='viewer' else model_summary(body,bool(approved))
 
 def run_response(r,actor):
-    if actor['role']=='viewer' and r.get('result') and 'comparison' in r['result']:
-        return {**r,'result':{**r['result'],'comparison':model_summary(r['result']['comparison'])}}
+    if r.get('result') and 'comparison' in r['result']:
+        return {**r,'result':{**r['result'],'comparison':comparison_response(r['result']['comparison'],r['goal_id'],actor)}}
     return r
-
 
 @app.get('/api/v1/goals/{identity}/models')
 def models(identity:str,p=Depends(access)):
@@ -264,9 +270,8 @@ def models(identity:str,p=Depends(access)):
     candidates=db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC',(identity,))
     if actor['role']=='viewer':
         return [{**{key:m[key] for key in ('id','goal_id','snapshot_id','promoted','created_at')},
-                 'body':model_summary(m['body'])} for m in candidates]
-    return candidates
-
+                 'body':model_summary(m['body'],m['promoted'])} for m in candidates]
+    return [{**m,'body':m['body'] if m['promoted'] else model_summary(m['body'])} for m in candidates]
 
 @app.post('/api/v1/models/{identity}/promote',status_code=202)
 def promote(identity:str,body:PromotionInput,p=Depends(access)):
