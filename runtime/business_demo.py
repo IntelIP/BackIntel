@@ -56,7 +56,7 @@ def simulation_date(at):
     return (datetime(2026, 9, 30, tzinfo=timezone.utc) + timedelta(minutes=at)).isoformat()
 
 
-def attach_local_predictions(packet, report, demo_id):
+def attach_local_predictions(packet, report, demo_id, *, expected_features):
     """Expose a separate synthetic model test without completing workflow stages."""
     if (report.get("schema") != "backintel-local-prediction-rehearsal/v1"
             or report.get("demo_id") != demo_id
@@ -67,10 +67,28 @@ def attach_local_predictions(packet, report, demo_id):
             or report.get("provider_calls") != 0):
         raise ValueError("Local prediction rehearsal does not match the approved synthetic demonstration")
     expected = {"baseline": "computed_baseline", "catboost": "actual_local_model", "tabiclv2": "actual_local_model"}
+    if (not expected_features or report.get('task_id') != f'support-local-{demo_id}'
+            or report.get('task_sha256') != expected_features[0]['body']['task']
+            or report.get('target') != dataset('support')[0][0]['target']):
+        raise ValueError('Local prediction rehearsal task does not match the approved demonstration')
+    cohort = sorted([{'entity': record['body']['entity'], 'source_sha256': record['body']['source'],
+                      'feature_sha256': record['sha256'], 'cutoff': record['body']['cutoff'],
+                      'target_at': record['body']['target_at']} for record in expected_features], key=lambda row: row['feature_sha256'])
     methods = report.get("methods", [])
     if len(methods) != len(expected) or {method["route"] for method in methods} != set(expected):
         raise ValueError("Local prediction rehearsal must contain the baseline and both approved models")
     for method in methods:
+        estimates = method.get('estimates')
+        if not isinstance(estimates, list) or len(estimates) != len(cohort):
+            raise ValueError('Local prediction estimates must cover the approved feature cohort')
+        for estimate in estimates:
+            if (not isinstance(estimate, dict) or set(estimate) != set(cohort[0]) | {'value'}
+                    or type(estimate['value']) not in (int, float) or not math.isfinite(estimate['value'])
+                    or not 0 <= estimate['value'] <= 1):
+                raise ValueError('Local prediction estimates require finite probabilities and complete identities')
+        identities = sorted([{key: value for key, value in estimate.items() if key != 'value'} for estimate in estimates], key=lambda row: str(row['feature_sha256']))
+        if identities != cohort:
+            raise ValueError('Local prediction estimates differ from the approved feature cohort')
         error = method["metrics"]["brier"]
         if (method.get("execution") != expected[method["route"]]
                 or method.get("feature_set") != "structured"

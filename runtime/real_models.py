@@ -193,7 +193,9 @@ def _load(root_value: str, model_json: str):
 
 def predict_real(model: dict, feature: dict) -> float:
     body = model["body"]
-    _allow_model_use(body["route"])
+    config = _allow_model_use(body["route"])
+    if body.get("configuration_sha256") != digest(config) or body.get("parameters") != config[body["route"]]["parameters"]:
+        raise ValueError("Predictor configuration changed; prepare and approve a replacement")
     estimator = _load(str(model_root()),json.dumps(body,sort_keys=True))
     values = matrix([feature],body["columns"])
     if body["target"]["kind"] == "classification":

@@ -106,13 +106,13 @@ def me(p=Depends(access)):
 
 @app.get('/api/v1/notifications')
 def notifications(p=Depends(access)):
-    db.authorize(p)
+    p=db.authorize(p)
     return db.query("SELECT e.sequence AS id,e.run_id,e.body,e.created_at,g.id AS goal_id,g.domain FROM backintel.analysis_events e JOIN backintel.analysis_runs r ON r.id=e.run_id JOIN backintel.analysis_goals g ON g.id=r.goal_id WHERE e.kind='material_change' AND g.domain=ANY(%s) ORDER BY e.sequence DESC LIMIT 30",(p['domains'],))
 
 
 @app.get('/api/v1/sources')
 def sources(p=Depends(access)):
-    db.authorize(p)
+    p=db.authorize(p)
     return [db.source(row['id']) for row in db.query('SELECT id FROM backintel.analysis_sources WHERE domain=ANY(%s) ORDER BY domain',(p['domains'],))]
 
 
@@ -141,7 +141,7 @@ async def refresh_source(domain:str,p=Depends(access)):
 
 @app.get('/api/v1/goals')
 def goals(p=Depends(access)):
-    db.authorize(p)
+    p=db.authorize(p)
     result=db.query('SELECT * FROM backintel.analysis_goals WHERE domain=ANY(%s) ORDER BY created_at DESC',(p['domains'],))
     for g in result:
         source=db.source(g['domain'])
@@ -304,6 +304,10 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
     db.authorize(p,domain,('manager',))
     with db.connect() as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
+        manager=c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s AND enabled
+            AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND role='manager'
+            AND %s=ANY(domains) FOR UPDATE""", (p['id'],domain)).fetchone()
+        if not manager: raise PermissionError('Current manager authority is required to correct a source')
         source=db.source(domain, connection=c)
         if not source['body'].get('terms_acknowledged'):
             raise PermissionError('Source terms are not acknowledged')

@@ -61,6 +61,8 @@ class BusinessDemoTests(unittest.TestCase):
         from runtime.simulation import digest
 
         data, _ = dataset("support")
+        features = [{'sha256': 'feature', 'body': {'task': 'task', 'entity': 'queue-A', 'source': 'source', 'cutoff': 25, 'target_at': 30}}]
+        estimate = {'entity': 'queue-A', 'source_sha256': 'source', 'feature_sha256': 'feature', 'cutoff': 25, 'target_at': 30, 'value': .2}
         report = {"schema": "backintel-local-prediction-rehearsal/v1", "demo_id": "business-v1",
                   "dataset_sha256": digest(data), "source_mode": "synthetic", "status": "completed",
                   "feature_set": "structured", "provider_calls": 0, "train_count": 18, "holdout_count": 6,
@@ -68,17 +70,43 @@ class BusinessDemoTests(unittest.TestCase):
                       {"route": route, "feature_set": "structured", "execution": execution, "metrics": {"brier": .2}}
                       for route, execution in (("baseline", "computed_baseline"), ("catboost", "actual_local_model"), ("tabiclv2", "actual_local_model"))]}
         packet = {"demo": {"status": "prepared", "comparisons": [], "stages": [{"id": "prediction", "count": 0}]}}
-        attach_local_predictions(packet, report, "business-v1")
+        report.update(task_id='support-local-business-v1', task_sha256='task', target=data[0]['target'])
+        for method in report['methods']:
+            method['estimates'] = [deepcopy(estimate)]
+        attach_local_predictions(packet, report, "business-v1", expected_features=features)
+        for field, value in [('value', -1), ('value', 1.1), ('value', float('nan')), ('value', True), ('entity', 'other'), ('source_sha256', 'stale'), ('feature_sha256', 'stale'), ('cutoff', 0), ('target_at', 999)]:
+            invalid = deepcopy(report)
+            invalid['methods'][1]['estimates'][0][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                attach_local_predictions(packet, invalid, 'business-v1', expected_features=features)
+        for estimates in (None, [], [estimate, estimate], [{'value': .2}]):
+            invalid = deepcopy(report); invalid['methods'][0]['estimates'] = estimates
+            with self.subTest(estimates=estimates), self.assertRaises(ValueError):
+                attach_local_predictions(packet, invalid, 'business-v1', expected_features=features)
         self.assertEqual(packet["demo"]["status"], "prepared")
         self.assertEqual(packet["demo"]["stages"][0]["count"], 0)
         self.assertIn("separate actual local model rehearsal", packet["demo"]["comparison_basis"])
         foreign = {**report, "dataset_sha256": "different-data"}
         with self.assertRaises(ValueError):
-            attach_local_predictions(packet, foreign, "business-v1")
+            attach_local_predictions(packet, foreign, "business-v1", expected_features=features)
         fixture = deepcopy(report)
         fixture["methods"][1]["execution"] = "simulated"
         with self.assertRaises(ValueError):
-            attach_local_predictions(packet, fixture, "business-v1")
+            attach_local_predictions(packet, fixture, "business-v1", expected_features=features)
+
+    def test_capture_supplies_trusted_features_and_handles_absent_reports(self):
+        from unittest.mock import MagicMock, patch
+        from scripts import support_demo
+        store = MagicMock(); store.get.return_value = {'sha256': 'task', 'body': {}}
+        cohort = [{'sha256': 'approved-feature'}]
+        with TemporaryDirectory() as directory, patch.object(support_demo, 'ROOT', Path(directory)), patch.object(support_demo.psycopg, 'connect'), patch.object(support_demo, 'Evidence', return_value=store), patch.object(support_demo, 'snapshot', side_effect=lambda *args: {'demo': {}}), patch.object(support_demo, 'prepare_history', return_value={'body': {'task': 'task', 'at': 25}}), patch.object(support_demo, 'features', return_value=cohort), patch.object(support_demo, 'attach_local_predictions') as attach:
+            support_demo.capture('fixture')
+            attach.assert_not_called()
+            report = Path(directory)/'artifacts/validation/BusinessDemo/fixture/LocalPredictions.json'
+            report.parent.mkdir(parents=True)
+            report.write_text('{}')
+            support_demo.capture('fixture')
+            self.assertEqual(attach.call_args.kwargs['expected_features'], cohort)
 
     def test_recording_frontend_setup_is_repeatable_and_keeps_reviews(self):
         with TemporaryDirectory(prefix="BackIntelRecording") as temporary:

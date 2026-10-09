@@ -54,6 +54,26 @@ class FixtureClassifier:
 
 
 class ProviderIdentityTests(unittest.TestCase):
+    def test_prediction_rechecks_approved_configuration_before_loading(self):
+        from unittest.mock import Mock
+        from runtime import real_models as models
+        for route in ('catboost', 'tabiclv2'):
+            config = {route: {'parameters': {'depth': 2}}}
+            model = {'body': {'route': route, 'configuration_sha256': models.digest(config), 'parameters': {'depth': 2}, 'columns': ['value'], 'target': {'kind': 'regression'}}}
+            estimator = Mock(); estimator.predict.return_value = [1]
+            with self.subTest(route=route), patch.object(models, '_allow_model_use', return_value=config) as approval, patch.object(models, '_load', return_value=estimator) as load, patch.object(models, 'matrix', return_value=[[1]]), patch.object(models, 'model_root', return_value=Path('/fixture-models')):
+                self.assertEqual(models.predict_real(model, {}), 1)
+                load.reset_mock()
+                approval.return_value = {route: {'parameters': {'depth': 3}}}
+                with self.assertRaisesRegex(ValueError, 'configuration changed'):
+                    models.predict_real(model, {})
+                load.assert_not_called()
+                approval.return_value = config
+                model['body']['parameters'] = {'depth': 3}
+                with self.assertRaisesRegex(ValueError, 'configuration changed'):
+                    models.predict_real(model, {})
+                load.assert_not_called()
+
     def test_prepared_package_must_match_current_training_request(self):
         from unittest.mock import Mock
         from runtime import real_models as models
@@ -82,8 +102,9 @@ class ProviderIdentityTests(unittest.TestCase):
         from runtime import real_models as models
         estimator = Mock()
         estimator.predict.return_value = [2.5]
-        body = {'route':'catboost', 'columns':[], 'target':{'kind':'regression'}}
-        with patch.object(models, '_allow_model_use', side_effect=[{}, PermissionError('Fixture approval revoked')]) as approval, patch.object(models, '_load', return_value=estimator) as load, patch.object(models, 'matrix', return_value=[[]]), patch.object(models, 'model_root', return_value='/fixture-model-root'):
+        config = {'catboost': {'parameters': {}}}
+        body = {'route':'catboost', 'columns':[], 'target':{'kind':'regression'}, 'configuration_sha256':models.digest(config), 'parameters':{}}
+        with patch.object(models, '_allow_model_use', side_effect=[config, PermissionError('Fixture approval revoked')]) as approval, patch.object(models, '_load', return_value=estimator) as load, patch.object(models, 'matrix', return_value=[[]]), patch.object(models, 'model_root', return_value='/fixture-model-root'):
             models.predict_real({'body':body}, {})
             with self.assertRaisesRegex(PermissionError, 'approval revoked'):
                 models.predict_real({'body':body}, {})

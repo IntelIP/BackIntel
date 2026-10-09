@@ -395,6 +395,8 @@ def refresh():
     results = []
     for source in db.query('SELECT * FROM backintel.analysis_sources'):
         domain = source['domain']
+        if domain not in CONFIG['sources']:
+            continue
         owner = db.query("SELECT id FROM backintel.analysis_principals WHERE enabled AND (expires_at IS NULL OR expires_at>now()) AND role='manager' AND %s=ANY(domains) ORDER BY id LIMIT 1", (domain,), one=True)
         if not owner:
             results.append({'domain': domain, 'status': 'blocked', 'reason': 'No manager has permission to refresh this source'})

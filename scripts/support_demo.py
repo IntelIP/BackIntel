@@ -42,9 +42,14 @@ def capture(demo_id):
         packet["demo"]["captured_at"] = datetime.now(timezone.utc).isoformat()
         packet["demo"]["demo_id"] = demo_id
         local_path = ROOT / "artifacts/validation/BusinessDemo" / demo_id / "LocalPredictions.json"
-        if local_path.is_file():
-            attach_local_predictions(packet, json.loads(local_path.read_text()), demo_id)
-        workflow_path = local_path.with_name("WorkflowRehearsal.json")
+    if local_path.is_file():
+        with psycopg.connect(DEMO_DSN, autocommit=True) as connection:
+            local_store = Evidence(connection, f'support-local-{demo_id}')
+            plan = prepare_history(local_store, 'support', history_data=dataset('support')[0])
+            task = local_store.get(plan['body']['task'])
+            expected_features = features(local_store, task, plan['body']['at'])
+            attach_local_predictions(packet, json.loads(local_path.read_text()), demo_id, expected_features=expected_features)
+    workflow_path = local_path.with_name("WorkflowRehearsal.json")
     if workflow_path.is_file():
         attach_workflow_rehearsal(packet, json.loads(workflow_path.read_text()), demo_id)
     live_path = local_path.with_name("LiveJevAttempt.json")

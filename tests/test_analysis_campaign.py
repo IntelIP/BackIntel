@@ -399,6 +399,43 @@ class CampaignChecks(unittest.TestCase):
         correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], target=None, explanation='Fixture remove mistaken label'), self.actor)
         self.assertIsNone(db.records(db.source('commerce')['latest_snapshot'])[0]['target'])
 
+    def test_listings_use_domains_from_current_authorization(self):
+        from runtime import analysis_api as api
+        stale = {**self.actor, 'domains': ['commerce', 'support']}
+        db.write('UPDATE backintel.analysis_principals SET domains=%s WHERE id=%s', (['commerce'], self.actor['id']))
+        try:
+            for listing in (api.goals, api.sources, api.notifications):
+                with self.subTest(listing=listing.__name__), patch.object(db, 'query', wraps=db.query) as query:
+                    listing(stale)
+                    calls = [call for call in query.call_args_list if 'domain=ANY' in call.args[0]]
+                    self.assertEqual(len(calls), 1)
+                    self.assertEqual(calls[0].args[1], (['commerce'],))
+        finally:
+            db.write('UPDATE backintel.analysis_principals SET domains=%s WHERE id=%s', (stale['domains'], self.actor['id']))
+
+    def test_correction_rechecks_manager_after_initial_authorization(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        authorize = db.authorize
+        for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='analyst'", "domains=ARRAY['support']"):
+            def revoke(*args, **kwargs):
+                current = authorize(*args, **kwargs)
+                db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
+                return current
+            try:
+                with self.subTest(change=change), patch.object(db, 'authorize', side_effect=revoke), self.assertRaisesRegex(PermissionError, 'Current manager authority'):
+                    correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], features={'age': 41}, explanation='Fixture correction'), self.actor)
+                self.assertEqual(db.source('commerce')['latest_snapshot'], self.snapshot)
+                self.assertEqual(db.records(self.snapshot)[0]['features']['age'], 40)
+            finally:
+                db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
+
+    def test_refresh_skips_retired_sources_and_still_dispatches(self):
+        with patch.object(db, 'query', side_effect=[[{'domain': 'retired'}, {'domain': 'commerce'}], self.actor]), patch.object(service, 'import_source', return_value={'snapshot': self.snapshot}) as importer, patch.object(service, 'schedule_snapshot', return_value=[]), patch.object(service, 'dispatch', return_value={'fixture': True}) as dispatch:
+            result = service.refresh()
+        importer.assert_called_once_with('commerce', self.actor)
+        dispatch.assert_called_once()
+        self.assertEqual([row['domain'] for row in result['sources']], ['commerce'])
+
     def test_source_queue_limit_is_atomic_and_replays_remain_available(self):
         from runtime.analysis_api import cancel_run
         for index in range(18):
