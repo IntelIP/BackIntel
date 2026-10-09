@@ -111,7 +111,7 @@ class CampaignChecks(unittest.TestCase):
         client.get.return_value.json.return_value = {'data':[{'id':CONFIG['analyst']['model'],'pricing':{'prompt':'0','completion':'0'}}]}
         query = db.query
         def cancel_before_dispatch(sql, *args, **kwargs):
-            if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+            if sql.startswith("SELECT r.id AS dispatch_run"):
                 with db.connect() as connection:
                     cancel(connection, self.run['job_id'])
             return query(sql, *args, **kwargs)
@@ -119,6 +119,100 @@ class CampaignChecks(unittest.TestCase):
                 patch.object(db, 'query', side_effect=cancel_before_dispatch), self.assertRaisesRegex(RuntimeError, 'reservation changed'):
             agent.request(self.run['id'], 0, [])
         client.post.assert_not_called()
+
+    def test_grant_changes_recheck_current_actor_instead_of_access_snapshot(self):
+        from runtime.analysis_api import grants, GrantInput
+        stale = {**self.actor, 'role': 'manager', 'domains': ['commerce', 'support']}
+        for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='analyst'", "domains=ARRAY['commerce']"):
+            try:
+                db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
+                before = db.query('SELECT enabled,expires_at,role,domains FROM backintel.analysis_principals WHERE id=%s', (self.actor['id'],), one=True)
+                with self.subTest(change=change), self.assertRaises(PermissionError):
+                    grants(self.actor['id'], GrantInput(domains=['commerce', 'support']), stale)
+                self.assertEqual(db.query('SELECT enabled,expires_at,role,domains FROM backintel.analysis_principals WHERE id=%s', (self.actor['id'],), one=True), before)
+            finally:
+                db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
+        self.assertEqual(grants(self.actor['id'], GrantInput(domains=['commerce', 'support']), stale), {'saved': True})
+
+    def test_grant_change_waits_for_concurrent_revocation_and_cannot_restore_it(self):
+        from concurrent.futures import TimeoutError
+        from runtime.analysis_api import grants, GrantInput
+        stale = {**self.actor, 'role': 'manager', 'domains': ['commerce', 'support']}
+        started = threading.Event()
+        def restore():
+            started.set()
+            return grants(self.actor['id'], GrantInput(domains=['commerce', 'support']), stale)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as workers:
+                with db.connect() as connection, connection.transaction():
+                    connection.execute('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s', (self.actor['id'],))
+                    pending = workers.submit(restore)
+                    self.assertTrue(started.wait(5))
+                    with self.assertRaises(TimeoutError): pending.result(timeout=.25)
+                with self.assertRaises(PermissionError): pending.result(timeout=5)
+            self.assertFalse(db.query('SELECT enabled FROM backintel.analysis_principals WHERE id=%s', (self.actor['id'],), one=True)['enabled'])
+        finally:
+            db.write('UPDATE backintel.analysis_principals SET enabled=true WHERE id=%s', (self.actor['id'],))
+
+    def test_stale_snapshot_or_model_stops_provider_dispatch(self):
+        from unittest.mock import MagicMock
+        from runtime import analysis_agent as agent
+        client = MagicMock(); client.__enter__.return_value = client
+        client.get.return_value.json.return_value = {'data': [{'id': CONFIG['analyst']['model'], 'pricing': {'prompt': '0', 'completion': '0'}}]}
+        query = db.query
+        for change in ('snapshot', 'model'):
+            def change_before_dispatch(sql, *args, **kwargs):
+                if sql.startswith('SELECT r.id AS dispatch_run'):
+                    if change == 'snapshot':
+                        db.save_snapshot('commerce', digest([self.snapshot, 'changed']), {'fixture': True}, self.rows)
+                    else:
+                        db.write('UPDATE backintel.analysis_goals SET active_model=%s WHERE id=%s', ('new-model', self.goal))
+                return query(sql, *args, **kwargs)
+            try:
+                with self.subTest(change=change), patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client), patch.object(db, 'query', side_effect=change_before_dispatch), self.assertRaisesRegex(RuntimeError, 'reservation changed'):
+                    agent.request(self.run['id'], 0, [])
+                client.post.assert_not_called()
+            finally:
+                db.write('UPDATE backintel.analysis_sources SET latest_snapshot=%s WHERE id=%s', (self.snapshot, 'commerce'))
+                db.write('UPDATE backintel.analysis_goals SET active_model=NULL WHERE id=%s', (self.goal,))
+                db.release_unsent(self.run['id'])
+
+    def test_provider_dispatch_holds_inputs_and_persists_sent_before_post(self):
+        from unittest.mock import MagicMock
+        from concurrent.futures import TimeoutError
+        from runtime import analysis_agent as agent
+        client = MagicMock(); client.__enter__.return_value = client
+        client.get.return_value.json.return_value = {'data': [{'id': CONFIG['analyst']['model'], 'pricing': {'prompt': '0', 'completion': '0'}}]}
+        value = {'id': 'fixture-response', 'model': CONFIG['analyst']['served_models'][0], 'usage': {'cost': 0}, 'output': []}
+        client.post.return_value.json.return_value = value
+        started = threading.Event()
+        def change_inputs():
+            started.set()
+            with db.connect() as connection:
+                connection.execute('UPDATE backintel.analysis_sources SET latest_snapshot=%s WHERE id=%s', (self.snapshot, 'commerce'))
+                connection.execute('UPDATE backintel.analysis_goals SET active_model=%s WHERE id=%s', ('new-model', self.goal))
+        with ThreadPoolExecutor(max_workers=1) as workers:
+            pending = []
+            def post(*args, **kwargs):
+                self.assertEqual(db.query('SELECT status FROM backintel.analysis_requests WHERE run_id=%s', (self.run['id'],), one=True)['status'], 'sent')
+                pending.append(workers.submit(change_inputs))
+                self.assertTrue(started.wait(5))
+                with self.assertRaises(TimeoutError):
+                    pending[0].result(timeout=.25)
+                return client.post.return_value
+            client.post.side_effect = post
+            with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client):
+                self.assertEqual(agent.request(self.run['id'], 0, []), value)
+            pending[0].result(timeout=5)
+        self.assertEqual(db.goal(self.goal)['active_model'], 'new-model')
+
+    def test_sent_marker_survives_dispatch_guard_interruption(self):
+        from runtime.analysis_agent import provider_dispatch
+        db.reserve(self.run['id'], 'interrupted-dispatch', 0)
+        with self.assertRaises(KeyboardInterrupt):
+            with provider_dispatch(self.run['id'], 'interrupted-dispatch'):
+                raise KeyboardInterrupt('Fixture interruption after durable sent marker')
+        self.assertEqual(db.query('SELECT status FROM backintel.analysis_requests WHERE id=%s', ('interrupted-dispatch',), one=True)['status'], 'sent')
 
     def test_revoked_confirmation_stops_dispatch_and_publication(self):
         from unittest.mock import MagicMock
@@ -132,7 +226,7 @@ class CampaignChecks(unittest.TestCase):
         client.get.return_value.json.return_value = {'data':[{'id':CONFIG['analyst']['model'],'pricing':{'prompt':'0','completion':'0'}}]}
         query = db.query
         def revoke_before_dispatch(sql, *args, **kwargs):
-            if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+            if sql.startswith("SELECT r.id AS dispatch_run"):
                 service.revise_goal(self.goal, self.actor, confirmed=False)
             return query(sql, *args, **kwargs)
         with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client), patch.object(db, 'query', side_effect=revoke_before_dispatch), self.assertRaisesRegex(RuntimeError, 'reservation changed'):
@@ -156,7 +250,7 @@ class CampaignChecks(unittest.TestCase):
         query = db.query
         for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='viewer'", "domains=ARRAY['support']"):
             def revoke(sql, *args, **kwargs):
-                if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+                if sql.startswith("SELECT r.id AS dispatch_run"):
                     db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
                 return query(sql, *args, **kwargs)
             try:
@@ -456,7 +550,7 @@ class CampaignChecks(unittest.TestCase):
         client.get.return_value.json.return_value = {'data':[{'id':CONFIG['analyst']['model'],'pricing':{'prompt':'0','completion':'0'}}]}
         query = db.query
         def revoke_before_send(sql, *args, **kwargs):
-            if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+            if sql.startswith("SELECT r.id AS dispatch_run"):
                 db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':False}),))
             return query(sql, *args, **kwargs)
         with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client), patch.object(db, 'query', side_effect=revoke_before_send), self.assertRaisesRegex(RuntimeError, 'reservation changed'):
@@ -1032,7 +1126,7 @@ class CampaignChecks(unittest.TestCase):
         client.post.return_value.json.return_value = value
         original = db.query
         def interrupted(sql, *args, **kwargs):
-            if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+            if sql.startswith("SELECT r.id AS dispatch_run"):
                 raise KeyboardInterrupt('Fixture exit before dispatch')
             return original(sql, *args, **kwargs)
         with patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client):

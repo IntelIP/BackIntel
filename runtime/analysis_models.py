@@ -6,7 +6,7 @@ import json
 import os
 import resource
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from runtime.analysis_data import CONFIG, digest, fingerprint, sample
 from runtime.real_models import checkpoint, file_sha, model_root, _tabicl, versions, CONFIG as MODEL_CONFIG
@@ -43,21 +43,40 @@ def metrics(kind, truth, predicted):
             'calibration': bins, 'n': len(y), 'positives': int(y.sum())}
 
 
+def validate_decide_weights(directory):
+    receipt = directory / 'backintel-weights.json'
+    if not receipt.is_file() or receipt.is_symlink() or directory.is_symlink():
+        raise RuntimeError('Pinned Decide weights have not been prepared')
+    spec = json.loads(receipt.read_text())
+    if any(spec.get(key) != CONFIG['decide'][key] for key in ('repository', 'revision')) or not spec.get('files'):
+        raise ValueError('Decide repository or revision is not approved')
+    declared = set()
+    for item in spec['files']:
+        name = PurePosixPath(item['file'])
+        path = directory / str(name)
+        if name.is_absolute() or '..' in name.parts or '\\' in str(name) or str(name) in declared or not path.resolve().is_relative_to(directory.resolve()):
+            raise ValueError('Decide receipt contains unsafe or duplicate path')
+        declared.add(str(name))
+        if not path.is_file() or path.stat().st_size != item['bytes'] or file_sha(path) != item['sha256']:
+            raise ValueError('Decide weight identity mismatch')
+    actual = set()
+    for path in directory.rglob('*'):
+        if path.is_symlink():
+            raise ValueError('Decide package contains a linked path')
+        if path.is_file() and path != receipt:
+            actual.add(path.relative_to(directory).as_posix())
+    if declared != actual or 'config.json' not in declared or not any(name.endswith('.safetensors') for name in declared):
+        raise ValueError('Decide receipt is not a complete model package')
+    return spec
+
+
 def decide(rows, domain):
     """Pin weights locally. Raw classification scores are not claimed as probabilities."""
     from gliner2 import AutoExtractor
     import torch
     torch.set_num_threads(CONFIG['limits']['cpu_threads'])
     directory = model_root() / 'Decide'
-    receipt = directory / 'backintel-weights.json'
-    if not receipt.is_file():
-        raise RuntimeError('Pinned Decide weights have not been prepared')
-    spec = json.loads(receipt.read_text())
-    if spec['revision'] != CONFIG['decide']['revision']:
-        raise ValueError('Decide revision is not approved')
-    for f in spec['files']:
-        if file_sha(directory/f['file']) != f['sha256']:
-            raise ValueError('Decide weight identity mismatch')
+    spec = validate_decide_weights(directory)
     identity = {'model': CONFIG['decide'], 'weights': spec,
                 'libraries': versions(('gliner2','torch','numpy')),
                 'implementation_sha256': file_sha(Path(__file__))}
@@ -90,7 +109,7 @@ def decide(rows, domain):
         if label not in labels:
             raise ValueError('Decide did not return an approved classification label')
         enriched.append({**row,'features':{**row['features'],'decide_label':label}})
-        observations.append(observation)
+        observations.append({**observation, 'label': label})
     del extractor
     gc.collect()
     return enriched, observations

@@ -349,21 +349,25 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
 
 @app.patch('/api/v1/principals/{identity}')
 def grants(identity:str,body:GrantInput,p=Depends(access)):
-    db.authorize(p,roles=('manager',))
-    if set(body.domains)-set(CONFIG['sources']) or identity=='worker':
-        raise ValueError('Invalid application grant')
-    target = db.query('SELECT domains FROM backintel.analysis_principals WHERE id=%s', (identity,), one=True)
-    if target is None:
-        raise ValueError('Unknown application grant')
-    if (set(body.domains) | set(target['domains'])) - set(p['domains']):
-        raise PermissionError('Grant changes require access to every affected source')
-    if body.expires_at is not None and body.expires_at.tzinfo is None:
-        raise ValueError('Credential expiry requires a timezone')
-    if 'expires_at' in body.model_fields_set:
-        db.write('UPDATE backintel.analysis_principals SET domains=%s,enabled=%s,expires_at=%s WHERE id=%s',
-                 (body.domains,body.enabled,body.expires_at,identity))
-    else:
-        db.write('UPDATE backintel.analysis_principals SET domains=%s,enabled=%s WHERE id=%s',(body.domains,body.enabled,identity))
+    if set(body.domains)-set(CONFIG['sources']) or identity=='worker': raise ValueError('Invalid application grant')
+    if body.expires_at is not None and body.expires_at.tzinfo is None: raise ValueError('Credential expiry requires a timezone')
+    with db.connect() as connection, connection.transaction():
+        principals = db.query('SELECT id,domains FROM backintel.analysis_principals WHERE id=ANY(%s) ORDER BY id FOR UPDATE',
+                              (sorted({identity, p['id']}),), connection=connection)
+        target = next((row for row in principals if row['id']==identity), None)
+        if target is None: raise ValueError('Unknown application grant')
+        affected = sorted(set(body.domains) | set(target['domains']))
+        assignments = 'domains=%s,enabled=%s'
+        values = [body.domains, body.enabled]
+        if 'expires_at' in body.model_fields_set:
+            assignments += ',expires_at=%s'
+            values.append(body.expires_at)
+        saved = db.query(f"""UPDATE backintel.analysis_principals SET {assignments} WHERE id=%s AND EXISTS (
+            SELECT 1 FROM backintel.analysis_principals actor WHERE actor.id=%s AND actor.enabled
+              AND (actor.expires_at IS NULL OR actor.expires_at>clock_timestamp())
+              AND actor.role='manager' AND actor.domains @> %s::text[]) RETURNING id""",
+            (*values, identity, p['id'], affected), one=True, connection=connection)
+        if not saved: raise PermissionError('Grant changes require current manager access to every affected source')
     return {'saved':True}
 
 

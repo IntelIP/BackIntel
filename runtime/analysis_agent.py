@@ -7,6 +7,7 @@ import os
 import re
 import time
 from collections import defaultdict
+from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
 
@@ -21,7 +22,7 @@ TOOL_SPECS = {
     'inspect_source': ('Inspect source fields, missingness and limitations.', {}),
     'summarize': ('Calculate observed counts and target means; return up to twenty groups in the requested order.', {'group': {'type': 'string'},'order':{'type':'string','enum':['ascending','descending']}}),
     'predict': ('Score a bounded cohort with the approved predictor and summarize estimates in the requested order.', {'group': {'type': 'string'},'order':{'type':'string','enum':['ascending','descending']}}),
-    'interpret_text': ('Classify up to twenty messages with local Decide.', {}),
+    'interpret_text': ('Classify up to twenty messages with local Decide. Use returned supported_claims verbatim for factual findings; other interpretations must be hypotheses.', {}),
     'compare_snapshots': ('Compare source counts and observed means with the preceding snapshot.', {}),
     'prior_findings': ('Retrieve historical context only. Calculate current findings separately; this result cannot be cited as current evidence.', {})
 }
@@ -81,6 +82,21 @@ def count_values(value, clause):
     return metric_values(value, {'count','records'})
 
 
+def classification_claims(results):
+    claims = set()
+    for result in results:
+        if result.get('tool') != 'interpret_text' and result.get('kind') != 'classification':
+            continue
+        counts = defaultdict(int)
+        for observation in result.get('observations', []):
+            label = observation['label']
+            counts[label] += 1
+            claims.add(f"Record {observation['record_id']} was classified as {label}.")
+        for label, count in counts.items():
+            claims.add(f'In the sampled messages, {count} records were classified as {label}.')
+    return claims
+
+
 def validate_answer(answer, results, group=None):
     results = [r for r in results if r.get('tool') != 'prior_findings' and r.get('kind') != 'historical']
     if set(answer) != set(ANSWER_SCHEMA['required']) or not isinstance(answer['summary'], str) or not isinstance(answer['limitations'], list) or not isinstance(answer['findings'], list):
@@ -93,6 +109,10 @@ def validate_answer(answer, results, group=None):
             raise ValueError('Invalid finding shape')
         if not f['evidence_ids'] or not set(f['evidence_ids']).issubset(ids):
             raise ValueError('Finding lacks permitted calculation evidence')
+        cited = [r for r in results if r['evidence_id'] in f['evidence_ids']]
+        if f['kind'] != 'hypothesis' and any(r.get('tool') == 'interpret_text' or r.get('kind') == 'classification' for r in cited):
+            if f['kind'] != 'fact' or f['claim'] not in classification_claims(cited):
+                raise ValueError('Text classification facts must use a supported label and record scope')
         if f['kind'] == 'fact' and any(r.get('kind') == 'estimate' for r in results if r['evidence_id'] in f['evidence_ids']):
             raise ValueError('Predicted evidence cannot support a factual finding')
     for finding in answer['findings']:
@@ -124,6 +144,12 @@ def validate_answer(answer, results, group=None):
     for text, cited, bind_group in claims:
         if not isinstance(text, str) or len(text) > 5000 or re.search(r'\b(causes|caused by|will default|approve the loan|deny the loan)\b', text, re.I):
             raise ValueError('Unsupported causal or lending claim')
+        if text in classification_claims(cited):
+            continue
+        if answer['findings'] and text == ' '.join(f['claim'] for f in answer['findings']):
+            # Each finding is checked separately; the summary adds no new claim.
+            if text == answer['summary'] and len(answer['findings']) > 1:
+                continue
         labels={str(row['group']) for row in grouped_rows(cited)}
         named=set()
         names=['group']+([group.replace('_',' ')] if group else [])
@@ -247,6 +273,7 @@ def tool(identity, name, args):
         cohort = [row for row in sorted(rows, key=lambda row: digest(row['id'])) if row['text']][:20]
         _, observations = decide(cohort, g['domain'])
         result = {'observations': [{'record_id': row['id'], **obs} for row, obs in zip(cohort, observations)], 'kind': 'classification', 'sample_size': len(cohort)}
+        result['supported_claims'] = sorted(classification_claims([result]))
     elif name == 'prior_findings':
         prior = db.run(g['last_success']) if g['last_success'] else None
         result = {'previous_result': prior['result'] if prior else None, 'kind': 'historical',
@@ -259,6 +286,31 @@ def tool(identity, name, args):
     db.check_run(identity)
     ref = db.evidence(identity, 'calculation', digest([identity, key]), {'snapshot': r['snapshot_id'], 'tool': name, 'arguments': args, 'result': result})
     return db.save_step(identity, key, 'tool', {**result, 'evidence_id': ref, 'tool': name})
+
+
+@contextmanager
+def provider_dispatch(identity, call_id):
+    # Keep admission inputs stable through dispatch, but persist sent separately
+    # so a process exit cannot silently replay a paid request.
+    with db.connect() as connection, connection.transaction():
+        eligible = db.query("""SELECT r.id AS dispatch_run FROM backintel.analysis_runs r
+            JOIN backintel.capability_jobs j ON j.job_id=r.job_id
+            JOIN backintel.analysis_goals g ON g.id=r.goal_id
+            JOIN backintel.analysis_sources s ON s.id=g.domain
+            JOIN backintel.analysis_principals p ON p.id=r.owner
+            WHERE r.id=%s AND NOT j.cancel_requested AND j.state IN ('queued','running','retry')
+              AND g.confirmed AND NOT g.paused AND g.version=r.goal_version
+              AND s.latest_snapshot=r.snapshot_id AND g.active_model IS NOT DISTINCT FROM r.body->>'model_id'
+              AND s.body->'terms_acknowledged'='true'::jsonb
+              AND p.enabled AND (p.expires_at IS NULL OR p.expires_at>clock_timestamp())
+              AND p.role IN ('manager','analyst') AND g.domain=ANY(p.domains)
+            FOR UPDATE OF j,g,s,p""", (identity,), one=True, connection=connection)
+        if not eligible:
+            raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
+        sent = db.query("UPDATE backintel.analysis_requests SET status='sent' WHERE id=%s AND run_id=%s AND status='reserved' RETURNING id", (call_id, identity), one=True)
+        if not sent:
+            raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
+        yield
 
 
 def request(identity, index, inputs):
@@ -302,23 +354,10 @@ def request(identity, index, inputs):
             raise ValueError('Cached response served an unapproved model')
         return prior
     db.check_run(identity)
-    sent = db.query("""UPDATE backintel.analysis_requests SET status='sent' WHERE id=%s AND status='reserved'
-        AND EXISTS (SELECT 1 FROM backintel.analysis_runs r
-                    JOIN backintel.capability_jobs j ON j.job_id=r.job_id
-                    JOIN backintel.analysis_goals g ON g.id=r.goal_id
-                    JOIN backintel.analysis_sources s ON s.id=g.domain
-                    JOIN backintel.analysis_principals p ON p.id=r.owner
-                    WHERE r.id=backintel.analysis_requests.run_id AND NOT j.cancel_requested
-                      AND j.state IN ('queued','running','retry') AND g.confirmed AND NOT g.paused AND g.version=r.goal_version
-                      AND s.body->'terms_acknowledged'='true'::jsonb
-                      AND p.enabled AND (p.expires_at IS NULL OR p.expires_at>now())
-                      AND p.role IN ('manager','analyst') AND g.domain=ANY(p.domains)
-                    FOR UPDATE OF j,g,s,p) RETURNING id""", (call_id,), one=True)
-    if not sent:
-        raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
     try:
         with httpx.Client(timeout=120) as client:
-            response = client.post('https://openrouter.ai/api/v1/responses', headers={'Authorization': 'Bearer '+key}, json=payload)
+            with provider_dispatch(identity, call_id):
+                response = client.post('https://openrouter.ai/api/v1/responses', headers={'Authorization': 'Bearer '+key}, json=payload)
             response.raise_for_status()
             value = response.json()
             db.write('UPDATE backintel.analysis_requests SET response=%s WHERE id=%s',(Jsonb(value),call_id))
@@ -334,7 +373,7 @@ def request(identity, index, inputs):
                 raise ValueError('Provider served an unapproved model identity')
             return value
     except Exception:
-        db.write("UPDATE backintel.analysis_requests SET status='uncertain' WHERE id=%s AND status<>'complete'", (call_id,))
+        db.write("UPDATE backintel.analysis_requests SET status='uncertain' WHERE id=%s AND status='sent'", (call_id,))
         raise
 
 

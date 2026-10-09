@@ -18,6 +18,59 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_text_classification_facts_bind_labels_counts_and_records(self):
+        from runtime.analysis_agent import classification_claims
+        results = [{'tool': 'interpret_text', 'kind': 'classification', 'evidence_id': 'text',
+                    'observations': [{'record_id': 'ticket-1', 'label': 'urgent service failure'},
+                                     {'record_id': 'ticket-2', 'label': 'access problem'}]}]
+        def answer(claim, kind='fact'):
+            return {'summary': claim, 'findings': [{'claim': claim, 'kind': kind, 'evidence_ids': ['text']}], 'limitations': []}
+        for claim in ('The sampled messages are routine requests.', 'Record ticket-1 was classified as routine request.',
+                      'Record ticket-2 was classified as urgent service failure.', 'In the sampled messages, 2 records were classified as access problem.'):
+            with self.subTest(claim=claim), self.assertRaisesRegex(ValueError, 'supported label and record scope'):
+                validate_answer(answer(claim), results)
+        for claim in classification_claims(results):
+            self.assertEqual(validate_answer(answer(claim), results)['summary'], claim)
+        combined = answer('Record ticket-1 was classified as urgent service failure.')
+        combined['findings'].append({'claim': 'In the sampled messages, 1 records were classified as access problem.', 'kind': 'fact', 'evidence_ids': ['text']})
+        combined['summary'] = ' '.join(row['claim'] for row in combined['findings'])
+        self.assertEqual(validate_answer(combined, results)['summary'], combined['summary'])
+        hypothesis = 'These messages may need further investigation.'
+        self.assertEqual(validate_answer(answer(hypothesis, 'hypothesis'), results)['findings'][0]['kind'], 'hypothesis')
+
+    def test_decide_rejects_wrong_identity_and_incomplete_or_unsafe_weights(self):
+        import copy
+        import json
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        from runtime import analysis_models as models
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); weights = root/'Decide'; weights.mkdir()
+            for name in ('config.json', 'model.safetensors'):
+                (weights/name).write_text('fixture')
+            spec = {'repository': models.CONFIG['decide']['repository'], 'revision': models.CONFIG['decide']['revision'],
+                    'files': [{'file': p.name, 'bytes': p.stat().st_size, 'sha256': models.file_sha(p)} for p in sorted(weights.iterdir())]}
+            receipt = weights/'backintel-weights.json'
+            bad = [{**spec, 'repository': 'unapproved/model'}, {**spec, 'revision': 'other'}, {**spec, 'files': []},
+                   {**spec, 'files': spec['files'][:1]}, {**spec, 'files': spec['files'] * 2}]
+            for path in ('../outside', '/absolute', 'nested\\file'):
+                changed = copy.deepcopy(spec); changed['files'][0]['file'] = path; bad.append(changed)
+            auto = Mock()
+            with patch.dict('sys.modules', {'gliner2': SimpleNamespace(AutoExtractor=auto), 'torch': SimpleNamespace(set_num_threads=lambda n: None)}), patch.object(models, 'model_root', return_value=root):
+                for invalid in bad:
+                    receipt.write_text(json.dumps(invalid))
+                    with self.subTest(receipt=invalid), self.assertRaises((ValueError, RuntimeError)):
+                        models.decide([], 'commerce')
+                receipt.write_text(json.dumps(spec))
+                (weights/'undeclared.json').write_text('{}')
+                with self.assertRaisesRegex(ValueError, 'complete model package'):
+                    models.decide([], 'commerce')
+                (weights/'undeclared.json').unlink()
+                (weights/'linked').symlink_to(weights/'config.json')
+                with self.assertRaisesRegex(ValueError, 'linked path'):
+                    models.decide([], 'commerce')
+                auto.from_pretrained.assert_not_called()
+
     def test_source_counts_keep_their_metric_and_field_identity(self):
         results = [{'evidence_id':'source','tool':'inspect_source','records':100,'labeled':90,'missing':{'age':5,'income':7}}]
         for claim in ('There are 5 records.', 'There are 90 records.', 'There are 100 labeled records.',
@@ -39,8 +92,9 @@ class AdapterChecks(unittest.TestCase):
         from runtime import analysis_models as models
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); weights = root/'Decide'; weights.mkdir()
-            weight = weights/'model.bin'; weight.write_text('original fixture')
-            spec = {'revision':models.CONFIG['decide']['revision'],'files':[{'file':weight.name,'sha256':models.file_sha(weight)}]}
+            weight = weights/'model.safetensors'; weight.write_text('original fixture')
+            config = weights/'config.json'; config.write_text('{}')
+            spec = {'repository':models.CONFIG['decide']['repository'], 'revision':models.CONFIG['decide']['revision'], 'files':[{'file':p.name,'bytes':p.stat().st_size,'sha256':models.file_sha(p)} for p in (weight, config)]}
             (weights/'backintel-weights.json').write_text(json.dumps(spec))
             extractor = Mock();extractor.classify_text.return_value = {'signal':'positive opinion'}
             auto = Mock();auto.from_pretrained.return_value = extractor
@@ -53,7 +107,7 @@ class AdapterChecks(unittest.TestCase):
                 self.assertEqual(extractor.classify_text.call_count,1)
                 implementation[0]='v2';models.decide(rows,'commerce')
                 versions.return_value={'gliner2':'v2'};models.decide(rows,'commerce')
-                weight.write_text('updated fixture');spec['files'][0]['sha256']=real_sha(weight)
+                weight.write_text('updated fixture');spec['files'][0].update(sha256=real_sha(weight), bytes=weight.stat().st_size)
                 (weights/'backintel-weights.json').write_text(json.dumps(spec))
                 _, latest = models.decide(rows,'commerce')
                 self.assertEqual(extractor.classify_text.call_count,4)
@@ -473,7 +527,7 @@ class AdapterChecks(unittest.TestCase):
         client=MagicMock();client.__enter__.return_value=client
         client.get.return_value.json.return_value={'data':[{'id':agent.CONFIG['analyst']['model'],'pricing':{'prompt':'0.000001','completion':'0.000001'}}]}
         client.post.return_value.json.return_value={'id':'fixture-response','model':'unapproved/model','usage':{'cost':.001},'output':[]}
-        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith('UPDATE') else {'reserved':.01} if sql.startswith('SELECT reserved') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
+        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith(('UPDATE', 'SELECT r.id AS dispatch_run')) else {'reserved':.01} if sql.startswith('SELECT reserved') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
             with self.assertRaisesRegex(ValueError,'unapproved'):agent.request('fixture-run',0,[])
         payload=client.post.call_args.kwargs['json']
         self.assertEqual(payload['provider']['order'],['OpenAI'])
