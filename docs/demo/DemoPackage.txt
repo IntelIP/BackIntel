@@ -18,7 +18,14 @@ Stop with Ctrl-C. Use --port 2054 if 2053 is already occupied.
 What opening the package does
 It displays the completed business-v4 results. It serves only this package's
 frontend and its recorded decision packet on the local machine. Reviews are
-written to .demo-state/Reviews.sqlite3 inside the extracted folder. The seed
+written outside the extracted folder, under
+~/.local/state/backintel/recorded-demos/<hash>/Reviews.sqlite3. The hash includes
+the extraction path and Manifest.json, so moving the folder selects a different
+review store. Deleting the extracted folder does not delete review history.
+Stop the demo before copying its review-store directory to preserve history,
+or removing that directory to discard history. Keep any backup outside the
+extracted folder. The next launch recreates a removed store from the seed.
+The seed
 review is preserved in Records/ReviewsSeed.sqlite3. Existing BackIntel services,
 original databases, provider receipts, and review history remain untouched.
 

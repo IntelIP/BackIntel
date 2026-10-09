@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -121,6 +122,97 @@ def scenario_result(spec, domain, browser, offline, identity_ok):
     return status, 'Explicit scenario assertions, including every required variant'
 
 
+def prediction_methods_valid(receipt, domain, native):
+    """Check the producer's scored methods and saved-model restoration evidence."""
+    methods = receipt.get('methods')
+    comparison = receipt.get('model_comparison', {}) if native else receipt
+    splits = receipt.get('splits', {})
+    if not isinstance(methods, list) or not isinstance(comparison, dict) or not isinstance(splits, dict):
+        return False
+    if native and (comparison.get('methods') != methods or comparison.get('splits') != splits):
+        return False
+    if any(not isinstance(splits.get(key), list) or not splits[key]
+           or any(not isinstance(identity, str) for identity in splits[key])
+           or len(set(splits[key])) != len(splits[key]) for key in ('test', 'calibration')):
+        return False
+    kind = comparison.get('kind', 'classification' if not native else None)
+    if kind != ('regression' if domain in ('support', 'maintenance') else 'classification'):
+        return False
+
+    def finite(value):
+        return type(value) in (int, float) and math.isfinite(value)
+
+    def scored(value, split):
+        if not isinstance(value, dict) or type(value.get('n')) is not int or value['n'] != len(splits[split]):
+            return False
+        keys = ('mae', 'rmse') if kind == 'regression' else ('brier', 'accuracy')
+        if any(not finite(value.get(key)) or value[key] < 0 for key in keys):
+            return False
+        if kind == 'classification':
+            if any(value[key] > 1 for key in keys):
+                return False
+            positives = value.get('positives')
+            if type(positives) is not int or not 0 <= positives <= value['n']:
+                return False
+            for key, required in (('roc_auc', 0 < positives < value['n']), ('average_precision', positives > 0)):
+                metric = value.get(key)
+                if metric is None and not required:
+                    continue
+                if not finite(metric) or not 0 <= metric <= 1:
+                    return False
+        return True
+
+    artifacts = comparison.get('artifacts')
+    if not isinstance(artifacts, list) or any(not isinstance(a, dict) for a in artifacts):
+        return False
+    saved = {}
+    for artifact in artifacts:
+        name, sha = artifact.get('file'), artifact.get('sha256')
+        if not isinstance(name, str) or name in saved or not isinstance(sha, str) or len(sha) != 64:
+            return False
+        if any(c not in '0123456789abcdef' for c in sha) or type(artifact.get('bytes')) is not int or artifact['bytes'] <= 0:
+            return False
+        saved[name] = artifact
+    actual, restored = set(), set()
+    for method in methods:
+        if not isinstance(method, dict):
+            return False
+        route, features = method.get('route'), method.get('features')
+        if not isinstance(route, str) or (features is not None and not isinstance(features, str)):
+            return False
+        identity = (route, features)
+        if identity in actual or not scored(method.get('metrics' if native else 'test_metrics'), 'test') or not scored(method.get('calibration_metrics'), 'calibration'):
+            return False
+        actual.add(identity)
+        if route in ('catboost', 'tabiclv2'):
+            artifact = f'{route}-{features}.joblib'
+            if artifact not in saved or (native and method.get('artifact') != artifact):
+                return False
+            predictions = method.get('predictions', {})
+            if not native and isinstance(predictions, dict):
+                predictions = predictions.get('test')
+            if not isinstance(predictions, dict) or set(predictions) != set(splits['test']):
+                return False
+            if any(not finite(p) or (kind == 'classification' and not 0 <= p <= 1) for p in predictions.values()):
+                return False
+            restored.add(identity)
+    features = ('facts', 'facts-decide') if native and domain in ('commerce', 'support') else ('facts',)
+    expected = {(route, feature) for route in (('catboost', 'tabiclv2') if native else ('catboost',)) for feature in features}
+    expected.add(('baseline', None if native else 'facts'))
+    if native and domain in ('commerce', 'support'):
+        expected.add(('simple-text', None))
+    if actual != expected:
+        return False
+    if native:
+        routes = receipt.get('restored_routes')
+        if not isinstance(routes, list) or any(not isinstance(r, dict) for r in routes):
+            return False
+        expected_routes = [{'route': route, 'features': feature} for route, feature in sorted(restored)]
+        if len(routes) != len(expected_routes) or any(route not in routes for route in expected_routes):
+            return False
+    return True
+
+
 def real_result(spec, domain, receipts, candidate, checkout=None):
     matches = [receipt for receipt in receipts if receipt.get('domain') == domain
                or any(row.get('domain') == domain for row in receipt.get('domains', []))]
@@ -139,7 +231,7 @@ def real_result(spec, domain, receipts, candidate, checkout=None):
         additional = ('source_files', 'source_hashes', 'harness_sha256', 'model_comparison') if native else ('independent_original_oracle',)
         if receipt.get('schema') not in schemas or not all(receipt.get(key) for key in required + additional):
             return 'blocked', 'Native prediction provenance is incomplete', None
-        if receipt.get('model_restore_predictions_verified') is not True or len(receipt.get('methods', [])) < 2:
+        if receipt.get('model_restore_predictions_verified') is not True or not prediction_methods_valid(receipt, domain, native):
             return 'blocked', 'Comparison or saved prediction reproduction is missing', None
         dependencies = receipt.get('model_comparison', {}).get('dependencies') if native else receipt.get('dependencies')
         if not isinstance(dependencies, dict) or not isinstance(dependencies.get('libraries'), dict) or not dependencies['libraries']:

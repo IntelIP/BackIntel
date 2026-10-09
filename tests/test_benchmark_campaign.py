@@ -88,16 +88,43 @@ class CampaignReceiptChecks(unittest.TestCase):
 
     def test_real_prediction_needs_native_identity_and_provenance(self):
         spec = {'evidence': 'prediction'}
+        scores = {'n': 1, 'positives': 1, 'roc_auc': None, 'average_precision': 1., 'brier': .04, 'accuracy': 1.}
+        methods = [{'route': 'baseline', 'metrics': scores, 'calibration_metrics': scores}]
+        artifacts = []
+        restored = []
+        for route in ('catboost', 'tabiclv2'):
+            artifact = route + '-facts.joblib'
+            methods.append({'route': route, 'features': 'facts', 'artifact': artifact,
+                            'metrics': scores, 'calibration_metrics': scores, 'predictions': {'a': .8}})
+            artifacts.append({'file': artifact, 'sha256': 'a' * 64, 'bytes': 20})
+            restored.append({'route': route, 'features': 'facts'})
         candidate = {'commit': 'abc', 'dirty': False, 'files': {'runtime/analysis_models.py': 'sha', 'scripts/analysis_prediction_benchmark.py': 'harness'}}
         receipt = {'schema': 'backintel-local-prediction-benchmark/v1', 'domain': 'churn', 'mode': 'real',
                    'candidate_commit': 'abc', 'dirty_tree': False, 'source_hashes': {'runtime/analysis_models.py':'sha'},
                    'status': 'passed', 'source': {'files': ['source']}, 'source_files': ['source'],
-                   'splits': {'test': ['a']}, 'implementation': {'sha256': 'sha'}, 'harness_sha256': 'harness',
-                   'model_comparison': {'methods': ['baseline', 'catboost'], 'dependencies': {'libraries': {'catboost': '1.2.8'}, 'checkpoint': {'sha256': 'weights'}}},
-                   'model_restore_predictions_verified': True, 'methods': [{}, {}]}
+                   'splits': {'test': ['a'], 'calibration': ['b']}, 'implementation': {'sha256': 'sha'}, 'harness_sha256': 'harness',
+                   'model_comparison': {'kind': 'classification', 'methods': methods, 'splits': {'test': ['a'], 'calibration': ['b']},
+                                        'artifacts': artifacts, 'dependencies': {'libraries': {'catboost': '1.2.8'}, 'checkpoint': {'sha256': 'weights'}}},
+                   'model_restore_predictions_verified': True, 'methods': methods, 'restored_routes': restored}
         self.assertEqual(campaign.real_result(spec, 'churn', [receipt], candidate)[0], 'passed')
         detail = campaign.real_result(spec, 'churn', [receipt], candidate)[2]
         self.assertEqual(detail['dependencies'], receipt['model_comparison']['dependencies'])
+        changed = copy.deepcopy(receipt)
+        changed['methods'] = changed['model_comparison']['methods'] = [{}, {}]
+        self.assertEqual(campaign.real_result(spec, 'churn', [changed], candidate)[0], 'blocked')
+        for key, value in (('methods', [{}, {}]), ('restored_routes', []), ('restored_routes', restored[:1] * 2)):
+            with self.subTest(key=key, value=value):
+                self.assertEqual(campaign.real_result(spec, 'churn', [{**receipt, key: value}], candidate)[0], 'blocked')
+        for target, key, value in (('method', 'route', 'invented'), ('method', 'artifact', 'missing.joblib'),
+                                   ('method', 'predictions', {'a': float('nan')}), ('method', 'predictions', {'wrong': .8}),
+                                   ('metric', 'brier', float('inf')), ('metric', 'accuracy', 2), ('metric', 'n', 2),
+                                   ('metric', 'average_precision', None), ('artifact', 'sha256', 'bad'), ('artifact', 'bytes', 0)):
+            changed = copy.deepcopy(receipt)
+            destination = {'method': changed['methods'][1], 'metric': changed['methods'][1]['metrics'],
+                           'artifact': changed['model_comparison']['artifacts'][0]}[target]
+            destination[key] = value
+            with self.subTest(target=target, key=key):
+                self.assertEqual(campaign.real_result(spec, 'churn', [changed], candidate)[0], 'blocked')
         self.assertEqual(campaign.real_result(spec, 'churn', [{**receipt, 'model_comparison': {'methods': ['baseline', 'catboost']}}], candidate)[0], 'blocked')
         for change in ({'mode': 'fixture'}, {'dirty_tree': True}, {'splits': {}}, {'model_restore_predictions_verified': False}, {'harness_sha256':'stale-harness'}):
             self.assertEqual(campaign.real_result(spec, 'churn', [{**receipt, **change}], candidate)[0], 'blocked')

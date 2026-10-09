@@ -912,6 +912,34 @@ class CampaignChecks(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Reconcile uncertain'):
             service.submit(self.goal, self.actor)
 
+    def test_dispatch_drains_delayed_retry_without_another_wake(self):
+        db.write('UPDATE backintel.capability_jobs SET max_attempts=2 WHERE job_id=%s', (self.run['job_id'],))
+        original = service.handle
+        def transient(store, payload):
+            attempt = db.query('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s', (self.run['job_id'],), one=True)['attempts']
+            if attempt == 1:
+                raise RuntimeError('Fixture transient failure')
+            return original(store, payload)
+        with patch.object(service, 'handle', side_effect=transient), \
+                patch('runtime.analysis_agent.analyze', return_value={'summary': 'explicit fixture', 'tables': [], 'mode': 'fixture'}):
+            result = service.dispatch()
+        self.assertEqual([job['state'] for job in result['jobs']], ['retry', 'completed'])
+        self.assertEqual(db.run(self.run['id'])['status'], 'succeeded')
+
+    def test_delayed_retry_can_be_cancelled_while_dispatch_waits(self):
+        from runtime.jobs import cancel
+        db.write("UPDATE backintel.capability_jobs SET state='retry',attempts=1,max_attempts=2,due_at=now()+interval '1 second' WHERE job_id=%s", (self.run['job_id'],))
+        def cancel_waiting(delay):
+            self.assertGreater(delay, 0)
+            self.assertLessEqual(delay, 1)
+            with db.connect() as connection:
+                cancel(connection, self.run['job_id'])
+        with patch.object(service.time, 'sleep', side_effect=cancel_waiting) as wait, patch.object(service, 'execute') as execute:
+            service.dispatch()
+        wait.assert_called_once()
+        execute.assert_not_called()
+        self.assertEqual(db.query('SELECT state FROM backintel.capability_jobs WHERE job_id=%s', (self.run['job_id'],), one=True)['state'], 'cancelled')
+
     def test_duplicate_submissions_cancel_and_orphan_recovery(self):
         with ThreadPoolExecutor(max_workers=3) as workers:
             duplicates = list(workers.map(lambda _: service.submit(self.goal, self.actor), range(3)))

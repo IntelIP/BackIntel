@@ -434,6 +434,13 @@ class AdapterChecks(unittest.TestCase):
              patch.object(models, 'metrics', side_effect=score):
             original = models.compare('maintenance', rows, 'pinned-snapshot')
             manifest = Path(directory)/'Analysis'/original['id']/'manifest.json'
+            with patch.object(models.os, 'replace', side_effect=InterruptedError('fixture interruption')):
+                with self.assertRaises(InterruptedError):
+                    models.compare('maintenance', rows, 'pinned-snapshot')
+            self.assertEqual(json.loads(manifest.read_text()), original)
+            self.assertEqual({p.name for p in manifest.parent.iterdir()},
+                             {'manifest.json', 'catboost-facts.joblib', 'tabiclv2-facts.joblib'})
+            loader.reset_mock()
             for key, value in [('id','wrong'), ('domain','wrong'), ('snapshot','wrong'),
                                ('dependencies',{}), ('splits',{}), ('artifacts',[])]:
                 with self.subTest(key=key):

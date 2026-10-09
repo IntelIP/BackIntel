@@ -5,6 +5,7 @@ import gc
 import json
 import os
 import resource
+import tempfile
 import time
 from pathlib import Path, PurePosixPath
 
@@ -229,7 +230,15 @@ def compare(domain, rows, snapshot):
             del estimator; gc.collect(); check_limits()
     output['wall_seconds']=time.monotonic()-start
     output['peak_rss_bytes']=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*(1 if os.uname().sysname=='Darwin' else 1024)
-    manifest.write_text(json.dumps(output,allow_nan=False))
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', dir=directory, delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(json.dumps(output, allow_nan=False))
+        os.replace(temporary, manifest)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return output
 
 

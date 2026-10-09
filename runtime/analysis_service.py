@@ -355,7 +355,16 @@ def dispatch(run_id=None):
                     if state != 'running':
                         db.release_unsent(abandoned['run_id'], connection=cleanup)
             if not available:
-                break
+                delayed = c.execute("""SELECT EXTRACT(EPOCH FROM min(j.due_at)-now())
+                    FROM backintel.capability_jobs j
+                    WHERE j.task_id=ANY(%s) AND j.state='retry'
+                    AND NOT EXISTS (SELECT 1 FROM backintel.capability_jobs earlier
+                        WHERE earlier.task_id=j.task_id AND earlier.sequence<j.sequence
+                        AND earlier.state IN ('queued','retry','running','failed'))""", (task_ids,)).fetchone()[0]
+                if delayed is None:
+                    break
+                time.sleep(max(.01, min(1., float(delayed))))
+                continue
             for job_id in available:
                 r = db.query('SELECT id,body FROM backintel.analysis_runs WHERE job_id=%s', (job_id,), one=True)
                 if r:
