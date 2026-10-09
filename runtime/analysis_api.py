@@ -360,10 +360,13 @@ def grants(identity:str,body:GrantInput,p=Depends(access)):
     if set(body.domains)-set(CONFIG['sources']) or identity=='worker': raise ValueError('Invalid application grant')
     if body.expires_at is not None and body.expires_at.tzinfo is None: raise ValueError('Credential expiry requires a timezone')
     with db.connect() as connection, connection.transaction():
-        principals = db.query('SELECT id,domains FROM backintel.analysis_principals WHERE id=ANY(%s) ORDER BY id FOR UPDATE',
+        principals = db.query('SELECT id,domains,expires_at FROM backintel.analysis_principals WHERE id=ANY(%s) ORDER BY id FOR UPDATE',
                               (sorted({identity, p['id']}),), connection=connection)
         target = next((row for row in principals if row['id']==identity), None)
         if target is None: raise ValueError('Unknown application grant')
+        if (identity == p['id'] and target['expires_at'] is not None and 'expires_at' in body.model_fields_set
+                and (body.expires_at is None or body.expires_at > target['expires_at'])):
+            raise PermissionError('Managers cannot extend or remove their own credential expiry')
         affected = sorted(set(body.domains) | set(target['domains']))
         assignments = 'domains=%s,enabled=%s'
         values = [body.domains, body.enabled]

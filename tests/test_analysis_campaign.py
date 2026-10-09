@@ -134,6 +134,24 @@ class CampaignChecks(unittest.TestCase):
                 db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
         self.assertEqual(grants(self.actor['id'], GrantInput(domains=['commerce', 'support']), stale), {'saved': True})
 
+    def test_temporary_manager_cannot_extend_or_remove_own_expiry(self):
+        from datetime import datetime, timedelta, timezone
+        from runtime.analysis_api import grants, GrantInput
+        deadline = datetime.now(timezone.utc) + timedelta(hours=2)
+        db.write('UPDATE backintel.analysis_principals SET expires_at=%s WHERE id=%s', (deadline, self.actor['id']))
+        try:
+            for expires_at in (None, deadline + timedelta(hours=1)):
+                with self.subTest(expires_at=expires_at), self.assertRaisesRegex(PermissionError, 'own credential expiry'):
+                    grants(self.actor['id'], GrantInput(domains=['commerce', 'support'], expires_at=expires_at), self.actor)
+                self.assertEqual(db.query('SELECT expires_at FROM backintel.analysis_principals WHERE id=%s', (self.actor['id'],), one=True)['expires_at'], deadline)
+            self.assertEqual(grants(self.actor['id'], GrantInput(domains=['commerce']), self.actor), {'saved': True})
+            self.assertEqual(db.query('SELECT expires_at FROM backintel.analysis_principals WHERE id=%s', (self.actor['id'],), one=True)['expires_at'], deadline)
+            shorter = deadline - timedelta(hours=1)
+            self.assertEqual(grants(self.actor['id'], GrantInput(domains=['commerce'], expires_at=shorter), self.actor), {'saved': True})
+            self.assertEqual(db.query('SELECT expires_at FROM backintel.analysis_principals WHERE id=%s', (self.actor['id'],), one=True)['expires_at'], shorter)
+        finally:
+            db.write("UPDATE backintel.analysis_principals SET expires_at=NULL,domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
+
     def test_grant_change_waits_for_concurrent_revocation_and_cannot_restore_it(self):
         from concurrent.futures import TimeoutError
         from runtime.analysis_api import grants, GrantInput
