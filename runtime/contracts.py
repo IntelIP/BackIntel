@@ -152,7 +152,8 @@ def mapped_fact(task: dict, row: dict, source_format: str) -> dict:
             raise ValueError("Measure violates finite numeric/null contract")
         else:
             measures[measure["id"]] = value
-    return {**fact, "measures": measures, "source": row, "source_format": source_format}
+    selected = set(task['fields'].values()) | {measure['field'] for measure in task['measures']}
+    return {**fact, "measures": measures, "source": {key: value for key, value in row.items() if key in selected}, "source_format": source_format}
 
 
 def admit_source(store, task_record: dict, source: dict, received_at: int) -> dict:
@@ -179,7 +180,7 @@ def admit_source(store, task_record: dict, source: dict, received_at: int) -> di
                 identity = digest([task_record["sha256"], fact["id"], fact["revision"]])
                 previous = store.find("source", identity)
                 if previous:
-                    if previous["body"]["source"] != raw or previous["body"]["source_format"] != source["format"]:
+                    if previous["body"]["source"] != fact["source"] or previous["body"]["source_format"] != source["format"]:
                         raise ValueError("Conflicting source identity/revision")
                     disposition = {"row": index, "status": "duplicate", "source": previous["sha256"]}
                 else:

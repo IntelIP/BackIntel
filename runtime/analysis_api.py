@@ -198,6 +198,10 @@ def cancel_run(identity:str,p=Depends(access)):
     db.authorize(p,db.run_domain(r),('manager',))
     with db.connect() as c, c.transaction():
         c.execute('SELECT id FROM backintel.analysis_runs WHERE id=%s FOR UPDATE', (identity,))
+        manager=c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s AND enabled
+            AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND role='manager'
+            AND %s=ANY(domains) FOR UPDATE""", (p['id'],db.run_domain(r))).fetchone()
+        if not manager: raise PermissionError('Current manager authority is required to cancel a run')
         state=cancel(c,r['job_id'])
         db.write("UPDATE backintel.analysis_runs SET status='cancelled',updated_at=now() WHERE id=%s AND status='queued'",(identity,),connection=c)
     return {'status':state}

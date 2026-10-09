@@ -367,6 +367,7 @@ class AdapterChecks(unittest.TestCase):
         loader = Mock(return_value={'vectorizer':Mock(),'estimator':estimator})
         with patch.object(models,'versions',side_effect=lambda packages:{name:'fixture' for name in packages}), \
              patch.object(models,'file_sha',return_value='fixture'), \
+             patch.object(models,'model_bytes',return_value=b'fixture'), \
              patch.object(models,'checkpoint',return_value=(None,{'sha256':'fixture'})) as checkpoint, \
              patch.object(models,'model_root',return_value=Path('/unused-fixture-models')), \
              patch.dict('sys.modules',{'joblib':SimpleNamespace(load=loader)}):
@@ -421,10 +422,11 @@ class AdapterChecks(unittest.TestCase):
 
         files = {}
         def dump(value, path):
-            files[path] = value
-            path.write_bytes(b'fixture model, not a real predictor')
+            payload = ('fixture model ' + str(len(files))).encode()
+            files[payload] = value
+            path.write(payload)
 
-        loader = Mock(side_effect=lambda path: files[path])
+        loader = Mock(side_effect=lambda stream: files[stream.read()])
         modules = {'numpy': SimpleNamespace(array=lambda x:x, mean=lambda x:sum(x)/len(x)),
                    'torch': SimpleNamespace(set_num_threads=lambda n:None),
                    'catboost': SimpleNamespace(CatBoostClassifier=Estimator, CatBoostRegressor=Estimator),
@@ -450,30 +452,56 @@ class AdapterChecks(unittest.TestCase):
             manifest = Path(directory)/'Analysis'/original['id']/'manifest.json'
             with patch.object(models.os, 'replace', side_effect=InterruptedError('fixture interruption')):
                 with self.assertRaises(InterruptedError):
-                    models.compare('maintenance', rows, 'pinned-snapshot')
+                    models.compare('maintenance', rows, 'pinned-snapshot', trusted_comparisons=[original])
             self.assertEqual(json.loads(manifest.read_text()), original)
             self.assertEqual({p.name for p in manifest.parent.iterdir()},
                              {'manifest.json', 'catboost-facts.joblib', 'tabiclv2-facts.joblib'})
-            loader.reset_mock()
             for key, value in [('id','wrong'), ('domain','wrong'), ('snapshot','wrong'),
                                ('dependencies',{}), ('splits',{}), ('artifacts',[])]:
                 with self.subTest(key=key):
                     changed = deepcopy(original)
                     changed[key] = value
                     manifest.write_text(json.dumps(changed))
-                    with self.assertRaises(ValueError):
-                        models.compare('maintenance', rows, 'pinned-snapshot')
+                    rebuilt = models.compare('maintenance', rows, 'pinned-snapshot', trusted_comparisons=[original])
+                    self.assertEqual(rebuilt['artifacts'], original['artifacts'])
+            loader.reset_mock()
             changed = deepcopy(original)
             for method in changed['methods']:
                 method['metrics'] = {'fabricated':999}
                 method['calibration_metrics'] = {'fabricated':999}
                 method['predictions'] = {'invented':999}
             manifest.write_text(json.dumps(changed))
-            rebuilt = models.compare('maintenance', rows, 'pinned-snapshot')
+            rebuilt = models.compare('maintenance', rows, 'pinned-snapshot', trusted_comparisons=[original])
             self.assertEqual(loader.call_count, 2)
             for before, after in zip(original['methods'], rebuilt['methods']):
                 for key in ('metrics','calibration_metrics','predictions'):
                     self.assertEqual(after.get(key), before.get(key))
+            loader.reset_mock()
+            artifact = manifest.parent/'catboost-facts.joblib'
+            artifact.write_bytes(b'forged executable model')
+            forged = deepcopy(original)
+            forged['artifacts'][0] = models.fingerprint(artifact)
+            manifest.write_text(json.dumps(forged))
+            with self.assertRaisesRegex(ValueError, 'Model artifact identity mismatch'):
+                models.compare('maintenance', rows, 'pinned-snapshot', trusted_comparisons=[original])
+            loader.assert_not_called()
+            models.compare('maintenance', rows, 'pinned-snapshot')
+            loader.assert_not_called()
+            self.assertNotEqual(artifact.read_bytes(), b'forged executable model')
+
+    def test_model_bytes_rejects_tampering_before_deserialization(self):
+        import hashlib
+        from runtime.analysis_models import model_bytes
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'model.joblib'
+            payload = b'trusted fixture model'
+            path.write_bytes(payload)
+            expected = hashlib.sha256(payload).hexdigest()
+            verified = model_bytes(path, expected)
+            path.write_bytes(b'changed after verification')
+            self.assertEqual(verified, payload)
+            with self.assertRaisesRegex(ValueError, 'Model artifact identity mismatch'):
+                model_bytes(path, expected)
 
     def test_negative_regression_targets_are_rejected_before_sampling(self):
         from unittest.mock import patch
@@ -512,6 +540,7 @@ class AdapterChecks(unittest.TestCase):
              patch('runtime.analysis_models.decide', return_value=(rows, {})) as enrich, \
              patch('runtime.analysis_models.model_root', return_value=Path('/unused-fixture-models')), \
              patch('runtime.analysis_models.file_sha', return_value='fixture'), \
+             patch('runtime.analysis_models.model_bytes', return_value=b'fixture'), \
              patch.dict('sys.modules', {'joblib': Mock(load=Mock(return_value={'vectorizer': Mock(), 'estimator': estimator}))}):
             self.assertEqual(predict(model, rows), {'fixture': 0.25})
             enrich.assert_called_once_with(rows, 'commerce')

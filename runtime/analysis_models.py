@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import gc
+import hashlib
+import io
 import json
 import math
 import os
@@ -157,7 +159,14 @@ def runtime_dependencies(domain, route=None):
             'implementation_sha256': digest(implementation)}
 
 
-def compare(domain, rows, snapshot):
+def model_bytes(path, expected_sha):
+    payload = path.read_bytes()
+    if hashlib.sha256(payload).hexdigest() != expected_sha:
+        raise ValueError('Model artifact identity mismatch')
+    return payload
+
+
+def compare(domain, rows, snapshot, *, trusted_comparisons=()):
     import joblib
     import numpy as np
     import torch
@@ -177,7 +186,7 @@ def compare(domain, rows, snapshot):
     identity = digest(['model-comparison-v2',domain,snapshot,CONFIG['limits'],dependencies,[r['id'] for r in train+calibration+test]])
     directory=model_root()/'Analysis'/identity
     manifest=directory/'manifest.json'
-    prior=json.loads(manifest.read_text()) if manifest.exists() else None
+    prior=next((record for record in trusted_comparisons if record.get('id') == identity), None)
     directory.mkdir(parents=True,exist_ok=True)
     output={'id':identity,'domain':domain,'snapshot':snapshot,'kind':kind,'mode':'real','methods':[],
             'splits':{k:[r['id'] for r in group] for k,group in zip(('train','calibration','test'),(train,calibration,test))},
@@ -230,7 +239,9 @@ def compare(domain, rows, snapshot):
             check_limits(); method_start=time.monotonic()
             artifact=directory/f'{route}-{feature_set}.joblib'
             if prior is not None:
-                package=joblib.load(artifact)
+                trusted_sha=next(item['sha256'] for item in prior['artifacts'] if item['file']==artifact.name)
+                payload=model_bytes(artifact, trusted_sha)
+                package=joblib.load(io.BytesIO(payload))
                 estimator=package['estimator']
                 xx=package['vectorizer'].transform([matrix_features(r) for r in cal+b])
             else:
@@ -240,15 +251,19 @@ def compare(domain, rows, snapshot):
                 else:
                     path,_=checkpoint(kind); estimator=_tabicl(kind,path)
                 estimator.fit(x,y)
-                joblib.dump({'vectorizer':vectorizer,'estimator':estimator},artifact)
+                stream=io.BytesIO()
+                joblib.dump({'vectorizer':vectorizer,'estimator':estimator},stream)
+                payload=stream.getvalue()
+                del stream
+                artifact.write_bytes(payload)
             predicted=estimator.predict_proba(xx)[:,list(estimator.classes_).index(1)] if kind=='classification' else estimator.predict(xx)
             predicted = prediction_values(kind, predicted)
             calibrated, predicted = predicted[:len(cal)], predicted[len(cal):]
-            output['artifacts'].append(fingerprint(artifact))
+            output['artifacts'].append({'file':artifact.name,'bytes':len(payload),'sha256':hashlib.sha256(payload).hexdigest()})
             output['methods'].append({'route':route,'features':feature_set,'artifact':artifact.name,
                 'metrics':metrics(kind,yt,predicted),'calibration_metrics':metrics(kind,yc,calibrated),'wall_seconds':time.monotonic()-method_start,
                                       'predictions':{r['id']:float(p) for r,p in zip(test,predicted)}})
-            del estimator; gc.collect(); check_limits()
+            del estimator, payload; gc.collect(); check_limits()
     output['wall_seconds']=time.monotonic()-start
     output['peak_rss_bytes']=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*(1 if os.uname().sysname=='Darwin' else 1024)
     temporary = None
@@ -286,7 +301,7 @@ def predict(model, rows):
     prepared=rows
     if route.endswith('facts-decide'):
         prepared,_=decide(rows,body['domain'])
-    package=joblib.load(directory/name)
+    package=joblib.load(io.BytesIO(model_bytes(directory/name, expected)))
     x=package['vectorizer'].transform([matrix_features(r) for r in prepared])
     estimator=package['estimator']
     values=estimator.predict_proba(x)[:,list(estimator.classes_).index(1)] if body['kind']=='classification' else estimator.predict(x)
@@ -295,7 +310,7 @@ def predict(model, rows):
 
 if __name__ == '__main__':
     import argparse
-    from runtime.analysis_store import records
+    from runtime.analysis_store import records, query
     parser=argparse.ArgumentParser()
     parser.add_argument('--domain',choices=CONFIG['sources'],required=True)
     parser.add_argument('--snapshot',required=True)
@@ -303,5 +318,7 @@ if __name__ == '__main__':
     import contextlib
     import sys
     with contextlib.redirect_stdout(sys.stderr):
-        result=compare(arguments.domain,records(arguments.snapshot),arguments.snapshot)
+        trusted=query("SELECT body FROM backintel.capability_evidence WHERE kind='model_comparison' AND body->>'snapshot'=%s AND body->>'domain'=%s", (arguments.snapshot, arguments.domain))
+        result=compare(arguments.domain,records(arguments.snapshot),arguments.snapshot,
+                       trusted_comparisons=[row['body'] for row in trusted])
     print(json.dumps(result,allow_nan=False))

@@ -300,6 +300,21 @@ class CampaignChecks(unittest.TestCase):
                 self.assertEqual(db.run(run['id'])['status'], 'cancelled')
                 self.assertEqual(db.goal(self.goal)['last_success'], standing)
 
+    def test_cancel_run_rechecks_manager_authority_after_admission(self):
+        from runtime import analysis_api as api
+        original = db.authorize
+        def revoke(actor, domain=None, roles=('manager', 'analyst', 'viewer')):
+            admitted = original(actor, domain, roles)
+            db.write('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s', (actor['id'],))
+            return admitted
+        try:
+            with patch.object(db, 'authorize', side_effect=revoke):
+                with self.assertRaisesRegex(PermissionError, 'Current manager authority'):
+                    api.cancel_run(self.run['id'], self.actor)
+            self.assertEqual(db.run(self.run['id'])['status'], 'queued')
+        finally:
+            db.write('UPDATE backintel.analysis_principals SET enabled=true WHERE id=%s', (self.actor['id'],))
+
     def test_cancel_run_commits_job_and_run_together(self):
         from runtime import analysis_api as api
         cancel = api.cancel

@@ -163,6 +163,17 @@ class CapabilityTests(unittest.TestCase):
         store = Evidence(self.conn, task["id"])
         return store, register_task(store, task), rows, labels
 
+    def test_source_evidence_excludes_unmapped_columns(self):
+        store, task, rows, _ = self.scenario()
+        source = {'format':'json', 'data':[{**rows[0], 'private_note':'secret fixture'}]}
+        admit_source(store, task, source, 0)
+        record = current_sources(store, 0)[0]
+        self.assertEqual(record['body']['source'], rows[0])
+        source['data'][0]['private_note'] = 'changed secret fixture'
+        second = admit_source(store, task, source, 0)
+        self.assertEqual(second['body']['dispositions'][0]['status'], 'duplicate')
+        self.assertNotIn('secret fixture', json.dumps(store.list('source')))
+
     def test_portable_admission_revisions_quarantine_and_immutable_lineage(self):
         for name in ("support", "equipment"):
             store, task, rows, _ = self.scenario(name)
