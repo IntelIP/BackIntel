@@ -73,6 +73,41 @@ async function openWorkspace() {
 }
 
 describe('analysis workspace user controls', () => {
+  it('keeps a newly proposed goal selected when an older refresh finishes later', async () => {
+    const original = fetch;
+    let created = false;
+    let delay = false;
+    let release: (() => void) | undefined;
+    let poll: (() => void) | undefined;
+    const interval = globalThis.setInterval;
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval').mockImplementation((callback, ms, ...args) => {
+      if (ms === 30000) poll = callback as () => void;
+      return interval(callback, ms, ...args);
+    });
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/v1/goals') {
+        if (init?.method === 'POST') {created = true; return Response.json(goal);}
+        const value = created ? [goal] : [];
+        if (delay && !created) await new Promise<void>(resolve => {release = resolve;});
+        return Response.json(value);
+      }
+      return original(input, init);
+    }));
+    try {
+      sessionStorage.setItem('backintel-access', 'component-fixture-access');
+      const user = userEvent.setup(); render(<App/>);
+      await screen.findByRole('heading', {name:'Fixture clothing reviews'});
+      delay = true;
+      act(() => {poll!();});
+      await waitFor(() => expect(release).toBeTypeOf('function'));
+      await user.click(screen.getByRole('button', {name:'Goals', exact:true}));
+      await user.click(screen.getByRole('button', {name:'Propose goal', exact:true}));
+      await screen.findByRole('heading', {name:'Confirm business meaning'});
+      await act(async () => {release!();});
+      expect(screen.getByRole('heading', {name:'Confirm business meaning'})).toBeVisible();
+    } finally {intervalSpy.mockRestore();}
+  });
+
   it('discards delayed candidates and reviews from a previously selected goal', async () => {
     const original = fetch;
     const other = {...goal, id:'goal-2', last_success:null, body:{...goal.body, question:'Second question'}};

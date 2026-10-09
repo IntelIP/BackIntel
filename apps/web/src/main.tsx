@@ -26,6 +26,7 @@ function Workspace({token,changeAccess,accessError}: {token: string; changeAcces
   const active = useRef(true);
   const selection = useRef('');
   const detailRequest = useRef(0);
+  const refreshRequest = useRef(0);
   const [entry,setEntry] = useState('');
   const [me,setMe] = useState<Principal|null>(null);
   const [sources,setSources] = useState<Source[]>([]);
@@ -76,8 +77,9 @@ function Workspace({token,changeAccess,accessError}: {token: string; changeAcces
     return value as T;
   }
   async function refresh() {
+    const generation = ++refreshRequest.current;
     const [p,s,g,n] = await Promise.all([api<Principal>('/me'),api<Source[]>('/sources'),api<Goal[]>('/goals'),api<typeof notifications>('/notifications')]);
-    if (!active.current) return;
+    if (!active.current || generation!==refreshRequest.current) return;
     setMe(p); setSources(s); setGoals(g);
     setNotifications(n);
     if (selection.current && !g.some(goal=>goal.id===selection.current)) setGoalId('');

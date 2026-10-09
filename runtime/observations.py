@@ -118,6 +118,10 @@ def correct_observation(store, observation_sha: str, response: dict, actor: str,
     if not isinstance(reason, str) or not reason.strip() or len(reason) > 1000:
         raise ValueError("Correction requires bounded reason")
     validate_response(original["body"]["question"], response)
+    if original["body"]["question"]["type"] != "boolean" and response["status"] == "known":
+        values = [response["value"]] + (response.get("distribution") or {}).get("values", [])
+        if any(not 0 <= value <= task["policy"]["signal_scale"] for value in values):
+            raise ValueError("Numeric correction must remain within the task signal scale")
     body = {"observation": observation_sha, "response": response, "actor": actor, "reason": reason, "supersedes": supersedes}
     identity = digest(body)
     with store.connection.transaction():

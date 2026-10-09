@@ -90,9 +90,15 @@ def release_due(connection, task_ids=None) -> list[str]:
 
 def cancel(connection, job_id: str) -> str:
     with connection.transaction():
+        previous = connection.execute('SELECT task_id,state,attempts FROM backintel.capability_jobs WHERE job_id=%s FOR UPDATE', (job_id,)).fetchone()
+        if previous is None or previous[1] in ('completed', 'cancelled'):
+            return "unchanged"
         row = connection.execute("""UPDATE backintel.capability_jobs SET cancel_requested=true,
-            state=CASE WHEN state IN ('queued','retry') THEN 'cancelled' ELSE state END,updated_at=now()
-            WHERE job_id=%s AND state NOT IN ('completed','failed','cancelled') RETURNING state""",(job_id,)).fetchone()
+            state=CASE WHEN state IN ('queued','retry','failed') THEN 'cancelled' ELSE state END,updated_at=now()
+            WHERE job_id=%s RETURNING state""",(job_id,)).fetchone()
+        if previous[1] == 'failed':
+            Evidence(connection, previous[0]).put('job_abandoned', f'{job_id}:{previous[2]}',
+                {'job_id': job_id, 'attempt': previous[2], 'previous_state': 'failed', 'status': 'cancelled'}, int(time.time()))
         return row[0] if row else "unchanged"
 
 

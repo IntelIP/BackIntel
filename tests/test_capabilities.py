@@ -33,6 +33,8 @@ class CapabilityTests(unittest.TestCase):
         store.list.return_value = [old, current]
         store.get.side_effect = lambda sha: {'old': old, 'current': current}[sha]
         self.assertEqual(get_artifact(store, 'operator', task_sha='current-task'), current)
+        from runtime.audience_server import AudienceHandler
+        self.assertEqual(AudienceHandler.scoped_artifact(None, store, {'audience': 'operator', 'task_sha256': 'current-task'}), current)
         with self.assertRaises(PermissionError):
             get_artifact(store, 'operator', 'old', task_sha='current-task')
         store.list.return_value = [old]
@@ -231,6 +233,25 @@ class CapabilityTests(unittest.TestCase):
         self.assertFalse(store.get(observation["sha256"])["body"]["response"]["value"])
         self.assertEqual(len(store.list("extraction_attempt")), 2)
 
+    def test_numeric_corrections_respect_the_task_scale(self):
+        store, task, rows, _ = self.scenario('equipment')
+        admit_source(store, task, {'format':'json', 'data':[rows[0]]}, 0)
+        observation = next(item for item in extract(store, task, current_sources(store, 0)[0], 0)
+                           if item['body']['question']['type'] != 'boolean')
+        scale = task['body']['policy']['signal_scale']
+        for value, distribution in [(-1, None), (scale+1, None),
+                                    (scale/2, {'values':[-1, scale+1], 'probabilities':[.5, .5]})]:
+            response = {'status':'known', 'value':value, 'distribution':distribution, 'reason':'fixture review'}
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'signal scale'):
+                correct_observation(store, observation['sha256'], response, 'operator', 'fixture review', 1)
+        self.assertEqual(store.list('correction'), [])
+        supersedes = None
+        for value in (0, scale):
+            response = {'status':'known', 'value':value, 'distribution':None, 'reason':'fixture review'}
+            correction = correct_observation(store, observation['sha256'], response, 'operator', 'fixture review', 1, supersedes)
+            self.assertEqual(correction['body']['response']['value'], value)
+            supersedes = correction['sha256']
+
     def test_unknown_abstention_invalid_distribution_and_budget(self):
         store, task, rows, _ = self.scenario()
         task_body = copy.deepcopy(task["body"])
@@ -363,6 +384,27 @@ class CapabilityTests(unittest.TestCase):
         new_task = register_task(store,changed,72)
         with self.assertRaises(ValueError):
             transition(store,new_task,compared["body"]["models"][0],"approve",72,"reject-incompatible")
+
+    def test_abandoning_exhausted_job_is_audited_and_unblocks_the_queue(self):
+        store, task, _, _ = self.scenario()
+        failed = enqueue(store, {'identity':'failed'}, 'abandon-failed')
+        self.conn.execute('UPDATE backintel.capability_jobs SET max_attempts=5 WHERE job_id=%s', (failed,))
+        following = enqueue(store, {'identity':'following'}, 'following-failure')
+        def failure(ledger, payload):
+            raise RuntimeError('Fixture permanent failure')
+        for attempt in range(5):
+            result = execute(failed, failure)
+            self.assertEqual(result['state'], 'failed' if attempt == 4 else 'retry')
+            self.conn.execute("UPDATE backintel.capability_jobs SET due_at=now()-interval '1 second' WHERE job_id=%s", (failed,))
+        self.assertIsNone(claim(self.conn, following))
+        self.assertEqual(runnable(self.conn, [store.task_id]), [])
+        self.assertEqual(cancel(self.conn, failed), 'cancelled')
+        self.assertEqual(cancel(self.conn, failed), 'unchanged')
+        audit = store.list('job_abandoned')
+        self.assertEqual(len(audit), 1)
+        self.assertEqual(audit[0]['body'], {'job_id':failed, 'attempt':5, 'previous_state':'failed', 'status':'cancelled'})
+        self.assertEqual(runnable(self.conn, [store.task_id]), [following])
+        self.assertEqual(execute(following, lambda ledger, payload: ledger.put('test_result', 'following', payload, 10))['state'], 'completed')
 
     def test_durable_jobs_retry_concurrent_replay_cancel_conflict_and_expired_lease(self):
         store, task, _, _ = self.scenario()

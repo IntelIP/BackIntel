@@ -82,7 +82,7 @@ class AudienceHandler(BaseHTTPRequestHandler):
             raise PermissionError("Only the configured loopback origin is allowed")
 
     def scoped_artifact(self, store, grant, sha=None):
-        artifact = get_artifact(store, grant["audience"], sha)
+        artifact = get_artifact(store, grant["audience"], sha, task_sha=grant["task_sha256"])
         if artifact["body"]["task"] != grant["task_sha256"]:
             raise PermissionError("Access token belongs to another task version")
         return artifact
