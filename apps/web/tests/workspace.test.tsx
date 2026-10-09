@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, waitFor, within} from '@testing-library/react';
+import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {beforeEach, afterEach, describe, expect, it, vi} from 'vitest';
 import App from '../src/main';
@@ -73,6 +73,80 @@ async function openWorkspace() {
 }
 
 describe('analysis workspace user controls', () => {
+  it('discards delayed candidates and reviews from a previously selected goal', async () => {
+    const original = fetch;
+    const other = {...goal, id:'goal-2', last_success:null, body:{...goal.body, question:'Second question'}};
+    let release: (() => void) | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path==='/api/v1/goals') return Response.json([goal,other]);
+      if (path==='/api/v1/goals/goal-1/models') {
+        await new Promise<void>(resolve=>{release=resolve;});
+        return Response.json([{id:'old-candidate',promoted:false,body:{methods:[]}}]);
+      }
+      if (path==='/api/v1/goals/goal-1/reviews') return Response.json([{id:1,actor:'manager',body:{kind:'correction',text:'Old private review'}}]);
+      if (path==='/api/v1/goals/goal-2/models') return Response.json([{id:'new-candidate',promoted:false,body:{methods:[]}}]);
+      if (path==='/api/v1/goals/goal-2/reviews' || path==='/api/v1/runs?goal_id=goal-2') return Response.json([]);
+      if (path==='/api/v1/goals/goal-2/findings') return Response.json(null);
+      return original(input,init);
+    }));
+    sessionStorage.setItem('backintel-access','component-fixture-access');
+    const user=userEvent.setup();render(<App/>);
+    const goals=await screen.findByRole('navigation',{name:'Saved goals'});
+    await user.click(within(goals).getByRole('button',{name:new RegExp(standingQuestion)}));
+    await waitFor(()=>expect(release).toBeTypeOf('function'));
+    await user.click(within(goals).getByRole('button',{name:/Second question/}));
+    await user.click(screen.getByRole('button',{name:'Review',exact:true}));
+    expect(await screen.findByText(/Candidate new-candidat/)).toBeVisible();
+    await act(async()=>{release!();});
+    expect(screen.queryByText(/old-candidat|Old private review/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Candidate new-candidat/)).toBeVisible();
+  });
+
+  it('clears all scoped data on sign-out and ignores an old evidence response', async () => {
+    const user=await openWorkspace();
+    const original=fetch;
+    let release: (()=>void) | undefined;
+    vi.stubGlobal('fetch',vi.fn(async (input: RequestInfo | URL,init?: RequestInit)=>{
+      if (String(input).includes('/evidence/')) {
+        await new Promise<void>(resolve=>{release=resolve;});
+        return Response.json({private:'old-principal-evidence'});
+      }
+      return original(input,init);
+    }));
+    await user.click(screen.getByRole('button',{name:'Inspect calculation'}));
+    await waitFor(()=>expect(release).toBeTypeOf('function'));
+    await user.click(screen.getByRole('button',{name:'Sign out'}));
+    role='viewer';
+    vi.stubGlobal('fetch',vi.fn(async (input: RequestInfo | URL,init?: RequestInit)=>{
+      if (String(input)==='/api/v1/goals') return Response.json([]);
+      return original(input,init);
+    }));
+    await user.type(screen.getByLabelText('Access credential'),'narrower-access');
+    await user.click(screen.getByRole('button',{name:'Open workspace'}));
+    await screen.findByRole('heading',{name:'Fixture clothing reviews'});
+    await act(async()=>{release!();});
+    await user.click(screen.getByRole('button',{name:'History',exact:true}));
+    expect(screen.getByText('No runs for the selected goal.')).toBeVisible();
+    expect(screen.queryByText(answer)).not.toBeInTheDocument();
+    expect(screen.queryByText(/old-principal-evidence/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading',{name:'Source and calculation evidence'})).not.toBeInTheDocument();
+  });
+
+  it('removes cached answers when a refresh loses authorization', async () => {
+    const user=await openWorkspace();
+    const original=fetch;
+    vi.stubGlobal('fetch',vi.fn(async (input: RequestInfo | URL,init?: RequestInit)=>{
+      if (String(input)==='/api/v1/me') return Response.json({detail:'Access revoked'}, {status:403});
+      return original(input,init);
+    }));
+    await user.click(screen.getByRole('button',{name:'Run analysis'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Access revoked');
+    expect(screen.getByLabelText('Access credential')).toBeVisible();
+    expect(screen.queryByText(answer)).not.toBeInTheDocument();
+    expect(sessionStorage.getItem('backintel-access')).toBeNull();
+  });
+
   it('keeps the saved answer when fifty newer runs fill the history', async () => {
     runs = Array.from({length: 50}, (_, i) => ({...runs[0], id: 'newer-'+i, status: 'partial', result: null}));
     await openWorkspace();

@@ -69,6 +69,8 @@ def validate_answer(answer, results, group=None):
     results = [r for r in results if r.get('tool') != 'prior_findings' and r.get('kind') != 'historical']
     if set(answer) != set(ANSWER_SCHEMA['required']) or not isinstance(answer['summary'], str) or not isinstance(answer['limitations'], list) or not isinstance(answer['findings'], list):
         raise ValueError('Invalid analyst answer shape')
+    if len(answer['limitations']) > 20 or any(not isinstance(text, str) or not text.strip() or len(text) > 5000 for text in answer['limitations']):
+        raise ValueError('Limitations must be bounded nonempty strings')
     ids = {r['evidence_id'] for r in results}
     for f in answer['findings']:
         if set(f) != {'claim', 'kind', 'evidence_ids'} or f['kind'] not in ('fact', 'estimate', 'hypothesis'):
@@ -81,7 +83,7 @@ def validate_answer(answer, results, group=None):
         if finding['kind'] == 'estimate' and any(r.get('kind') != 'estimate' for r in results if r['evidence_id'] in finding['evidence_ids']):
             raise ValueError('Estimate findings require prediction evidence')
     # Comparative prose must match a statement calculated from the cited rows.
-    for finding in answer['findings']:
+    for finding in answer['findings'] + [{'claim': text, 'kind': 'fact', 'evidence_ids': ids} for text in answer['limitations']]:
         if finding['kind'] == 'hypothesis' or not re.search(r'\b(highest|lowest|higher|lower|greatest|least|most|best|worst|largest|smallest|more|less|top|bottom|leading)\b', finding['claim'], re.I):
             continue
         tables = [r.get('table', []) for r in results if r['evidence_id'] in finding['evidence_ids']]
@@ -102,6 +104,7 @@ def validate_answer(answer, results, group=None):
         raise ValueError('Answer lacks current calculation evidence')
     # The summary must exactly join these individually validated claims below.
     claims = [(answer['summary'],results,not answer['findings'])] + [(f['claim'], [r for r in results if r['evidence_id'] in f['evidence_ids']],True) for f in answer['findings']]
+    claims.extend((text, results, True) for text in answer['limitations'])
     for text, cited, bind_group in claims:
         if not isinstance(text, str) or len(text) > 5000 or re.search(r'\b(causes|caused by|will default|approve the loan|deny the loan)\b', text, re.I):
             raise ValueError('Unsupported causal or lending claim')
@@ -271,11 +274,14 @@ def request(identity, index, inputs):
         AND EXISTS (SELECT 1 FROM backintel.analysis_runs r
                     JOIN backintel.capability_jobs j ON j.job_id=r.job_id
                     JOIN backintel.analysis_goals g ON g.id=r.goal_id
-                JOIN backintel.analysis_sources s ON s.id=g.domain
+                    JOIN backintel.analysis_sources s ON s.id=g.domain
+                    JOIN backintel.analysis_principals p ON p.id=r.owner
                     WHERE r.id=backintel.analysis_requests.run_id AND NOT j.cancel_requested
                       AND j.state IN ('queued','running','retry') AND g.confirmed AND NOT g.paused AND g.version=r.goal_version
-                    AND s.body->'terms_acknowledged'='true'::jsonb
-                FOR UPDATE OF j,g,s) RETURNING id""", (call_id,), one=True)
+                      AND s.body->'terms_acknowledged'='true'::jsonb
+                      AND p.enabled AND (p.expires_at IS NULL OR p.expires_at>now())
+                      AND p.role IN ('manager','analyst') AND g.domain=ANY(p.domains)
+                    FOR UPDATE OF j,g,s,p) RETURNING id""", (call_id,), one=True)
     if not sent:
         raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
     try:

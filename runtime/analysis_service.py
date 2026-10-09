@@ -271,11 +271,14 @@ def handle(store, payload):
                 if r['goal_id']:
                     domain = db.run_domain(r)
                     connection.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
-                    if not db.source(domain, connection=connection)['body'].get('terms_acknowledged'):
+                    source = db.source(domain, connection=connection)
+                    if not source['body'].get('terms_acknowledged'):
                         raise PermissionError('Source terms are not acknowledged')
                     eligible = db.query('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (r['goal_id'],), one=True, connection=connection)
                     if not eligible['confirmed'] or eligible['paused'] or eligible['version'] != r['goal_version']:
                         raise PermissionError('Goal became ineligible before publication')
+                    if source['latest_snapshot'] != r['snapshot_id'] or eligible['active_model'] != r['body'].get('model_id'):
+                        raise PermissionError('Source snapshot or approved model changed before publication')
                 connection.execute("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
                 if payload['operation'] == 'analysis':
                     g = db.goal(r['goal_id'])

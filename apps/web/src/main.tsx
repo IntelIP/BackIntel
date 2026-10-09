@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './style.css';
 
 type Principal = {id: string; role: string; domains: string[]; budget: {suite_usd: number}};
@@ -14,13 +14,25 @@ const format = (n: number|null|undefined) => n == null ? 'Unavailable' : Intl.Nu
 
 export default function App() {
   const [token,setToken] = useState(() => new URLSearchParams(location.hash.slice(1)).get('access') || sessionStorage.getItem('backintel-access') || '');
+  const [accessError,setAccessError] = useState('');
+  function changeAccess(value: string, reason = '') {
+    sessionStorage.removeItem('backintel-access');
+    setAccessError(reason);setToken(value);
+  }
+  return <Workspace key={token} token={token} changeAccess={changeAccess} accessError={accessError}/>;
+}
+
+function Workspace({token,changeAccess,accessError}: {token: string; changeAccess: (token: string, reason?: string) => void; accessError: string}) {
+  const active = useRef(true);
+  const selection = useRef('');
+  const detailRequest = useRef(0);
   const [entry,setEntry] = useState('');
   const [me,setMe] = useState<Principal|null>(null);
   const [sources,setSources] = useState<Source[]>([]);
   const [goals,setGoals] = useState<Goal[]>([]);
   const [notifications,setNotifications]=useState<{id:number;goal_id:string;domain:string;body:{message:string}}[]>([]);
   const [domain,setDomain] = useState('commerce');
-  const [goalId,setGoalId] = useState('');
+  const [goalId,updateGoalId] = useState('');
   const [question,setQuestion] = useState('');
   const [followup,setFollowup] = useState('');
   const [runs,setRuns] = useState<Run[]>([]);
@@ -44,33 +56,51 @@ export default function App() {
   const source = sources.find(s => s.domain === domain);
   const pending = runs.find(r => r.status === 'queued' || r.status === 'running') || importRun;
 
+  function setGoalId(id: string) {
+    selection.current=id;detailRequest.current++;
+    updateGoalId(id);setRuns([]);setCurrent(null);setModels([]);setReviews([]);setEvidence(null);setProgress('');
+  }
+  function signOut(reason = '') {
+    active.current=false;changeAccess('',reason);
+  }
+  function showError(error: unknown) {
+    if (active.current && !(error instanceof DOMException && error.name === 'AbortError')) setError(error instanceof Error ? error.message : 'Request failed');
+  }
   async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+    if (!active.current) throw new DOMException('Workspace closed', 'AbortError');
     const r = await fetch('/api/v1'+path,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body === undefined ? undefined : JSON.stringify(body)});
     const value = await r.json();
+    if (!active.current) throw new DOMException('Workspace closed', 'AbortError');
+    if (r.status===401 || r.status===403) signOut(value.detail || 'Access denied');
     if (!r.ok) throw new Error(value.detail || 'Request failed');
     return value as T;
   }
   async function refresh() {
-    const [p,s,g] = await Promise.all([api<Principal>('/me'),api<Source[]>('/sources'),api<Goal[]>('/goals')]);
+    const [p,s,g,n] = await Promise.all([api<Principal>('/me'),api<Source[]>('/sources'),api<Goal[]>('/goals'),api<typeof notifications>('/notifications')]);
+    if (!active.current) return;
     setMe(p); setSources(s); setGoals(g);
-    setNotifications(await api('/notifications'));
+    setNotifications(n);
+    if (selection.current && !g.some(goal=>goal.id===selection.current)) setGoalId('');
   }
   async function details(id = goalId) {
-    if (!id) return;
+    if (!id || id!==selection.current || !active.current) return;
+    const generation=++detailRequest.current;
     const [r,m,v,f] = await Promise.all([api<Run[]>('/runs?goal_id='+id),api<Model[]>('/goals/'+id+'/models'),api<Review[]>('/goals/'+id+'/reviews'),api<Run|null>('/goals/'+id+'/findings')]);
+    if (!active.current || id!==selection.current || generation!==detailRequest.current) return;
     setRuns(r); setModels(m); setReviews(v); setCurrent(f);
   }
   async function action(fn: () => Promise<void>) {
     setError('');setBusy(true);
-    try {await fn();await refresh();await details();} catch(e) {setError(e instanceof Error ? e.message : 'Request failed');}
-    finally {setBusy(false);}
+    try {await fn();await refresh();await details();} catch(e) {showError(e);}
+    finally {if(active.current)setBusy(false);}
   }
+  useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
   useEffect(() => {
     history.replaceState(null,'',location.pathname);
-    if (token) {sessionStorage.setItem('backintel-access',token);refresh().catch(e=>setError(e.message));}
+    if (token) {sessionStorage.setItem('backintel-access',token);refresh().catch(showError);}
   },[token]);
-  useEffect(() => {setRuns([]);setCurrent(null);setModels([]);setReviews([]);setEvidence(null);if(goalId) details().catch(e=>setError(e.message));},[goalId]);
-  useEffect(()=>{if(!token)return;const timer=setInterval(()=>{refresh().then(()=>details()).catch(e=>setError(e.message));},30000);return()=>clearInterval(timer);},[token,goalId]);
+  useEffect(() => {if(goalId) details().catch(showError);},[goalId]);
+  useEffect(()=>{if(!token)return;const timer=setInterval(()=>{refresh().then(()=>details()).catch(showError);},30000);return()=>clearInterval(timer);},[token,goalId]);
   useEffect(() => {setQuestion(source?.body.question || '');},[domain,source?.body.question]);
   useEffect(() => {setEditQuestion(selected?.body.question || '');},[goalId,selected?.version]);
   useEffect(() => {
@@ -80,10 +110,12 @@ export default function App() {
       try {
         while (!controller.signal.aborted) {
         const response = await fetch('/api/v1/runs/'+pending!.id+'/events',{headers:{Authorization:'Bearer '+token},signal:controller.signal});
+        if (!active.current || controller.signal.aborted) return;
+        if (response.status===401 || response.status===403) signOut('Progress access denied');
         if (!response.ok) throw new Error('Progress access denied');
         const reader = response.body!.getReader();const decoder = new TextDecoder();let buffer = '';
         for (;;) {
-          const {value,done} = await reader.read(); if(done) break;
+          const {value,done} = await reader.read(); if (!active.current || controller.signal.aborted) return; if(done) break;
           buffer += decoder.decode(value,{stream:true});
           const chunks = buffer.split('\n\n');buffer = chunks.pop() || '';
           for (const chunk of chunks) {
@@ -95,14 +127,14 @@ export default function App() {
         const state=await api<Run>('/runs/'+pending!.id);
         if (state.status!=='queued' && state.status!=='running') { if (importRun) setImportRun(null); if (state.error) setError(state.error); await refresh();await details(); return; }
         }
-      } catch(e) {if(!controller.signal.aborted)setError(e instanceof Error ? e.message : 'Progress disconnected');}
+      } catch(e) {if(!controller.signal.aborted)showError(e);}
     }
     listen();return()=>controller.abort();
   },[pending?.id,token]);
 
-  if (!me) return <main className="login"><p className="eyebrow">BackIntel</p><h1>Your analysis workspace</h1><p>Use your local access credential. Your role determines the sources and actions available.</p><form onSubmit={e=>{e.preventDefault();setToken(entry);}}><label htmlFor="credential">Access credential</label><input id="credential" type="password" value={entry} onChange={e=>setEntry(e.target.value)} autoComplete="off" required/><button>Open workspace</button></form>{error&&<p role="alert" className="error">{error}</p>}<p className="muted">Open securely with <code>python -m scripts.analysis_demo open --role manager</code>.</p></main>;
+  if (!me) return <main className="login"><p className="eyebrow">BackIntel</p><h1>Your analysis workspace</h1><p>Use your local access credential. Your role determines the sources and actions available.</p><form onSubmit={e=>{e.preventDefault();changeAccess(entry);}}><label htmlFor="credential">Access credential</label><input id="credential" type="password" value={entry} onChange={e=>setEntry(e.target.value)} autoComplete="off" required/><button>Open workspace</button></form>{(error||accessError)&&<p role="alert" className="error">{error||accessError}</p>}<p className="muted">Open securely with <code>python -m scripts.analysis_demo open --role manager</code>.</p></main>;
   return <div className="workspace">
-    <aside className="sidebar"><a className="brand" href="/">BackIntel<span>Analysis workspace</span></a><p className="eyebrow">Sources</p><nav aria-label="Data domains">{sources.map(s=><button className={domain===s.domain?'selected':''} key={s.id} onClick={()=>{setDomain(s.domain);setGoalId('');}}>{s.domain[0].toUpperCase()+s.domain.slice(1)}<span className="source-state">{s.latest_snapshot?'Ready':'Awaiting data'}</span></button>)}</nav><p className="eyebrow">Saved goals</p><nav aria-label="Saved goals">{goals.filter(g=>g.domain===domain).map(g=><button className={goalId===g.id?'selected':''} key={g.id} onClick={()=>setGoalId(g.id)}>{g.body.question}<span className="source-state">{g.paused?'Paused':g.freshness}</span></button>)}</nav><div className="identity"><strong>{me.role}</strong><button onClick={()=>{sessionStorage.removeItem('backintel-access');setToken('');setMe(null);}}>Sign out</button></div></aside>
+    <aside className="sidebar"><a className="brand" href="/">BackIntel<span>Analysis workspace</span></a><p className="eyebrow">Sources</p><nav aria-label="Data domains">{sources.map(s=><button className={domain===s.domain?'selected':''} key={s.id} onClick={()=>{setDomain(s.domain);setGoalId('');}}>{s.domain[0].toUpperCase()+s.domain.slice(1)}<span className="source-state">{s.latest_snapshot?'Ready':'Awaiting data'}</span></button>)}</nav><p className="eyebrow">Saved goals</p><nav aria-label="Saved goals">{goals.filter(g=>g.domain===domain).map(g=><button className={goalId===g.id?'selected':''} key={g.id} onClick={()=>setGoalId(g.id)}>{g.body.question}<span className="source-state">{g.paused?'Paused':g.freshness}</span></button>)}</nav><div className="identity"><strong>{me.role}</strong><button onClick={()=>{signOut();}}>Sign out</button></div></aside>
     <main><header><div><p className="eyebrow">{domain} / {view}</p><h1>{source?.body.name || 'Select a source'}</h1></div><span className="model-label">GPT-6.1 Sol · hosted analyst</span></header>
       {error&&<div className="error" role="alert">{error}<button aria-label="Dismiss error" onClick={()=>setError('')}>×</button></div>}
       <nav className="tabs" aria-label="Workspace views">{['analysis','sources','goals','conversation','review','history'].map(v=><button key={v} aria-current={view===v?'page':undefined} onClick={()=>setView(v)}>{v[0].toUpperCase()+v.slice(1)}</button>)}</nav>

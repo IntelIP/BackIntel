@@ -146,6 +146,60 @@ class CampaignChecks(unittest.TestCase):
         self.assertEqual(db.run(self.run['id'])['status'], 'cancelled')
         self.assertIsNone(db.goal(self.goal)['last_success'])
 
+    def test_owner_revocation_at_dispatch_prevents_provider_post(self):
+        from unittest.mock import MagicMock
+        from runtime import analysis_agent as agent
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.get.return_value.json.return_value = {'data':[{'id':CONFIG['analyst']['model'],'pricing':{'prompt':'0','completion':'0'}}]}
+        query = db.query
+        for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='viewer'", "domains=ARRAY['support']"):
+            def revoke(sql, *args, **kwargs):
+                if sql.startswith("UPDATE backintel.analysis_requests SET status='sent'"):
+                    db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
+                return query(sql, *args, **kwargs)
+            try:
+                with self.subTest(change=change), patch.object(agent, 'credential', return_value='fixture'), patch.object(agent.httpx, 'Client', return_value=client), patch.object(db, 'query', side_effect=revoke), self.assertRaisesRegex(RuntimeError, 'reservation changed'):
+                    agent.request(self.run['id'], 0, [])
+                client.post.assert_not_called()
+            finally:
+                db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
+                db.release_unsent(self.run['id'])
+
+    def test_changed_snapshot_or_model_cannot_replace_standing_answer(self):
+        with patch('runtime.analysis_agent.analyze', return_value={'summary':'Standing fixture answer'}):
+            service.execute(self.run['job_id'], service.handle)
+        standing = self.run['id']
+        for change in ('snapshot', 'model'):
+            with self.subTest(change=change):
+                # A different implementation creates a fresh run of the standing question.
+                with patch.object(service, 'analysis_identity', return_value=change):
+                    run = service.submit(self.goal, self.actor)
+                def finish(identity):
+                    if change == 'snapshot':
+                        snapshot = digest([self.snapshot, 'refreshed'])
+                        db.save_snapshot('commerce', snapshot, {'mode':'fixture'}, self.rows)
+                    else:
+                        db.write('UPDATE backintel.analysis_goals SET active_model=%s WHERE id=%s', ('new-model', self.goal))
+                    return {'summary':'Stale completion'}
+                with patch('runtime.analysis_agent.analyze', side_effect=finish):
+                    service.execute(run['job_id'], service.handle)
+                self.assertEqual(db.run(run['id'])['status'], 'cancelled')
+                self.assertEqual(db.goal(self.goal)['last_success'], standing)
+
+    def test_cancel_run_commits_job_and_run_together(self):
+        from runtime import analysis_api as api
+        cancel = api.cancel
+        def observe(connection, job_id):
+            state = cancel(connection, job_id)
+            visible = db.query('SELECT r.status,j.state FROM backintel.analysis_runs r JOIN backintel.capability_jobs j ON j.job_id=r.job_id WHERE r.id=%s', (self.run['id'],), one=True)
+            self.assertEqual(visible, {'status':'queued','state':'queued'})
+            return state
+        with patch.object(api, 'cancel', side_effect=observe):
+            api.cancel_run(self.run['id'], self.actor)
+        self.assertEqual(db.run(self.run['id'])['status'], 'cancelled')
+        self.assertEqual(service.submit(self.goal, self.actor)['status'], 'queued')
+
     def test_import_publication_and_followups_share_job_acceptance(self):
         from runtime.jobs import cancel
         db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':True}),))

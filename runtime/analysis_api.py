@@ -192,9 +192,10 @@ def run(identity:str,p=Depends(access)):
 def cancel_run(identity:str,p=Depends(access)):
     r=db.run(identity)
     db.authorize(p,db.run_domain(r),('manager',))
-    with db.connect() as c:
+    with db.connect() as c, c.transaction():
+        c.execute('SELECT id FROM backintel.analysis_runs WHERE id=%s FOR UPDATE', (identity,))
         state=cancel(c,r['job_id'])
-    db.write("UPDATE backintel.analysis_runs SET status='cancelled',updated_at=now() WHERE id=%s AND status='queued'",(identity,))
+        db.write("UPDATE backintel.analysis_runs SET status='cancelled',updated_at=now() WHERE id=%s AND status='queued'",(identity,),connection=c)
     return {'status':state}
 
 

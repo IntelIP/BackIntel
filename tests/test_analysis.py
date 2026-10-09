@@ -18,6 +18,19 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_displayed_limitations_require_supported_bounded_text(self):
+        results = [{'evidence_id':'observed','kind':'observed','table':[{'group':'A','mean':.2,'count':10}]}]
+        answer = {'summary':'Observed results.', 'findings':[
+            {'claim':'Group A mean is 0.2.','kind':'fact','evidence_ids':['observed']}], 'limitations':[]}
+        for limitation in ({'claim':'bad shape'}, None, '', 'x'*5001, 'Group A mean is 0.9.',
+                           'This causes default.', 'Approve the loan.', 'Group A has the highest mean.'):
+            with self.subTest(limitation=str(limitation)[:40]), self.assertRaises(ValueError):
+                validate_answer({**answer, 'limitations':[limitation]}, results)
+        valid = ['Synthetic validation inputs; results are not live.',
+                 'Missing targets limit interpretation.', 'No approved prediction model is available.',
+                 'Group A has 10 records.']
+        self.assertEqual(validate_answer({**answer, 'limitations':valid}, results)['limitations'], valid)
+
     def test_prior_snapshot_numbers_cannot_support_current_claims(self):
         results = [{'tool':'compare_snapshots','evidence_id':'comparison',
                     'current':[{'mean':.2,'count':20}], 'previous':[{'mean':.8,'count':80}]}]
