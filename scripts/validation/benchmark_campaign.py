@@ -142,6 +142,8 @@ def real_result(spec, domain, receipts, candidate, checkout=None):
         if receipt.get('model_restore_predictions_verified') is not True or len(receipt.get('methods', [])) < 2:
             return 'blocked', 'Comparison or saved prediction reproduction is missing', None
         implementation_path = 'runtime/analysis_models.py' if native else 'scripts/analysis_local_benchmark.py'
+        if native and receipt['harness_sha256'] != candidate['files'].get('scripts/analysis_prediction_benchmark.py'):
+            return 'blocked', 'Prediction harness fingerprint differs from candidate', None
         if receipt['implementation'].get('sha256') != candidate['files'].get(implementation_path):
             return 'blocked', 'Prediction implementation fingerprint differs from candidate', None
         status = receipt.get('status')

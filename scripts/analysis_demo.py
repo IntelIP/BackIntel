@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import webbrowser
 import os
 import secrets
 import ssl
@@ -146,7 +147,13 @@ def main():
     elif args.command=='open':
         token=runtime_access()[args.role]
         url='http://127.0.0.1:2028/#access='+token
-        subprocess.run(['osascript','-'],input='open location '+json.dumps(url),capture_output=True,text=True,check=True)
+        try:
+            opened=webbrowser.open(url)
+        except (OSError,webbrowser.Error):
+            opened=False
+        if not opened:
+            print('Open this local workspace URL: '+url)
+            return
         print('Workspace opened using the local '+args.role+' grant.')
     else:
         globals()[args.command]()

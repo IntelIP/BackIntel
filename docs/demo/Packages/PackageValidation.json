@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "archive_sha256": "e5d6942485aec117dbaa925ce3823a3da8e85fa6693ea4bd8855de3edfea6822",
+  "archive_sha256": "3e2b63e1326595a4f3cb75f714a9ab109ffbaedf1ee5ada95f17853315817f37",
   "mode": "recorded_synthetic_run",
   "exact_commit_product_readiness": "blocked",
   "fresh_extracted_package": true,

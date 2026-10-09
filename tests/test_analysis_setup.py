@@ -29,6 +29,14 @@ def churn_csv(directory):
 
 
 class SetupChecks(unittest.TestCase):
+    def test_workspace_launcher_uses_default_browser_or_prints_local_url(self):
+        for outcome in (True,False,OSError('No desktop browser')):
+            with self.subTest(outcome=outcome), patch('sys.argv',['analysis_demo','open','--role','manager']), patch.object(demo,'runtime_access',return_value={'manager':'fixture-token'}), patch.object(demo.webbrowser,'open',return_value=outcome if isinstance(outcome,bool) else False,side_effect=outcome if isinstance(outcome,Exception) else None) as browser, patch('sys.stdout',new_callable=io.StringIO) as output:
+                demo.main()
+                browser.assert_called_once_with('http://127.0.0.1:2028/#access=fixture-token')
+                if outcome is True:self.assertIn('Workspace opened',output.getvalue())
+                else:self.assertIn('http://127.0.0.1:2028/#access=fixture-token',output.getvalue())
+
     def test_weight_metadata_trusts_configured_ca_with_tls_verification_enabled(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary); certificate = base / 'ca.pem'; key = base / 'synthetic-ca.key'

@@ -6,6 +6,7 @@ adapters and comparison code; no database, hosted analyst, or model promotion is
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import subprocess
 import sys
@@ -69,7 +70,7 @@ def child(domain, output):
             predictions = predict({'body': {**manifest,
                                    'approved_route': method['artifact'].removesuffix('.joblib')}}, test)
             expected = method['predictions']
-            if set(predictions) != set(expected) or any(abs(predictions[k] - expected[k]) > 1e-8 for k in expected):
+            if set(predictions) != set(expected) or any(not math.isfinite(predictions[k]) or not math.isfinite(expected[k]) or abs(predictions[k] - expected[k]) > 1e-8 for k in expected):
                 raise AssertionError('Restored predictor differs from saved test predictions')
             restored.append({'route': method['route'], 'features': method['features']})
         receipt.update(status='passed', model_restore_predictions_verified=True, restored_routes=restored)

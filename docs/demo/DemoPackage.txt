@@ -7,7 +7,7 @@ prediction methods, arrivals, corrections, and a shared human review.
 
 Start the packaged React demo
 1. Extract BackIntelDemoBusinessV4.zip. It creates one BackIntelDemo folder.
-2. Open a terminal in BackIntelDemo.
+2. Open a terminal in your trusted BackIntel repository checkout.
 3. From a trusted repository checkout, run: python3 -m scripts.package_business_demo --package-root /path/to/BackIntelDemo --check
 4. From the same checkout, run: python3 -m scripts.package_business_demo --package-root /path/to/BackIntelDemo
 5. Open http://127.0.0.1:2053/

@@ -88,15 +88,15 @@ class CampaignReceiptChecks(unittest.TestCase):
 
     def test_real_prediction_needs_native_identity_and_provenance(self):
         spec = {'evidence': 'prediction'}
-        candidate = {'commit': 'abc', 'dirty': False, 'files': {'runtime/analysis_models.py': 'sha'}}
+        candidate = {'commit': 'abc', 'dirty': False, 'files': {'runtime/analysis_models.py': 'sha', 'scripts/analysis_prediction_benchmark.py': 'harness'}}
         receipt = {'schema': 'backintel-local-prediction-benchmark/v1', 'domain': 'churn', 'mode': 'real',
-                   'candidate_commit': 'abc', 'dirty_tree': False, 'source_hashes': candidate['files'],
+                   'candidate_commit': 'abc', 'dirty_tree': False, 'source_hashes': {'runtime/analysis_models.py':'sha'},
                    'status': 'passed', 'source': {'files': ['source']}, 'source_files': ['source'],
                    'splits': {'test': ['a']}, 'implementation': {'sha256': 'sha'}, 'harness_sha256': 'harness',
                    'model_comparison': {'methods': ['baseline', 'catboost']},
                    'model_restore_predictions_verified': True, 'methods': [{}, {}]}
         self.assertEqual(campaign.real_result(spec, 'churn', [receipt], candidate)[0], 'passed')
-        for change in ({'mode': 'fixture'}, {'dirty_tree': True}, {'splits': {}}, {'model_restore_predictions_verified': False}):
+        for change in ({'mode': 'fixture'}, {'dirty_tree': True}, {'splits': {}}, {'model_restore_predictions_verified': False}, {'harness_sha256':'stale-harness'}):
             self.assertEqual(campaign.real_result(spec, 'churn', [{**receipt, **change}], candidate)[0], 'blocked')
         self.assertEqual(campaign.real_result(spec, 'credit', [receipt], candidate)[0], 'blocked')
 

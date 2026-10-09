@@ -191,7 +191,8 @@ def snapshot(store, jobs, requests, triggers=()):
     cases = []
     for entity in sorted({source["body"]["entity"] for source in sources}):
         group = [source for source in sources if source["body"]["entity"] == entity]
-        latest = max(group, key=lambda source: (source["available_at"], source["identity"]))
+        # current_sources resolves revisions and orders events as features() does.
+        latest = group[-1]
         latest_findings = [record for record in observations if record["body"]["source"] == latest["sha256"]]
         lineage = sorted(source["sha256"] for source in group)
         text = "\n\n".join(f"{source['body']['id']} · simulation window {source['available_at']}\n{source['body']['content']}" for source in group[-3:])

@@ -10,6 +10,17 @@ from scripts.support_demo import prepare_frontends
 
 
 class BusinessDemoTests(unittest.TestCase):
+    def test_packet_uses_newest_event_despite_a_late_older_arrival(self):
+        older={'sha256':'a'*64,'identity':'older','available_at':30,'body':{'id':'older','entity':'Access','event_at':10,'content':'Late older report','measures':{'load':90}}}
+        newer={'sha256':'b'*64,'identity':'newer','available_at':20,'body':{'id':'newer','entity':'Access','event_at':20,'content':'Current report','measures':{'load':20}}}
+        observations=[{'sha256':name,'available_at':31,'body':{'source':source['sha256'],'question_id':'urgent','response':{'value':value}}} for name,source,value in (('old-answer',older,True),('new-answer',newer,False))]
+        # current_sources resolves revisions and returns event-time order.
+        self.packet(sources=[older,newer],observations=observations,analyses=[{'available_at':35}])
+        case=self.last_packet['cases'][0]
+        self.assertEqual(case['summary'],'Current report')
+        self.assertIn('urgent: False',case['finding']['text'])
+        self.assertNotIn('urgent: True',case['finding']['text'])
+
     def test_cancelled_jobs_and_admitted_requests_block_completed_demo(self):
         for jobs, requests in (([{'state':'cancelled'}], []), ([], [{'state':'admitted','metadata':None}])):
             with self.subTest(jobs=jobs,requests=requests):

@@ -279,6 +279,13 @@ def handle(store, payload):
                         raise PermissionError('Goal became ineligible before publication')
                     if source['latest_snapshot'] != r['snapshot_id'] or eligible['active_model'] != r['body'].get('model_id'):
                         raise PermissionError('Source snapshot or approved model changed before publication')
+                owner = db.query("""SELECT id FROM backintel.analysis_principals
+                    WHERE id=%s AND enabled AND (expires_at IS NULL OR expires_at>clock_timestamp())
+                    AND role=ANY(%s) AND %s=ANY(domains) FOR UPDATE""",
+                    (r['owner'], ['manager','analyst'] if payload['operation']=='analysis' else ['manager'], db.run_domain(r)),
+                    one=True, connection=connection)
+                if not owner:
+                    raise PermissionError('Run owner lost access before publication')
                 connection.execute("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
                 if payload['operation'] == 'analysis':
                     g = db.goal(r['goal_id'])

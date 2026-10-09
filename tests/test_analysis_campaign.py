@@ -260,6 +260,40 @@ class CampaignChecks(unittest.TestCase):
         self.assertEqual(source['latest_snapshot'],self.snapshot)
         self.assertEqual(db.run(run['id'])['status'],'cancelled')
 
+    def test_owner_revocation_at_publication_preserves_standing_answer(self):
+        with patch('runtime.analysis_agent.analyze',return_value={'summary':'Standing fixture answer'}):
+            service.execute(self.run['job_id'],service.handle)
+        query=db.query
+        for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='viewer'", "domains=ARRAY['support']"):
+            with patch.object(service,'analysis_identity',return_value=change):
+                run=service.submit(self.goal,self.actor)
+            def revoke(sql,*args,**kwargs):
+                if sql.startswith('SELECT id FROM backintel.analysis_principals'):
+                    db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s',(self.actor['id'],))
+                return query(sql,*args,**kwargs)
+            try:
+                with self.subTest(change=change), patch('runtime.analysis_agent.analyze',return_value={'summary':'Revoked fixture answer'}), patch.object(db,'query',side_effect=revoke):
+                    service.execute(run['job_id'],service.handle)
+                self.assertEqual(db.run(run['id'])['status'],'cancelled')
+                self.assertEqual(db.goal(self.goal)['last_success'],self.run['id'])
+            finally:
+                db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s",(self.actor['id'],))
+
+    def test_import_owner_revocation_at_publication_rejects_success(self):
+        run=service.submit_import('commerce',self.actor)
+        query=db.query
+        def revoke(sql,*args,**kwargs):
+            if sql.startswith('SELECT id FROM backintel.analysis_principals'):
+                db.write('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s',(self.actor['id'],))
+            return query(sql,*args,**kwargs)
+        try:
+            with patch.object(service,'import_source',return_value={'snapshot':self.snapshot}), patch.object(service,'schedule_snapshot',return_value=[]), patch.object(db,'query',side_effect=revoke):
+                service.execute(run['job_id'],service.handle)
+            self.assertEqual(db.run(run['id'])['status'],'cancelled')
+            self.assertEqual(db.source('commerce')['latest_snapshot'],self.snapshot)
+        finally:
+            db.write('UPDATE backintel.analysis_principals SET enabled=true WHERE id=%s',(self.actor['id'],))
+
     def test_empty_corrections_preserve_snapshot_and_explicit_null_removes_target(self):
         from runtime.analysis_api import correction, CorrectionInput
         service.revise_goal(self.goal, self.actor, paused=True)
