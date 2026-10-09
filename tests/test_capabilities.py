@@ -252,6 +252,19 @@ class CapabilityTests(unittest.TestCase):
             self.assertEqual(correction['body']['response']['value'], value)
             supersedes = correction['sha256']
 
+    def test_other_numeric_questions_do_not_inherit_signal_scale(self):
+        task, rows, _ = history('equipment')
+        task['id'] = 'test-' + uuid.uuid4().hex
+        task['questions'].append({**task['questions'][0], 'id':'temperature'})
+        store = Evidence(self.conn, task['id'])
+        record = register_task(store, task)
+        admit_source(store, record, {'format':'json', 'data':[rows[0]]}, 0)
+        observation = next(item for item in extract(store, record, current_sources(store, 0)[0], 0)
+                           if item['body']['question']['id'] == 'temperature')
+        response = {'status':'known', 'value':25, 'distribution':None, 'reason':'fixture review'}
+        correction = correct_observation(store, observation['sha256'], response, 'operator', 'fixture review', 1)
+        self.assertEqual(correction['body']['response']['value'], 25)
+
     def test_unknown_abstention_invalid_distribution_and_budget(self):
         store, task, rows, _ = self.scenario()
         task_body = copy.deepcopy(task["body"])
@@ -405,6 +418,21 @@ class CapabilityTests(unittest.TestCase):
         self.assertEqual(audit[0]['body'], {'job_id':failed, 'attempt':5, 'previous_state':'failed', 'status':'cancelled'})
         self.assertEqual(runnable(self.conn, [store.task_id]), [following])
         self.assertEqual(execute(following, lambda ledger, payload: ledger.put('test_result', 'following', payload, 10))['state'], 'completed')
+
+    def test_cancelled_demo_stage_is_not_reported_as_passed(self):
+        from scripts.capability_demo import status
+        demo_id = 'cancelled-' + uuid.uuid4().hex[:20]
+        for name in ('support', 'equipment'):
+            task, _, _ = history(name)
+            task['id'] = f'{name}-{demo_id}'
+            store = Evidence(self.conn, task['id'])
+            register_task(store, task)
+            job = enqueue(store, {'operation':'fixture'}, 'cancelled-demo-stage')
+            cancel(self.conn, job)
+        result = status(self.conn, demo_id)
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(len(result['errors']), 2)
+        self.assertEqual({row['state'] for row in result['jobs']}, {'cancelled'})
 
     def test_durable_jobs_retry_concurrent_replay_cancel_conflict_and_expired_lease(self):
         store, task, _, _ = self.scenario()

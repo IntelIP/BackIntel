@@ -548,6 +548,14 @@ class CampaignChecks(unittest.TestCase):
         dispatch.assert_called_once()
         self.assertEqual([row['domain'] for row in result['sources']], ['commerce'])
 
+    def test_source_listing_skips_retired_domains_with_persisted_grants(self):
+        from runtime import analysis_api as api
+        before = [source['domain'] for source in api.sources(self.actor)]
+        self.assertIn('commerce', before)
+        configured = {domain: spec for domain, spec in api.CONFIG['sources'].items() if domain != 'commerce'}
+        with patch.dict(api.CONFIG['sources'], configured, clear=True):
+            self.assertEqual([source['domain'] for source in api.sources(self.actor)],
+                             [domain for domain in before if domain != 'commerce'])
     def test_source_queue_limit_is_atomic_and_replays_remain_available(self):
         from runtime.analysis_api import cancel_run
         for index in range(18):

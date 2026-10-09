@@ -35,7 +35,7 @@ def status(connection, demo_id="development-v1") -> dict:
         WHERE task_id=ANY(%s) GROUP BY task_id,state ORDER BY task_id,state""",(task_ids,)).fetchall()
     pending = connection.execute("SELECT count(*) FROM backintel.capability_triggers WHERE state='pending' AND task_id=ANY(%s)",(task_ids,)).fetchone()[0]
     errors = connection.execute("""SELECT task_id,payload->>'operation',error FROM backintel.capability_jobs
-        WHERE state='failed' AND task_id=ANY(%s)""",(task_ids,)).fetchall()
+        WHERE state IN ('failed','cancelled') AND task_id=ANY(%s)""",(task_ids,)).fetchall()
     running = sum(count for _,state,count in jobs if state in ("queued","running","retry"))
     counts = connection.execute("""SELECT task_id,kind,count(*) FROM backintel.capability_evidence
         WHERE task_id=ANY(%s) AND kind IN ('prediction','comparison','delivery','model_update','artifact','artifact_candidate')

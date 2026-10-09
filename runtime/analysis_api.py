@@ -113,7 +113,7 @@ def notifications(p=Depends(access)):
 @app.get('/api/v1/sources')
 def sources(p=Depends(access)):
     p=db.authorize(p)
-    return [db.source(row['id']) for row in db.query('SELECT id FROM backintel.analysis_sources WHERE domain=ANY(%s) ORDER BY domain',(p['domains'],))]
+    return [db.source(row['id']) for row in db.query('SELECT id FROM backintel.analysis_sources WHERE domain=ANY(%s) ORDER BY domain',([domain for domain in p['domains'] if domain in CONFIG['sources']],))]
 
 
 @app.post('/api/v1/sources/{domain}/terms')

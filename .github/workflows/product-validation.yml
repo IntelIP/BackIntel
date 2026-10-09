@@ -58,6 +58,7 @@ jobs:
 
       - name: Build actual sandbox from this candidate
         run: |
+          docker tag "$(docker inspect --format '{{.Image}}' '${{ job.services.postgres.id }}')" postgres:16
           docker build -f Dockerfile.runtime \
             --build-context python:3.12-slim-bookworm=docker-image://mirror.gcr.io/library/python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 \
             --build-arg BACKINTEL_CANDIDATE_SHA="$CANDIDATE_SHA" -t "$BACKINTEL_SANDBOX_IMAGE" .

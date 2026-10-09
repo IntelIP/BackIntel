@@ -99,15 +99,26 @@ def decide(rows, domain):
         key = digest(expected)
         expected['identity'] = key
         cache = model_root()/'DecideObservations'/f'{key}.json'
-        if cache.exists():
+        try:
             observation = json.loads(cache.read_text())
+        except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
+            observation = None
+        if observation is not None:
             if any(observation.get(name) != value for name, value in expected.items()):
                 raise ValueError('Decide observation cache does not match current implementation and input')
         else:
             result = extractor.classify_text(text, {'signal': labels})
             observation = {**expected, 'output': result}
             cache.parent.mkdir(parents=True,exist_ok=True)
-            cache.write_text(json.dumps(observation))
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', dir=cache.parent, delete=False) as stream:
+                    temporary = Path(stream.name)
+                    stream.write(json.dumps(observation, allow_nan=False))
+                os.replace(temporary, cache)
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
         observation={**observation,'provider':'local-gliner2','question_schema':{'signal':labels}}
         label = observation['output']
         if isinstance(label, dict):

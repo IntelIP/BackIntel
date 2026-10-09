@@ -131,12 +131,22 @@ class AdapterChecks(unittest.TestCase):
                 _, first = models.decide(rows,'commerce')
                 self.assertEqual(models.decide(rows,'commerce')[1],first)
                 self.assertEqual(extractor.classify_text.call_count,1)
+                cache = root/'DecideObservations'/f"{first[0]['identity']}.json"
+                cache.write_text('{"interrupted":')
+                with patch.object(models.os, 'replace', side_effect=OSError('fixture interrupted publication')):
+                    with self.assertRaisesRegex(OSError, 'interrupted publication'):
+                        models.decide(rows, 'commerce')
+                self.assertEqual(cache.read_text(), '{"interrupted":')
+                self.assertEqual(list(cache.parent.iterdir()), [cache])
+                self.assertEqual(models.decide(rows, 'commerce')[1], first)
+                self.assertEqual(extractor.classify_text.call_count, 3)
+                extractor.classify_text.reset_mock()
                 implementation[0]='v2';models.decide(rows,'commerce')
                 versions.return_value={'gliner2':'v2'};models.decide(rows,'commerce')
                 weight.write_text('updated fixture');spec['files'][0].update(sha256=real_sha(weight), bytes=weight.stat().st_size)
                 (weights/'backintel-weights.json').write_text(json.dumps(spec))
                 _, latest = models.decide(rows,'commerce')
-                self.assertEqual(extractor.classify_text.call_count,4)
+                self.assertEqual(extractor.classify_text.call_count,3)
                 path = root/'DecideObservations'/f"{latest[0]['identity']}.json"
                 invalid = json.loads(path.read_text());invalid['input_sha256']='other input';path.write_text(json.dumps(invalid))
                 with self.assertRaisesRegex(ValueError,'cache does not match'):
