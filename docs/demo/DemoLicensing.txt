@@ -1,0 +1,34 @@
+BackIntel demo licensing and dependency notes
+
+Repository source
+BackIntel source is licensed under the MIT License, copyright 2026 IntelIP.
+The complete terms are in LICENSE at the repository and package root.
+Third-party dependencies, fonts, models and services retain their own terms.
+Source publication does not establish customer accuracy or release acceptance.
+
+Frontend dependencies
+DependencyLicenses.json lists the exact dependency versions and license identifiers
+recorded in frontend/package-lock.json. DependencyLicenses contains available
+LICENSE, LICENCE, NOTICE, COPYING, and OFL texts from those installed packages.
+The built React application includes third-party code and the bundled Instrument
+Sans font. Preserve these notices when redistributing their corresponding assets.
+Missing lockfile declarations are recorded rather than assigned an invented license.
+
+Python interface
+PythonDemo/requirements.txt pins Reflex 0.9.8. Its dependencies are installed
+separately under their upstream terms. Python wheels and environments are not
+redistributed in this archive.
+
+Interpretation and prediction methods
+The retained run used the hosted Jev provider through TypeSafe/OpenRouter, plus
+local CatBoost 1.2.10 and TabICL 2.2.0. Exact local runtime requirements are in
+SourceSnapshot/requirements.models.txt. The package contains recorded results
+and source, not model checkpoints, API credentials, provider SDK installations,
+or a new grant to use a hosted model. Model and hosted-provider use remains
+subject to its original terms and task-scoped authorization.
+
+Dataset and claims
+The business reports, measurements, and future outcomes in this package are
+synthetic demonstration data. Real customer or production datasets are absent.
+Earlier failed-request charges and local compute cost remain unknown. Recorded
+predictions do not establish customer accuracy or measured commercial value.

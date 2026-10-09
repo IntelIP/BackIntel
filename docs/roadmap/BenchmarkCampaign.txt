@@ -1,0 +1,48 @@
+BackIntel consolidation and architecture benchmark campaign
+Acceptance source: user-approved swarm outline and instruction to execute it, October 6, 2026.
+
+Outcome
+One recoverable canonical code baseline, a source-backed benchmark method, a runnable scenario suite, and honest baseline-versus-candidate results that identify working capabilities and remaining failures.
+
+Ownership
+Principal/integrator owns Git, preservation, final source, scenario contract, runtime execution and outcome report. Research agent owns methodology; scenario agent owns coverage design. Implementation workers receive isolated temporary worktrees and disjoint files. Final validation checks the integrated commit.
+
+Required deliverables
+1. Git reconciliation record and recoverable originals: docs/architecture/GitReconciliation.txt.
+2. Current architecture map: docs/architecture/current-system.md.
+3. Research and scenario design: docs/research/AnalysisBenchmarkMethods.txt and docs/architecture/BenchmarkScenarios.txt.
+4. Runnable versioned scenario benchmark reusing existing validation/model runners.
+5. Baseline and final-candidate results with code/data/scenario identity, expected/actual outcomes, per-family status, timing, resource and paid-cost boundaries.
+6. Short final report identifying measured changes and remaining work.
+
+Scenario contract
+Grounded business answers; predictor comparisons; changed/unchanged-source refresh; corrections and stale-model invalidation; worker/broker interruption and duplicate prevention; source/role/expiry isolation; hostile/malformed/missing input; time/memory/tool/spending limits; evidence inspection and follow-up isolation.
+Use deterministic expected results independent of the answer path. Freeze development and reserved scenarios before evaluating candidate improvements. Retain failures. Do not claim a held-out set if it informed changes. Baseline/candidate comparisons require identical scenario, data, execution mode and limits; otherwise mark not comparable.
+
+Invariants and forbidden outcomes
+No lost source/data/evidence. No reintroduced OlistV2. No passing by incidental prose matches or stale receipts. No simulated response relabeled as real inference. No aggregate score hiding failed access, evidence or recovery behavior. No silent dataset replacement. No extra framework when existing tools suffice. No invented production savings or whole-system readiness.
+
+Authority and limits
+Local source integration, local commits, research, isolated tests and local CPU model evaluation are authorized. No push, remote merge, publication, destructive cleanup or production changes. Keep hosted inference disabled until existing paid campaign ledger and authorization are reconciled; do not infer a new budget. Use current source confirmations. Credit remains blocked when actual files are unavailable. Existing missing model/provider prerequisites are reported explicitly.
+
+Done condition
+All requested artifacts exist. The consolidated source is committed. Required checks and the agreed scenario suite run on the exact candidate, with trustworthy passed/failed/blocked results and actionable explanations. Compare baseline/candidate only where equivalent evidence exists. Explicit input/prerequisite blockers remain visible; a fixture pass never replaces a missing live result. Do not mark full live acceptance or production readiness from this campaign unless those outcomes are actually demonstrated.
+
+Reproduce the offline scenario campaign
+Use Python 3.12 with requirements.testing.txt, the locked apps/web dependencies and its pinned Playwright browser. Supply BACKINTEL_VALIDATION_ADMIN_URL for a local disposable PostgreSQL server, BACKINTEL_VALIDATION_REDIS_URL for local Redis, NODE_PATH pointing to apps/web/node_modules, and BACKINTEL_VALIDATION_POSTGRES_CONTAINER when exercising dump/restore. The runner creates its own disposable databases and Redis container; it does not stop the existing application.
+
+python scripts/validation/benchmark_campaign.py run --label candidate --checkout . --port 2029 --output /absolute/new/evidence/directory
+
+The command intentionally returns a nonzero result when required live prediction/analyst evidence is absent, even when offline scenarios pass. Inspect campaign.json by family and mode. --skip-browser records that required evidence as blocked; it is not an acceptance shortcut.
+
+Run actual local predictors from a verified clean checkout
+python scripts/analysis_prediction_benchmark.py --checkout /absolute/clean/checkout --output /absolute/new/prediction/directory --datasets /absolute/Datasets --models /absolute/Models --image EXISTING_LOCAL_ANALYSIS_IMAGE
+
+This uses the existing local analysis image, source-use receipts, approved local weights, two CPU threads, the configured memory/time limits, and a disabled network. Each domain retains its own receipt. Credit remains blocked when files or confirmation are missing. Saved models are reloaded and their test predictions checked. Local compute dollar cost is unavailable. No provider calls or model promotion occur.
+
+Collect and compare
+python scripts/validation/benchmark_campaign.py collect --label candidate --checkout . --output /absolute/new/collection --units /absolute/campaign/units --offline /absolute/campaign/offline --prediction-receipt /absolute/predictions/churn/receipt.json
+Repeat --prediction-receipt for each available domain. Add --analyst-receipt only for an actual source-grounded, exact-candidate run after its existing spending boundary is reconciled. Collection validates identity and artifact hashes; it does not rerun inference.
+python scripts/validation/benchmark_campaign.py compare /absolute/baseline/campaign.json /absolute/candidate/campaign.json --output /absolute/comparison.json
+
+Changed data, cohorts, scenario definitions, limits, dependencies, or scoring harness make results not comparable. Changed predictor implementation is the variable under evaluation and remains identified without automatically blocking comparison. Historical logs are evidence of their original run, never proof of the current source. The baseline frozen for this campaign is 5fe7fcdc478d967587575ec0c1cba97c06939a4a.

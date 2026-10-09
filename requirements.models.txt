@@ -1,0 +1,6 @@
+# Real-model development environment. Model checkpoints are approved/downloaded separately.
+catboost==1.2.10
+tabicl==2.2.0
+scikit-learn==1.9.1
+torch==2.14.0
+langchain-typesafe==0.0.1a3

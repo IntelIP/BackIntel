@@ -1,0 +1,276 @@
+{
+  "$schema": "tabellio-validation/v0.2",
+  "acceptance": {
+    "id": "backintel-demo-poc-v1",
+    "source": "Product owner approval 2026-10-07: merge the demo PoC after demo checks and GitHub Codex review pass. The unchanged tabellio.validation.json remains the full-product acceptance contract.",
+    "risk": "high",
+    "outcomes": [
+      "The shipped recorded demo extracts and runs with Python standard library only; its archive and immutable file hashes match the validation receipt.",
+      "The source profile and deterministic data calculations pass existing semantic checks.",
+      "The current analyst UI passes five-domain fixture workflows for manager, analyst and viewer at desktop and mobile sizes, including keyboard access and no horizontal overflow.",
+      "Recovery preserves accepted results after worker and broker interruption and database backup/restore; temporary validation resources are removed.",
+      "Security checks deny unauthorized role actions and core API access; generated code runs in an actual sandbox with prohibited reads, writes, network access and resource use rejected.",
+      "Exact-candidate receipts bind source and browser artifact bytes. Cost controls use deterministic fixtures with zero new provider calls or spend.",
+      "The recorded Jev/model prediction results remain historical evidence. Current live analyst and real-model quality acceptance remain subject to the full-product contract."
+    ],
+    "invariants": [
+      "Missing, stale, dirty or failed required evidence blocks demo acceptance; blocked is never passed.",
+      "Demo acceptance does not establish real-model acceptance, autonomous data preparation or real-world business performance.",
+      "No paid inference, deployments, external notifications, user-data writes or model promotion are authorized by this contract.",
+      "The existing full-product contract and its real Jev, CatBoost and TabICLv2 requirements are preserved unchanged."
+    ],
+    "forbiddenOutcomes": [
+      "Do not present simulated analyst answers as live model execution or claim measured business value from fixtures.",
+      "Do not merge until all demo checks and GitHub Codex review pass on the final candidate."
+    ],
+    "requiredValidatorTypes": [
+      "static",
+      "schema",
+      "semantic",
+      "workflow",
+      "visual",
+      "operational",
+      "security"
+    ]
+  },
+  "validators": [
+    {
+      "id": "manifest-schema",
+      "type": "schema",
+      "argv": [
+        "node",
+        "scripts/validation/check-contract.mjs",
+        "--manifest",
+        "tabellio.demo.validation.json",
+        "--check",
+        "schema"
+      ],
+      "cwd": ".",
+      "timeout": 30,
+      "required": true,
+      "evidencePath": "manifest-schema.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "validation-policy",
+      "type": "static",
+      "argv": [
+        "node",
+        "scripts/validation/check-contract.mjs",
+        "--manifest",
+        "tabellio.demo.validation.json",
+        "--check",
+        "policy"
+      ],
+      "cwd": ".",
+      "timeout": 30,
+      "required": true,
+      "evidencePath": "validation-policy.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "status-self-test",
+      "type": "static",
+      "argv": [
+        "node",
+        "scripts/validation/test-runner.mjs"
+      ],
+      "cwd": ".",
+      "timeout": 30,
+      "required": true,
+      "evidencePath": "status-self-test.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "olist-profile-contract",
+      "type": "semantic",
+      "argv": [
+        "python3",
+        "scripts/data/check_olist_profile.py"
+      ],
+      "cwd": ".",
+      "timeout": 30,
+      "required": true,
+      "evidencePath": "olist-profile-contract.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "olist-business-facts",
+      "type": "semantic",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_olist_facts.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "timeout": 180,
+      "required": true,
+      "evidencePath": "olist-business-facts.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "runtime-contracts",
+      "type": "semantic",
+      "argv": [
+        "python3",
+        "-m",
+        "scripts.validation.check_runtime"
+      ],
+      "cwd": ".",
+      "timeout": 120,
+      "required": true,
+      "evidencePath": "runtime-contracts.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "capability-simulation",
+      "type": "workflow",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_simulation.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "timeout": 60,
+      "required": true,
+      "evidencePath": "capability-simulation.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "poc-visual",
+      "type": "visual",
+      "argv": [
+        "python3",
+        "-m",
+        "scripts.validation.check_poc_controls",
+        "--mode",
+        "visual"
+      ],
+      "cwd": ".",
+      "timeout": 180,
+      "required": true,
+      "evidencePath": "poc-visual.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "poc-operational",
+      "type": "operational",
+      "argv": [
+        "python3",
+        "-m",
+        "scripts.validation.check_poc_controls",
+        "--mode",
+        "operational"
+      ],
+      "cwd": ".",
+      "timeout": 180,
+      "required": true,
+      "evidencePath": "poc-operational.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "poc-security",
+      "type": "security",
+      "argv": [
+        "python3",
+        "-m",
+        "scripts.validation.check_poc_controls",
+        "--mode",
+        "security"
+      ],
+      "cwd": ".",
+      "timeout": 180,
+      "required": true,
+      "evidencePath": "poc-security.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "recorded-package",
+      "type": "workflow",
+      "argv": [
+        "python3",
+        "-m",
+        "scripts.validation.check_recorded_package"
+      ],
+      "cwd": ".",
+      "timeout": 60,
+      "required": true,
+      "evidencePath": "recorded-package.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "database-authentication",
+      "type": "security",
+      "argv": [
+        "python3",
+        "-m",
+        "scripts.validation.check_database_auth"
+      ],
+      "cwd": ".",
+      "timeout": 120,
+      "required": true,
+      "evidencePath": "database-authentication.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    }
+  ]
+}

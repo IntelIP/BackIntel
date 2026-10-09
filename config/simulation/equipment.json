@@ -1,0 +1,150 @@
+{
+  "schema": "backintel-simulation/v1",
+  "id": "equipment",
+  "title": "Synthetic equipment monitoring",
+  "audience": "Maintenance coordinator",
+  "signal_label": "Readings above 80 degrees",
+  "fields": {
+    "id": "reading",
+    "entity": "asset",
+    "period": "cycle",
+    "content": "temperature"
+  },
+  "extractor": {
+    "kind": "above",
+    "threshold": 80
+  },
+  "policy": {
+    "attention_rate": 0.5,
+    "stale_after": 5
+  },
+  "events": [
+    {
+      "at": 0,
+      "action": "arrival",
+      "period": "baseline"
+    },
+    {
+      "at": 1,
+      "action": "arrival",
+      "period": "baseline"
+    },
+    {
+      "at": 2,
+      "action": "arrival",
+      "period": "change",
+      "fail_once": true
+    },
+    {
+      "at": 3,
+      "action": "retry",
+      "period": "change"
+    },
+    {
+      "at": 4,
+      "action": "acknowledge"
+    },
+    {
+      "at": 10,
+      "action": "tick"
+    },
+    {
+      "at": 11,
+      "action": "arrival",
+      "period": "change"
+    },
+    {
+      "at": 12,
+      "action": "schedule",
+      "period": "missing"
+    },
+    {
+      "at": 13,
+      "action": "schedule",
+      "period": "recovery"
+    }
+  ],
+  "source": {
+    "format": "csv",
+    "data": "reading,asset,cycle,temperature\nR01,PumpA,baseline,40\nR02,PumpB,baseline,45\nR03,PumpB,baseline,\nR04,PumpA,change,95\nR05,PumpB,change,98\nR06,PumpB,change,40\nR07,PumpB,change,\nR08,PumpA,missing,\nR09,PumpA,recovery,35\nR10,PumpB,recovery,40\n"
+  },
+  "task": {
+    "schema": "backintel-task/v1",
+    "id": "equipment",
+    "entity": "equipment asset",
+    "fields": {
+      "id": "reading",
+      "entity": "asset",
+      "event_at": "occurred_at",
+      "available_at": "arrived_at",
+      "revision": "revision",
+      "content": "inspection"
+    },
+    "measures": [
+      {
+        "id": "temperature",
+        "field": "temperature",
+        "unit": "celsius",
+        "nullable": true
+      }
+    ],
+    "questions": [
+      {
+        "id": "wear",
+        "prompt": "What wear level does the synthetic inspection report?",
+        "type": "number",
+        "rule": {
+          "kind": "number"
+        }
+      }
+    ],
+    "target": {
+      "id": "next-window-vibration",
+      "kind": "regression",
+      "unit": "mm/s",
+      "horizon": 2,
+      "minimum_train": 8,
+      "holdout_fraction": 0.25
+    },
+    "audiences": [
+      {
+        "id": "operator",
+        "view": "analysis",
+        "entities": [],
+        "can_correct": true
+      },
+      {
+        "id": "manager",
+        "view": "briefing",
+        "entities": [
+          "Pump-A"
+        ],
+        "can_correct": false
+      },
+      {
+        "id": "analyst",
+        "view": "export",
+        "entities": [],
+        "can_correct": false
+      }
+    ],
+    "policy": {
+      "max_rows": 100,
+      "max_attempts": 2,
+      "max_provider_calls": 200,
+      "entry": 0.6,
+      "clear": 0.3,
+      "cooldown": 3,
+      "stale_after": 6,
+      "response_deadline": 4,
+      "signal_question": "wear",
+      "signal_scale": 10,
+      "prediction_scale": 5
+    },
+    "observation_provider": {
+      "name": "synthetic-jev-contract",
+      "version": "1",
+      "implementation_mode": "simulated"
+    }
+  }
+}

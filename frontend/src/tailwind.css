@@ -1,0 +1,2 @@
+@import "tailwindcss";
+@theme inline { --color-primary:var(--primary); --color-primary-foreground:#fff; --color-surface:var(--surface); --color-muted:var(--muted); --color-border:var(--border); }

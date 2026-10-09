@@ -1,0 +1,28 @@
+BackIntel Git reconciliation — October 6, 2026
+
+Canonical development: /Users/hudson/Documents/GitHub/BackIntel
+Integration branch: codex/backintel-consolidated
+Starting recovered baseline: f5e2b693476541ce9fb7598d5d759a28b74af2b3
+Local recovery repairs: 53ffa85
+Preserved original working source: codex/recovery-original-20261006 at 23dd937
+
+Preservation
+Before edits, both dirty source trees were archived with per-file SHA256 checks and binary patches. All pre-existing refs were saved in a verified Git bundle:
+/Users/hudson/Library/Application Support/BackIntel/Recovery/GitReconcile-20261006T221549
+See manifest.json, Original.tar.gz, Resume.tar.gz, and history.bundle there.
+Datasets, model weights, existing reports, and Docker database volumes remain in their existing locations. OlistV2 was not restored.
+
+Integration decisions
+The recovered branch is thirteen commits beyond the original saved c4565a0. Every original modified/untracked source file existed in recovery; twelve were identical and twenty-five had changes. Recovered implementations contain the later permission, billing, recovery, portability and testing fixes. Retain them. The original sandbox status wording and architecture navigation are restored; main's missing website-source link is retained. LICENSE already matches main.
+The original source checkpoint preserves all thirty-seven source additions/modifications, without adding generated model/dataset evidence to Git. The five local recovery repairs are committed separately before integration.
+The decision-workspace branch is already included. The older code-quality branch's Vulture mechanism is superseded by the current scripts/workflows; it is not cherry-picked wholesale. Main's two license/README commits have equivalent intended content here; main is not the newest implementation.
+
+Retained references
+BackIntelLocalResume is a clean recovery reference at 53ffa85.
+BackIntelDecisionWorkspace and the older quality-rollout folder remain clean references. Their unmerged branches are preserved; no checkout or branch was deleted. No push, remote merge or publication was performed.
+
+Recovery
+Inspect the manifest before restoring anything. Extract a chosen source archive into a separate temporary folder and compare it with the canonical source. Read historical source directly with git show on codex/recovery-original-20261006 or codex/backintel-local-resume. The bundle can restore pre-reconciliation refs into a separate clone. Do not overwrite the canonical folder blindly.
+
+Verification
+Canonical branch starts from the committed recovery repairs and has no unexplained working changes. New campaign code and evidence are handled by the benchmark work; exact-candidate outcomes live in that campaign's receipts, not this historical record.

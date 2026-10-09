@@ -1,0 +1,8 @@
+# Actual CPU baseline/CatBoost benchmarks without Torch, remote weights, or provider calls.
+catboost==1.2.10
+scikit-learn==1.9.1
+numpy==2.4.1
+joblib==1.5.3
+pandas==3.0.6
+scipy==1.18.1
+threadpoolctl==3.7.0

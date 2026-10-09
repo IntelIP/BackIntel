@@ -1,0 +1,80 @@
+{
+  "status": "accepted-direction-implemented-local-demo",
+  "observed_on": "2026-09-29",
+  "primary_reference": {
+    "name": "Front Web Inbox Email Thread on Mobbin",
+    "url": "https://mobbin.com/explore/screens/3e29dd35-0c1d-4f71-831b-af35c13bf1ec",
+    "capture": "references/front-inbox-mobbin.jpg",
+    "preserve": [
+      "compact navigation",
+      "scannable queue",
+      "restrained selection",
+      "focused reading pane",
+      "contextual actions"
+    ]
+  },
+  "implementation_reference": {
+    "name": "shadcn sidebar-07",
+    "url": "https://ui.shadcn.com/view/new-york-v4/sidebar-07",
+    "capture": "references/shadcn-sidebar.jpg",
+    "borrow": [
+      "collapsible navigation",
+      "compact header",
+      "composable controls"
+    ]
+  },
+  "proposed_stack": [
+    "Vite",
+    "React",
+    "TypeScript",
+    "Tailwind CSS 4",
+    "shadcn-compatible Radix primitives",
+    "Instrument Sans",
+    "Phosphor"
+  ],
+  "component_sources": [
+    "IntelIP/IntelIPWebsite/src/components/ui",
+    "official shadcn registry for missing controls"
+  ],
+  "role_constraints": {
+    "color": "neutral canvas; one selection/action accent; status colors reserved for meaningful states",
+    "type": "Instrument Sans; readable body text; compact metadata",
+    "controls": "32\u201336px typical controls; visible focus and accessible labels",
+    "evidence": "on-demand drawer or tab; preserve access to original source and collection time",
+    "agent": "supplies bounded content; layout and executable controls follow reviewed templates",
+    "media": "no decorative bitmap imagery needed"
+  },
+  "reject": [
+    "first SVG mockup",
+    "oversized cards",
+    "decorative shadows",
+    "permanent third evidence column",
+    "large summary banner",
+    "contrasting navy navigation panel"
+  ],
+  "required_views": [
+    "queue",
+    "selected case",
+    "source evidence",
+    "decision form",
+    "later outcome"
+  ],
+  "required_states": [
+    "loading",
+    "empty",
+    "error",
+    "long source text",
+    "keyboard focus",
+    "save success",
+    "save failure",
+    "stale record conflict"
+  ],
+  "required_viewports": [
+    "1440px desktop",
+    "390px mobile"
+  ],
+  "python_alternative": "Reflex components and Radix Themes sharing token values and decision-record behavior; separate UI implementation",
+  "accepted_visual_baseline": null,
+  "user_direction": "Match Front styling with BackIntel content",
+  "implementation": "frontend/README.md"
+}

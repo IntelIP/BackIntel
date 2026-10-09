@@ -1,0 +1,11 @@
+{
+  "churn": {
+    "kind": "originating-publisher publication",
+    "publisher": "IBM",
+    "repository": "IBM/telco-customer-churn-on-icp4d",
+    "revision": "d5371f5d83a446ad5673cbcca3b814b926491f8a",
+    "source_url": "https://github.com/IBM/telco-customer-churn-on-icp4d",
+    "original_byte_identity": "Verified against this pinned IBM publication; Kaggle archive byte identity is unverified.",
+    "files": [{"file": "WA_Fn-UseC_-Telco-Customer-Churn.csv", "url": "https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/d5371f5d83a446ad5673cbcca3b814b926491f8a/data/Telco-Customer-Churn.csv", "git_blob_sha": "3de7a612d1609f25f21a455bda77948729369002", "sha256": "16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91", "bytes": 970457, "rows": 7043}]
+  }
+}

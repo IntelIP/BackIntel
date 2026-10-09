@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "archive_sha256": "e75f006136a1b0e9eed83bd5de316c90d166ccbfa265dd54a09de0c5cf437fe7",
+  "mode": "recorded_synthetic_run",
+  "exact_commit_product_readiness": "blocked",
+  "fresh_extracted_package": true,
+  "site_packages_disabled": true,
+  "new_provider_calls": 0,
+  "checks": [
+    "all archived file hashes",
+    "stdlib-only CLI installation check",
+    "built frontend served",
+    "completed Support packet",
+    "review saved and reloaded in isolated local state",
+    "immutable packaged files unchanged after review"
+  ],
+  "initial_check": {
+    "status": "passed",
+    "files": 341,
+    "new_provider_calls": 0
+  },
+  "after_review_check": {
+    "status": "passed",
+    "files": 341,
+    "new_provider_calls": 0
+  }
+}

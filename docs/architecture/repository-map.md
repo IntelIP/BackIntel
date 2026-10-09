@@ -1,39 +1,30 @@
 # Current repository map
 
-Maintained integration checkout: `/Users/hudson/Documents/GitHub/BackIntel`.
+Start with the [demo PoC README](../../README.md), [capability status](../demo/PoCStatus.txt), and [current architecture](current-system.md). The broader autonomous workflow is a [saved future concept](../research/autonomous-workflow-concept.txt).
 
-| Surface | Source | Responsibility |
+## Current entry points
+
+| Surface | Source | Purpose |
 | --- | --- | --- |
-| Product contract | [Roadmap](../roadmap/v0.1.0-development-roadmap.md) | User, Olist boundaries, required outcomes and deferred release work |
-| Local entrypoint | [poc.py](../../scripts/poc.py) | Database setup, recorded-batch admission, receipt inspection |
-| Source facts | [load_olist_facts.py](../../scripts/data/load_olist_facts.py), [migrations](../../migrations) | Fingerprints, row lineage, reconciled relational facts |
-| Background execution | [review_graph.py](../../runtime/review_graph.py), [aegra.json](../../aegra.json) | Accepted review batch → signals → comparison → report |
-| Model observations | [jev.py](../../runtime/jev.py) | Typed questions, observation provenance, explicit no-inference replay |
-| Attribution and changes | [signals.py](../../runtime/signals.py) | Known single-seller/category grouping, immutable versioned snapshots |
-| Result and usage ledger | [ledger.py](../../runtime/ledger.py), [costs.py](../../runtime/costs.py) | Conflict detection, accepted results, measured versus unknown charges |
-| Review publication | [report.py](../../runtime/report.py), [seller_review.py](../../scripts/data/seller_review.py) | Fact-based review plus sampled semantic changes, source trace, durable HTML/JSON |
-| Independent fact checks | [check_seller_review.py](../../scripts/data/check_seller_review.py) | Recompute selected metrics and source links from original CSVs |
-| Runtime fixture | [graph.py](../../runtime/graph.py) | Synthetic delay/partition probe for bounded recovery tests; not Olist processing |
-| Validation | [manifest](../../tabellio.validation.json), [tests](../../tests) | Exact-commit offline contracts plus separately recorded product evidence |
+| Recorded business demo | `docs/demo/Packages/BackIntelDemoBusinessV4.zip` | Shareable saved-result walkthrough; no new inference. |
+| Current analysis workspace | `apps/web`, `runtime/analysis_api.py`, `runtime/analysis_agent.py` | Saved goals, bounded tools, findings, and evidence. |
+| Data preparation and predictors | `runtime/analysis_data.py`, `runtime/analysis_models.py` | Known-domain adapters and local model comparisons. |
+| Persistence and execution | `runtime/analysis_store.py`, `runtime/analysis_service.py`, `runtime/jobs.py`, `runtime/evidence.py` | Permissions, snapshots, durable work, recovery, and usage records. |
+| Analysis runtime | `compose.analysis.yml`, `aegra.analysis.json` | Local PostgreSQL, Redis, and Aegra/LangGraph workers. |
+| Benchmark campaign | `scripts/validation/benchmark_campaign.py`, `config/analysis_scenarios.json` | Separate offline, real-prediction, and real-analyst evidence. |
 
-```mermaid
-flowchart LR
-    S[Approved Olist snapshot] --> F[Reconciled PostgreSQL facts]
-    F --> R[Fact-based monthly review]
-    O[Recorded Jev observations] --> G[Background review graph]
-    F --> G
-    G --> V[Versioned semantic snapshots]
-    V --> C[Prior/current sampled changes]
-    C --> P[Local source-linked HTML/JSON]
-    R --> P
-```
+## Preserved proof-of-concept components
 
-The graph also supports separately authorized live enrichment; the PoC entrypoint exposes recorded replay only. Observation provenance always retains the original model and request IDs.
+| Surface | Source | Boundary |
+| --- | --- | --- |
+| Earlier review interfaces | `frontend`, `reflex_demo`, `runtime/decision_workspace.py` | Review findings and preserve human decisions. |
+| Capability simulation | `runtime/simulation.py`, `scripts/simulate.py`, `config/simulation` | Explicitly synthetic scenarios and simulated interpretation. |
+| Capability jobs and model stages | `runtime/capability_pipeline.py`, `runtime/capability_graph.py`, `runtime/real_pipeline.py` | Earlier staged workflows; real and fixture evidence stay distinct. |
+| Local predictors and Jev integration | `runtime/real_models.py`, `runtime/real_semantics.py`, `runtime/jev.py` | Local predictor execution and separately authorized hosted interpretation. |
+| Report packaging | `runtime/artifacts.py`, `runtime/audience_server.py`, `scripts/package_capabilities.py` | Scoped reports, evidence, and review actions. |
+| Generated report layouts | `runtime/generated_artifacts.py`, `runtime/sandbox.py` | Isolated execution of bounded candidates; demo code generation is simulated. |
+| Original Olist example | `runtime/olist*.py`, `scripts/data`, earlier architecture notes | Historical code/contracts retained; OlistV2 data remains removed. |
 
-The stale generated Graphify research indexes were deleted during cleanup. Use the source links above for the maintained implementation map; regenerate a scoped graph when a future relationship question requires it.
+Historical commands and earlier runtime claims are preserved in the [legacy developer guide](../demo/LegacyDeveloperGuide.txt). They do not describe current installed services. The [Git reconciliation](GitReconciliation.txt) records recovery boundaries and retained checkouts.
 
-All eight historical backend worktrees and their obsolete local branch references were removed after successful runtime transition and lifecycle checks. Every implementation commit remains reachable from `main` and the verified recovery bundle. The runtime, PostgreSQL, and Redis containers now reference this canonical checkout; their original data volumes remain in use. See the [recovery plan](../roadmap/poc-recovery-plan.md) for receipts and remaining acceptance limits.
-
-## Report presentation contract
-
-Keep the existing report's system font, navy text, neutral tables, semantic HTML, source links, and explicit caveats. Add one sampled-change section using those same primitives; no new frontend stack or new brand direction. Required rendered states: populated integrated report on 1440px desktop and 390px mobile, keyboard-open source evidence, safe long source IDs, and horizontally scrollable tables without page overflow. No screenshot baseline is promoted automatically.
+The existing presentation uses readable tables, explicit caveats, and source links. Keep those features when changing the interface. No older benchmark, screenshot, or model receipt establishes acceptance of a new source revision.

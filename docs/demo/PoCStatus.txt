@@ -1,0 +1,56 @@
+BACKINTEL DEMO POC — SCOPE AND EVIDENCE
+
+Prepared October 7, 2026 for source publication and demo review.
+
+What a reviewer can do now
+Extract BackIntelDemoBusinessV4.zip, check its manifest, run RunDemo.py, inspect
+saved findings and evidence, and record a decision in the extracted copy.
+The package contains synthetic business data and historical model results.
+Opening it makes no new model calls and does not start a production workflow.
+
+Current source capabilities
+The analysis workspace supports saved single-domain goals, source permissions,
+known-file importers, prepared snapshots, bounded analyst tools, local predictor
+comparisons, corrections, usage accounting, durable jobs, and recovery.
+The capability simulation and older review interfaces remain available as
+separately labeled development surfaces. OlistV2 data remains removed.
+
+Historical consolidation evidence — source revision 8f3cb28
+162 Python tests passed. Of 56 scenarios, 50 passed, zero failed, and six were
+blocked: Credit prediction and five live analyst cases. Offline browser and
+workflow checks used simulated analyst/model responses with real local services.
+Real local predictors ran separately on Commerce, Support, Churn, and Maintenance;
+metrics matched the baseline. Saved predictions survived model reload.
+Domains were tested separately, not as one combined dataset. Support tickets are
+synthetic; NASA engine trajectories are simulated; Telco is a static snapshot;
+clothing recommendations are expressed opinions, not future purchases.
+
+Evidence directory from that local campaign:
+~/Library/Application Support/BackIntel/Evidence/BenchmarkCampaign20261006
+See FinalResults.txt, FinalResults.json, and PredictionComparison.json there.
+These files are local evidence, not required downloads for the recorded demo.
+
+Limits
+Missing Credit files/confirmation and live analyst credential/spending
+reconciliation blocked those cases. Model weights and datasets are not bundled
+with the source. Historical receipts and the recorded archive are not acceptance
+of a later commit. Hosted checks validate only their stated offline scope.
+No claim is made for production readiness, customer accuracy, measured savings,
+complete operating cost, general connectors, autonomous preparation of unfamiliar
+data, or arbitrary agent-created pipelines.
+
+The legacy full-product validation manifest still lacks required visual,
+operational, and security validators. Its release gate fails rather than treating
+missing evidence as success. Demo source publication does not bypass that gate.
+
+Product direction
+The saved autonomous-workflow concept is in:
+docs/research/autonomous-workflow-concept.txt
+Clean up and clarify the current proof of concept before extending that scope.
+
+Validation for publication
+Check the archive manifest and local launch. Run the repository's required
+source checks and appropriate regression suites on the publication candidate.
+Record local results and GitHub check status in the draft pull request.
+Full live-product acceptance remains separate and blocked until its prerequisites
+and required outcomes are actually satisfied.

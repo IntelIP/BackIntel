@@ -1,25 +1,26 @@
 {
   "$schema": "tabellio-validation/v0.2",
   "acceptance": {
-    "id": "backintel-monthly-seller-review-v0.1",
-    "source": "BackIntel BINT-5 Sprint 1 seller/category report contract and BINT-4 reconciled facts",
+    "id": "backintel-capability-platform-v1",
+    "source": "Product owner correction 2026-09-26: all 16 capabilities using synthetic sources with actual Jev, actual CatBoost and actual TabICLv2; docs/roadmap/v0.1.0-development-roadmap.md is the active acceptance source.",
     "risk": "high",
     "outcomes": [
-      "Validation runs against the exact pull-request head SHA, not a merge ref or mutable branch name.",
-      "Every invocation writes non-empty machine-readable evidence and a human-readable report, including failed and blocked outcomes.",
-      "Bootstrap validation proves only repository contract and static structure; it does not claim application behavior or product readiness.",
-      "Before v0.1.0 release, the manifest must require evidence for data, Jev semantics, prediction/model quality, user workflows, visual presentation, cost and resource limits, recovery, and security/isolation.",
-      "The committed Olist profile records reproducible Kaggle v2 file fingerprints, schemas, row/null/key statistics, relationship checks, timestamp checks, language uncertainty, and a conditional target-feasibility decision.",
-      "A PostgreSQL application schema loads the approved local Olist v2 facts with source-row lineage, preserves observed one-to-many multiplicity, and reconciles counts and monetary totals without join fan-out.",
-      "A reproducible February versus March 2017 retrospective seller/category report uses frozen purchase-month cohorts, correct grains, missingness and source-linked evidence; independent raw-data checks are required locally before acceptance.",
-      "Offline Jev adapter checks preserve typed answer distributions, source/question provenance, usage events, replay-safe observation persistence, and a changed-signal comparison without claiming live model quality.",
-      "The integrated local demo reuses recorded Jev observations without provider calls, preserves unknown attribution, and renders source-linked sampled changes.",
-      "Offline runtime checks cover cost accounting, replay safety, and the versioned semantic pipeline; integrated runtime, rendered UI, and total-cost readiness require separate exact-candidate receipts."
+      "Validation binds to the approved exact candidate commit and writes durable evidence for passed, failed and blocked outcomes.",
+      "Both unrelated synthetic scenarios preserve source revisions, immutable lineage, typed findings and correction history through shared configurable contracts.",
+      "Real Jev interprets relevant synthetic text; actual outputs and request/model identities are preserved. Simulated responses only validate development controls.",
+      "Real CatBoost and real TabICLv2 run comparable facts-only and facts-plus-real-Jev evaluations alongside a baseline, using time-safe features and known synthetic outcomes.",
+      "Actual predictions flow through further analysis, durable attention and useful audience-scoped reports, with controlled selection, updates, fallback and rollback.",
+      "Generic background API work, persistent schedules, retries, cancellation, restart and concurrent replay preserve one accepted result and local delivery.",
+      "Generated artifact code runs inside an actual sandbox that rejects prohibited reads, network access and resource use.",
+      "One documented local command runs the full demonstration; required workflow, rendering, safety, budget and recovery checks pass; obsolete goal-owned scaffolding has a safe disposition.",
+      "Blocked real provider/model execution prevents completion. Synthetic-data results establish neither real-world accuracy, time savings nor representative business value."
     ],
     "invariants": [
       "Missing or untrustworthy required evidence is blocked, never passed.",
       "An uncommitted or dirty candidate cannot receive exact-commit validation status passed.",
-      "No model calls, network access, paid services, or external side effects are allowed in the bootstrap validator."
+      "Development validators use deterministic fixtures with zero provider calls. Final real-model evidence is separately bounded and requires applicable paid-inference/model-use approval.",
+      "No paid inference, external notifications, production writes, publication or live-stack replacement without its separate authorization.",
+      "Google TabFM and TabICLv2 are distinct model choices; do not claim Google TabFM execution from a TabICLv2 run."
     ],
     "forbiddenOutcomes": [
       "Do not describe structural checks as complete product validation.",
@@ -27,12 +28,17 @@
       "Do not report unknown validation cost as zero.",
       "Do not commit raw Kaggle source files or represent a review as attributable to every seller in a multi-seller order.",
       "Do not join order items, payments, and reviews at their raw grains to calculate totals.",
-      "Do not call retrospective final-extract metrics a live or month-end snapshot, attribute multi-seller order feedback to each seller, or claim human time savings without a measured baseline."
+      "Do not call retrospective final-extract metrics a live or month-end snapshot, attribute multi-seller order feedback to each seller, or claim human time savings without a measured baseline.",
+      "Do not substitute invented or prerecorded model responses for final Jev/predictor execution, or claim real-world quality or business value from synthetic data."
     ],
     "requiredValidatorTypes": [
       "static",
       "schema",
-      "semantic"
+      "semantic",
+      "workflow",
+      "visual",
+      "operational",
+      "security"
     ]
   },
   "validators": [
@@ -148,6 +154,30 @@
       "timeout": 120,
       "required": true,
       "evidencePath": "runtime-contracts.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "capability-simulation",
+      "type": "workflow",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_simulation.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "timeout": 60,
+      "required": true,
+      "evidencePath": "capability-simulation.json",
       "metricThresholds": {},
       "costPolicy": {
         "requiredTelemetry": true,

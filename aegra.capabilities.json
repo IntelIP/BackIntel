@@ -1,0 +1,8 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "capability_simulation": "./runtime/simulation_graph.py:graph",
+    "capability_platform": "./runtime/capability_graph.py:graph"
+  },
+  "auth": {"path": "./runtime/capability_auth.py:auth"}
+}

@@ -2,16 +2,23 @@ FROM python:3.12-slim-bookworm
 WORKDIR /app
 ARG BACKINTEL_CANDIDATE_SHA
 ENV BACKINTEL_CANDIDATE_SHA=$BACKINTEL_CANDIDATE_SHA
-RUN pip install --no-cache-dir aegra-api==0.10.5 langchain-typesafe==0.0.1a3
+RUN pip install --no-cache-dir aegra-api==0.10.5 langchain-typesafe==0.0.1a3 cloudpickle==3.1.2
+ARG BACKINTEL_WITH_MODELS=0
+COPY requirements.models.txt ./requirements.models.txt
+RUN if [ "$BACKINTEL_WITH_MODELS" = "1" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/* && \
+      pip install --no-cache-dir torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu && \
+      pip install --no-cache-dir -r requirements.models.txt; \
+    fi
 COPY aegra.json ./aegra.json
+COPY aegra.capabilities.json ./aegra.capabilities.json
 COPY config ./config
 COPY runtime ./runtime
 COPY migrations ./migrations
 COPY scripts ./scripts
 COPY data/profiles ./data/profiles
-COPY tests/test_replay_ledger.py ./tests/test_replay_ledger.py
-COPY tests/test_costs.py ./tests/test_costs.py
-COPY tests/test_jev.py ./tests/test_jev.py
+COPY tests ./tests
+COPY docs/demo/SupportScenario.json ./docs/demo/SupportScenario.json
 ENV AEGRA_CONFIG=/app/aegra.json PYTHONUNBUFFERED=1
 EXPOSE 2026
 CMD ["uvicorn", "aegra_api.main:app", "--host", "0.0.0.0", "--port", "2026"]

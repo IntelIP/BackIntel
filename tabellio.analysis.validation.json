@@ -1,0 +1,195 @@
+{
+  "$schema": "tabellio-validation/v0.2",
+  "acceptance": {
+    "id": "backintel-continuous-analysis-v1",
+    "source": "docs/architecture/goal-driven-analysis.md and the product owner approved implementation plan",
+    "risk": "high",
+    "outcomes": [
+      "All five domain adapters preserve source lineage and time-safe held-out records.",
+      "Hosted GPT-6.1 Sol uses permitted tools and produces correct evidence-linked answers.",
+      "Real Decide, CatBoost and TabICLv2 run without fixture substitution.",
+      "Source grants, budget reservations, refresh, correction, interruption and promotion controls hold.",
+      "React completes manager, analyst and viewer journeys."
+    ],
+    "invariants": [
+      "Missing required real-model or exact-candidate evidence is blocked.",
+      "No unapproved model fallback, paid retry with an uncertain charge, or automatic promotion.",
+      "Preserved Olist and legacy Jev acceptance remain separate."
+    ],
+    "forbiddenOutcomes": [
+      "No invented results, future-target leakage, unauthorized data access or automated lending decision."
+    ],
+    "requiredValidatorTypes": [
+      "static",
+      "schema",
+      "semantic",
+      "workflow",
+      "visual",
+      "operational",
+      "security"
+    ]
+  },
+  "validators": [
+    {
+      "id": "analysis-static",
+      "type": "static",
+      "argv": [
+        "python3",
+        "scripts/validation/check_analysis.py",
+        "--mode",
+        "static",
+        "--validator-id",
+        "analysis-static",
+        "--evidence-path",
+        "artifacts/AnalysisValidation/analysis-static.json"
+      ],
+      "cwd": ".",
+      "timeout": 240,
+      "required": true,
+      "evidencePath": "artifacts/AnalysisValidation/analysis-static.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "analysis-schema",
+      "type": "schema",
+      "argv": [
+        "python3",
+        "scripts/validation/check_analysis.py",
+        "--mode",
+        "schema",
+        "--validator-id",
+        "analysis-schema",
+        "--evidence-path",
+        "artifacts/AnalysisValidation/analysis-schema.json"
+      ],
+      "cwd": ".",
+      "timeout": 30,
+      "required": true,
+      "evidencePath": "artifacts/AnalysisValidation/analysis-schema.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "analysis-functional",
+      "type": "workflow",
+      "argv": [
+        "python3",
+        "scripts/validation/check_analysis.py",
+        "--mode",
+        "functional",
+        "--validator-id",
+        "analysis-functional",
+        "--evidence-path",
+        "artifacts/AnalysisValidation/analysis-functional.json"
+      ],
+      "cwd": ".",
+      "timeout": 180,
+      "required": true,
+      "evidencePath": "artifacts/AnalysisValidation/analysis-functional.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "analysis-semantic",
+      "type": "semantic",
+      "argv": [
+        "python3",
+        "scripts/validation/check_analysis.py",
+        "--mode",
+        "semantic",
+        "--validator-id",
+        "analysis-semantic",
+        "--evidence-path",
+        "artifacts/AnalysisValidation/analysis-semantic.json"
+      ],
+      "cwd": ".",
+      "timeout": 60,
+      "required": true,
+      "evidencePath": "artifacts/AnalysisValidation/analysis-semantic.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 10
+      }
+    },
+    {
+      "id": "analysis-visual",
+      "type": "visual",
+      "argv": [
+        "python3",
+        "scripts/validation/check_analysis.py",
+        "--mode",
+        "visual",
+        "--validator-id",
+        "analysis-visual",
+        "--evidence-path",
+        "artifacts/AnalysisValidation/analysis-visual.json"
+      ],
+      "cwd": ".",
+      "timeout": 180,
+      "required": true,
+      "evidencePath": "artifacts/AnalysisValidation/analysis-visual.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    },
+    {
+      "id": "analysis-real",
+      "type": "operational",
+      "argv": [
+        "python3",
+        "scripts/validation/check_analysis.py",
+        "--mode",
+        "real",
+        "--validator-id",
+        "analysis-real",
+        "--evidence-path",
+        "artifacts/AnalysisValidation/analysis-real.json"
+      ],
+      "cwd": ".",
+      "timeout": 120,
+      "required": true,
+      "evidencePath": "artifacts/AnalysisValidation/analysis-real.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 10
+      }
+    },
+    {
+      "id": "analysis-security",
+      "type": "security",
+      "argv": [
+        "python3",
+        "scripts/validation/check_analysis.py",
+        "--mode",
+        "security",
+        "--validator-id",
+        "analysis-security",
+        "--evidence-path",
+        "artifacts/AnalysisValidation/analysis-security.json"
+      ],
+      "cwd": ".",
+      "timeout": 180,
+      "required": true,
+      "evidencePath": "artifacts/AnalysisValidation/analysis-security.json",
+      "metricThresholds": {},
+      "costPolicy": {
+        "requiredTelemetry": true,
+        "maxUsd": 0
+      }
+    }
+  ]
+}

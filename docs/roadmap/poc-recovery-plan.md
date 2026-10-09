@@ -22,7 +22,7 @@ The inventory and diagnosis below record the initial state, not the current fold
 
 Give a Marketplace Seller Performance Analyst one maintained local checkout and one reproducible workflow: load approved Olist facts, submit a bounded review batch, finish processing in the background, compare accepted semantic observations, and inspect a source-linked seller/category review with explicit coverage, unknowns, and costs.
 
-Use the existing [roadmap's immediate execution goal](v0.1.0-development-roadmap.md#immediate-execution-goal--finish-sprint-1). This is the first integrated PoC milestone, not completion of the roadmap's full v0.1.0 release. Prediction experiments, generated-code sandboxes, and a permanent dashboard retain their later gates.
+Use the existing [historical immediate execution goal](capability-reference.md#immediate-execution-goal--finish-sprint-1). This is the first integrated PoC milestone, not completion of the roadmap's full v0.1.0 release. Prediction experiments, generated-code sandboxes, and a permanent dashboard retain their later gates.
 
 ## Pre-recovery repository inventory
 

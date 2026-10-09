@@ -1,0 +1,16 @@
+ARG BACKINTEL_BASE_IMAGE=backintel-analysis-base:local
+FROM ${BACKINTEL_BASE_IMAGE}
+ENTRYPOINT []
+WORKDIR /app
+RUN pip install --no-cache-dir 'gliner2[local]==2.0.0'
+COPY runtime ./runtime
+COPY config ./config
+COPY migrations ./migrations
+COPY scripts ./scripts
+COPY tests ./tests
+COPY reflex_demo/reflex_demo ./reflex_demo/reflex_demo
+COPY frontend/src/styles.css ./frontend/src/styles.css
+COPY aegra.analysis.json ./aegra.analysis.json
+COPY apps/web/dist ./apps/web/dist
+ENV AEGRA_CONFIG=/app/aegra.analysis.json BACKINTEL_CANDIDATE_SHA=working-tree
+CMD ["sh","-c","python -m runtime.bootstrap && python -m scripts.analysis_demo seed && exec uvicorn aegra_api.main:app --host 0.0.0.0 --port 2026"]

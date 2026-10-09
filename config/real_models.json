@@ -1,0 +1,49 @@
+{
+  "schema": "backintel-real-models/v1",
+  "catboost": {
+    "package": "catboost==1.2.10",
+    "license": "Apache-2.0",
+    "source": "https://github.com/catboost/catboost",
+    "parameters": {
+      "iterations": 40,
+      "depth": 3,
+      "learning_rate": 0.08,
+      "random_seed": 42,
+      "thread_count": 2,
+      "verbose": false,
+      "allow_writing_files": false
+    }
+  },
+  "tabiclv2": {
+    "package": "tabicl==2.2.0",
+    "repository": "jingang/TabICL",
+    "revision": "4dcd344ece2c00be9e831fdd35bed57b5ad83e19",
+    "license": "bsd-3-clause",
+    "source": "https://huggingface.co/jingang/TabICL",
+    "checkpoints": {
+      "classification": {
+        "file": "tabicl-classifier-v2-20260212.ckpt",
+        "bytes": 110368038,
+        "sha256": "bdc7dbd5e4ff21f8f0456fcf90c6b7cdf72dbea960f2d05b19bec19f9b3d4ed0"
+      },
+      "regression": {
+        "file": "tabicl-regressor-v2-20260212.ckpt",
+        "bytes": 114324594,
+        "sha256": "0db9cb538f114e79026bf08f45f41ad8dd7ad2de2aaca9a5ca8cd3bd9748ae7a"
+      }
+    },
+    "parameters": {
+      "device": "cpu",
+      "n_estimators": 1,
+      "n_jobs": 1,
+      "batch_size": 1,
+      "random_state": 42,
+      "verbose": false
+    }
+  },
+  "limits": {
+    "max_training_rows": 64,
+    "max_prediction_rows": 64,
+    "max_cpu_threads": 2
+  }
+}

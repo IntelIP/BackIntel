@@ -1,0 +1,218 @@
+{
+  "schema": "backintel-simulation/v1",
+  "id": "support",
+  "title": "Synthetic support service",
+  "audience": "Service operations lead",
+  "signal_label": "Access interruption mentions",
+  "fields": {
+    "id": "ticket",
+    "entity": "queue",
+    "period": "window",
+    "content": "message"
+  },
+  "extractor": {
+    "kind": "keywords",
+    "terms": [
+      "blocked",
+      "failed"
+    ]
+  },
+  "policy": {
+    "attention_rate": 0.5,
+    "stale_after": 5
+  },
+  "events": [
+    {
+      "at": 0,
+      "action": "arrival",
+      "period": "baseline"
+    },
+    {
+      "at": 1,
+      "action": "arrival",
+      "period": "baseline"
+    },
+    {
+      "at": 2,
+      "action": "arrival",
+      "period": "change",
+      "fail_once": true
+    },
+    {
+      "at": 3,
+      "action": "retry",
+      "period": "change"
+    },
+    {
+      "at": 4,
+      "action": "acknowledge"
+    },
+    {
+      "at": 10,
+      "action": "tick"
+    },
+    {
+      "at": 11,
+      "action": "arrival",
+      "period": "change"
+    },
+    {
+      "at": 12,
+      "action": "schedule",
+      "period": "missing"
+    },
+    {
+      "at": 13,
+      "action": "schedule",
+      "period": "recovery"
+    }
+  ],
+  "source": {
+    "format": "json",
+    "data": [
+      {
+        "ticket": "T01",
+        "queue": "Accounts",
+        "window": "baseline",
+        "message": "Password reset completed"
+      },
+      {
+        "ticket": "T02",
+        "queue": "Access",
+        "window": "baseline",
+        "message": "Login now works"
+      },
+      {
+        "ticket": "T03",
+        "queue": "Access",
+        "window": "baseline",
+        "message": null
+      },
+      {
+        "ticket": "T04",
+        "queue": "Accounts",
+        "window": "change",
+        "message": "Account blocked after reset"
+      },
+      {
+        "ticket": "T05",
+        "queue": "Access",
+        "window": "change",
+        "message": "Login failed twice"
+      },
+      {
+        "ticket": "T06",
+        "queue": "Access",
+        "window": "change",
+        "message": "Service working"
+      },
+      {
+        "ticket": "T07",
+        "queue": "Access",
+        "window": "change",
+        "message": ""
+      },
+      {
+        "ticket": "T08",
+        "queue": "Accounts",
+        "window": "missing",
+        "message": null
+      },
+      {
+        "ticket": "T09",
+        "queue": "Accounts",
+        "window": "recovery",
+        "message": "Access restored"
+      },
+      {
+        "ticket": "T10",
+        "queue": "Access",
+        "window": "recovery",
+        "message": "Login works"
+      }
+    ]
+  },
+  "task": {
+    "schema": "backintel-task/v1",
+    "id": "support",
+    "entity": "service queue",
+    "fields": {
+      "id": "ticket",
+      "entity": "queue",
+      "event_at": "occurred_at",
+      "available_at": "arrived_at",
+      "revision": "revision",
+      "content": "message"
+    },
+    "measures": [
+      {
+        "id": "load",
+        "field": "volume",
+        "unit": "tickets",
+        "nullable": true
+      }
+    ],
+    "questions": [
+      {
+        "id": "risk",
+        "prompt": "Does this message report a service failure?",
+        "type": "boolean",
+        "rule": {
+          "kind": "keywords",
+          "terms": [
+            "blocked",
+            "failed"
+          ]
+        }
+      }
+    ],
+    "target": {
+      "id": "next-window-breach",
+      "kind": "classification",
+      "unit": "probability",
+      "horizon": 2,
+      "minimum_train": 8,
+      "holdout_fraction": 0.25
+    },
+    "audiences": [
+      {
+        "id": "operator",
+        "view": "analysis",
+        "entities": [],
+        "can_correct": true
+      },
+      {
+        "id": "manager",
+        "view": "briefing",
+        "entities": [
+          "Accounts"
+        ],
+        "can_correct": false
+      },
+      {
+        "id": "analyst",
+        "view": "export",
+        "entities": [],
+        "can_correct": false
+      }
+    ],
+    "policy": {
+      "max_rows": 100,
+      "max_attempts": 2,
+      "max_provider_calls": 200,
+      "entry": 0.6,
+      "clear": 0.3,
+      "cooldown": 3,
+      "stale_after": 6,
+      "response_deadline": 4,
+      "signal_question": "risk",
+      "signal_scale": 1,
+      "prediction_scale": 1
+    },
+    "observation_provider": {
+      "name": "synthetic-jev-contract",
+      "version": "1",
+      "implementation_mode": "simulated"
+    }
+  }
+}

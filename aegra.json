@@ -1,7 +1,11 @@
 {
-  "dependencies": ["."],
+  "dependencies": [
+    "."
+  ],
   "graphs": {
     "olist_fixture": "./runtime/graph.py:graph",
-    "olist_review_enrichment": "./runtime/review_graph.py:graph"
+    "olist_review_enrichment": "./runtime/review_graph.py:graph",
+    "capability_simulation": "./runtime/simulation_graph.py:graph",
+    "capability_platform": "./runtime/capability_graph.py:graph"
   }
 }

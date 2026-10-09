@@ -1,0 +1,31 @@
+{
+  "$schema": "tabellio-validation/v0.2",
+  "acceptance": {
+    "id": "backintel-decision-workspace-v1",
+    "source": "User direction: match Front styling with BackIntel content; docs/design/decision-workspace-concept.md and docs/design/decision-workspace-reference-lock.json.",
+    "risk": "medium",
+    "outcomes": [
+      "Reviewers can inspect a case, open original evidence, save a reasoned decision, inspect its history, and then see the later outcome.",
+      "React and Reflex use the same versioned records and durable local review store.",
+      "The compact lavender navigation, queue, reader, contextual evidence drawer and bottom composer follow the approved Front reference.",
+      "Public facts, rule-based suggestions, experimental predictions and simulated equipment records remain distinct.",
+      "Desktop and mobile workflows work; source changes and concurrent reviews cannot silently overwrite a decision.",
+      "All Python unit modules pass with isolated test databases; React build, unit tests and pinned Fallow checks pass."
+    ],
+    "invariants": [
+      "This local frontend demonstration makes no collection or provider/model calls.",
+      "Reviews belong to the source fingerprint that the reviewer saw.",
+      "Missing browser evidence blocks readiness. Screenshots and observations must belong to the exact candidate.",
+      "The separate platform acceptance and real-model evaluation requirements remain in the root validation contract."
+    ],
+    "forbiddenOutcomes": ["Do not present experimental predictions as useful or accurate.", "Do not claim user acceptance, publication, deployment or measured business savings from these checks."],
+    "requiredValidatorTypes": ["static", "workflow", "visual"]
+  },
+  "validators": [
+    {"id":"workspace-build","type":"static","argv":["npm","run","build"],"cwd":"frontend","timeout":120,"required":true,"evidencePath":"build.json","metricThresholds":{},"costPolicy":{"requiredTelemetry":true,"maxUsd":0}},
+    {"id":"workspace-react-units","type":"static","argv":["npm","test","--","--reporter=json","--outputFile=../artifacts/validation/DecisionWorkspace/frontend-unit.json"],"cwd":"frontend","timeout":60,"required":true,"evidencePath":"react-units.json","metricThresholds":{},"costPolicy":{"requiredTelemetry":true,"maxUsd":0}},
+    {"id":"workspace-fallow","type":"static","argv":["npm","run","code:quality"],"cwd":"frontend","timeout":60,"required":true,"evidencePath":"fallow.json","metricThresholds":{},"costPolicy":{"requiredTelemetry":true,"maxUsd":0}},
+    {"id":"workspace-api","type":"workflow","argv":["python3","-m","unittest","discover","-s","tests","-p","test_decision_workspace.py","-v"],"cwd":".","timeout":30,"required":true,"evidencePath":"api.json","metricThresholds":{},"costPolicy":{"requiredTelemetry":true,"maxUsd":0}},
+    {"id":"workspace-browser","type":"visual","argv":["python3","scripts/validation/check_workspace_evidence.py"],"cwd":".","timeout":30,"required":true,"evidencePath":"browser.json","metricThresholds":{},"costPolicy":{"requiredTelemetry":true,"maxUsd":0}}
+  ]
+}

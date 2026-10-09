@@ -1,6 +1,27 @@
 /artifacts/validation/
+/artifacts/AnalysisValidation/
+/artifacts/Models/
+/private/
 __pycache__/
+.venv/
 *.py[cod]
 .env
+/apps/web/node_modules/
+/apps/web/dist/
+/apps/web/coverage/
 # Graphify generates a graph in the working directory and a cache beside scanned files.
 **/graphify-out/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+reflex_demo/.venv/
+reflex_demo/.web/
+reflex_demo/assets/
+reflex_demo/__pycache__/
+
+.env.*
+!.env.example
+!.env.analysis.example
+# Private tracker handoff stays local.
+docs/demo/Packages/AgentShiftReminder.json
+docs/release/AgentShiftReleaseAssessment.txt
