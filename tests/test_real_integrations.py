@@ -54,6 +54,29 @@ class FixtureClassifier:
 
 
 class ProviderIdentityTests(unittest.TestCase):
+    def test_prepared_package_must_match_current_training_request(self):
+        from unittest.mock import Mock
+        from runtime import real_models as models
+        store = MagicMock()
+        store.find.return_value = None
+        store.put.side_effect = lambda kind,key,body,*args: {'body':body}
+        estimator = Mock()
+        estimator.save_model.side_effect = lambda path: Path(path).write_text('fixture model')
+        training = [{'feature':{'sha256':'feature','body':{'values':{'structured:value':1}}},
+                     'outcome':{'sha256':'outcome','body':{'value':1}}}]
+        task = {'sha256':'task','body':{'target':{'kind':'regression'}}}
+        config = {'limits':{'max_training_rows':2},'catboost':{'parameters':{}}}
+        with tempfile.TemporaryDirectory() as directory, patch.object(models,'matrix',return_value=[[1]]), patch.object(models,'model_root',return_value=Path(directory)), patch.object(models,'versions',return_value={'fixture':'version'}), patch.object(models,'_allow_model_use',return_value=config), patch.dict('sys.modules',{'catboost':SimpleNamespace(CatBoostClassifier=lambda **kwargs:estimator,CatBoostRegressor=lambda **kwargs:estimator)}):
+            original = models.prepare_real(store,task,training,'catboost','structured',0)['body']
+            manifest = Path(directory)/original['artifact']['package']/'manifest.json'
+            self.assertEqual(models.prepare_real(store,task,training,'catboost','structured',0)['body'],original)
+            for name,value in {'training_matrix_sha256':'other-training','route':'tabiclv2','feature_set':'semantic','prepared_at':99,'configuration_sha256':'other-config','scales':{},'artifact':{**original['artifact'],'file':'../outside'}}.items():
+                changed = copy.deepcopy(original);changed[name]=value
+                manifest.write_text(json.dumps(changed))
+                with self.subTest(field=name), self.assertRaisesRegex(ValueError,'package was modified'):
+                    models.prepare_real(store,task,training,'catboost','structured',0)
+            estimator.fit.assert_called_once()
+
     def test_cached_predictor_rechecks_revoked_model_approval(self):
         from unittest.mock import Mock, patch
         from runtime import real_models as models
@@ -122,6 +145,38 @@ class ProviderIdentityTests(unittest.TestCase):
 
 
 class RealBoundaryTests(unittest.TestCase):
+    def test_revocation_before_dispatch_prevents_invocation(self):
+        from runtime import real_semantics as semantics
+        self.conn.execute('UPDATE backintel.capability_provider_authorizations SET approved=true WHERE authorization_id=%s',(self.authorization,))
+        def revoke():
+            self.conn.execute('UPDATE backintel.capability_provider_authorizations SET approved=false WHERE authorization_id=%s',(self.authorization,))
+            return 0
+        with patch.object(semantics.time,'perf_counter',side_effect=revoke), self.assertRaisesRegex(PermissionError,'changed before dispatch'):
+            semantics.request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)
+        self.assertEqual(FixtureClassifier.calls,0)
+
+    def test_authorization_row_stays_locked_through_provider_invocation(self):
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        from threading import Event
+        from runtime.real_semantics import request_real
+        self.conn.execute('UPDATE backintel.capability_provider_authorizations SET approved=true WHERE authorization_id=%s',(self.authorization,))
+        started = Event(); futures = []; tester = self
+        def revoke():
+            with psycopg.connect(dsn(),autocommit=True) as connection:
+                started.set()
+                connection.execute('UPDATE backintel.capability_provider_authorizations SET approved=false WHERE authorization_id=%s',(self.authorization,))
+        with ThreadPoolExecutor(max_workers=1) as workers:
+            class LockCheckingClassifier(FixtureClassifier):
+                def invoke(classifier,payload):
+                    futures.append(workers.submit(revoke))
+                    tester.assertTrue(started.wait(5))
+                    with tester.assertRaises(TimeoutError):
+                        futures[0].result(timeout=.2)
+                    return super().invoke(payload)
+            request_real(self.task,self.sources[0],self.authorization,LockCheckingClassifier)
+            futures[0].result(timeout=5)
+        self.assertFalse(self.conn.execute('SELECT approved FROM backintel.capability_provider_authorizations WHERE authorization_id=%s',(self.authorization,)).fetchone()[0])
+
     @classmethod
     def setUpClass(cls):
         if not os.environ.get("BACKINTEL_TEST_DATABASE_URL") or os.environ["BACKINTEL_TEST_DATABASE_URL"] != dsn() or not psycopg.conninfo.conninfo_to_dict(dsn())["dbname"].startswith("test_"):

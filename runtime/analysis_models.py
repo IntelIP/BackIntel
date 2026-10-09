@@ -58,19 +58,25 @@ def decide(rows, domain):
     for f in spec['files']:
         if file_sha(directory/f['file']) != f['sha256']:
             raise ValueError('Decide weight identity mismatch')
+    identity = {'model': CONFIG['decide'], 'weights': spec,
+                'libraries': versions(('gliner2','torch','numpy')),
+                'implementation_sha256': file_sha(Path(__file__))}
     extractor = AutoExtractor.from_pretrained(str(directory))
     labels = ['positive opinion', 'negative opinion', 'mixed opinion'] if domain=='commerce' else ['urgent service failure', 'routine request', 'access problem']
     enriched, observations = [], []
     for row in rows:
         text = row['text'][:4000]
-        key = digest([CONFIG['decide'], labels, text])
+        expected = {**identity, 'labels': labels, 'input_sha256': digest(text), 'mode': 'real', 'probability_calibrated': False}
+        key = digest(expected)
+        expected['identity'] = key
         cache = model_root()/'DecideObservations'/f'{key}.json'
         if cache.exists():
             observation = json.loads(cache.read_text())
+            if any(observation.get(name) != value for name, value in expected.items()):
+                raise ValueError('Decide observation cache does not match current implementation and input')
         else:
             result = extractor.classify_text(text, {'signal': labels})
-            observation = {'identity': key, 'model': CONFIG['decide'], 'labels': labels,
-                           'input_sha256': digest(text), 'output': result, 'mode': 'real', 'probability_calibrated': False}
+            observation = {**expected, 'output': result}
             cache.parent.mkdir(parents=True,exist_ok=True)
             cache.write_text(json.dumps(observation))
         observation={**observation,'provider':'local-gliner2','question_schema':{'signal':labels}}

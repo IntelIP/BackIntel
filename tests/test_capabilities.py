@@ -24,6 +24,23 @@ from runtime.prediction import (cases, chronological_split, compare, evaluate, f
 
 
 class CapabilityTests(unittest.TestCase):
+    def test_cleared_episode_stays_closed_after_staleness(self):
+        store,task,*_ = self.scenario()
+        reason = store.put('event','attention-regression',{'event':'fixture'},0)
+        first = attend(store,task,'fixture-entity',reason,0,1)
+        reason = store.put('event','attention-cleared',{'event':'clear fixture'},1)
+        attend(store,task,'fixture-entity',reason,1,0)
+        at = task['body']['policy']['stale_after'] + 2
+        stale = attend(store,task,'fixture-entity',reason,at,action='staleness')
+        self.assertEqual(stale['body']['condition'],'cleared')
+        with self.assertRaisesRegex(ValueError,'open episode'):
+            attend(store,task,'fixture-entity',reason,at,action='acknowledge')
+        reason = store.put('event','attention-reopened',{'event':'new fixture'},at+1)
+        reopened = attend(store,task,'fixture-entity',reason,at+1,1)
+        self.assertNotEqual(reopened['body']['episode_id'],first['body']['episode_id'])
+        self.assertEqual(reopened['body']['response'],'open')
+        self.assertEqual(len(store.list('delivery')),2)
+
     def test_task_revision_does_not_reuse_previous_attention_episode(self):
         from runtime.attention import latest_episode
         store, task, _, _ = self.scenario()

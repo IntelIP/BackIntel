@@ -51,7 +51,7 @@ def attend(store, task_record: dict, entity: str, reason: dict, at: int, value: 
                     raise PermissionError("Actor cannot respond to this episode")
             state["response"] = {"acknowledge":"acknowledged","investigate":"investigating","resolve":"resolved"}[action]
         elif action == "staleness":
-            if state["last_observed_at"] is not None and at-state["last_observed_at"] >= policy["stale_after"]:
+            if state["condition"] != "cleared" and state["last_observed_at"] is not None and at-state["last_observed_at"] >= policy["stale_after"]:
                 state["condition"] = "unknown"
         elif action == "deadline" and state["episode_id"] and state["condition"] != "cleared" and state["response"] == "open":
             if at-state["opened_at"] >= policy["response_deadline"] and (state["last_delivery_at"] is None or at-state["last_delivery_at"] >= policy["cooldown"]):

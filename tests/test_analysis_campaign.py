@@ -245,6 +245,20 @@ class CampaignChecks(unittest.TestCase):
         self.assertGreater(source['body']['last_checked_at'], 0)
         self.assertEqual(db.run(run['id'])['status'], 'partial')
 
+    def test_cancelled_import_preserves_healthy_source(self):
+        from runtime.jobs import cancel
+        run = service.submit_import('commerce',self.actor)
+        def interrupted(domain,actor,**kwargs):
+            with db.connect() as connection:
+                cancel(connection,run['job_id'])
+            raise InterruptedError('Fixture import cancelled')
+        with patch.object(service,'_import_source',side_effect=interrupted):
+            service.execute(run['job_id'],service.handle)
+        source = db.source('commerce')
+        self.assertFalse(source['body'].get('last_refresh_error'))
+        self.assertEqual(source['latest_snapshot'],self.snapshot)
+        self.assertEqual(db.run(run['id'])['status'],'cancelled')
+
     def test_empty_corrections_preserve_snapshot_and_explicit_null_removes_target(self):
         from runtime.analysis_api import correction, CorrectionInput
         service.revise_goal(self.goal, self.actor, paused=True)

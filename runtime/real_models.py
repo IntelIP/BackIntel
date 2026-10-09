@@ -101,7 +101,28 @@ def prepare_real(store, task_record: dict, training: list[dict], route: str, fea
         package = root/key
         if package.exists():
             body = json.loads((package/"manifest.json").read_text())
-            if file_sha(package/body["artifact"]["file"]) != body["artifact"]["sha256"]:
+            scales = {}
+            for column in columns:
+                values = [r["feature"]["body"]["values"][column] for r in training if r["feature"]["body"]["values"][column] is not None]
+                scales[column] = {"mean":statistics.mean(values) if values else 0., "std":statistics.pstdev(values) if values else 0.,
+                                  "min":min(values) if values else 0., "max":max(values) if values else 0.}
+            expected = {"task":task_record["sha256"], "route":route, "feature_set":feature_set,
+                        "adapter_version":"real-v1", "implementation_mode":"real",
+                        "preparation":"trained_catboost" if route == "catboost" else "tabiclv2_context",
+                        "columns":columns, "scales":scales, "target":task_record["body"]["target"], "prepared_at":at,
+                        "training_count":len(training),
+                        "training_matrix_sha256":digest([[r["feature"]["sha256"],r["outcome"]["sha256"]] for r in training]),
+                        "libraries":libraries, "configuration_sha256":digest(config),
+                        "checkpoint":checkpoint(task_record["body"]["target"]["kind"])[1] if route == "tabiclv2" else None,
+                        "implementation_sha256":implementation, "parameters":config[route]["parameters"],
+                        "provider_calls":0, "measured_provider_usd":0, "local_compute_usd":None}
+            artifact = package / ("model.cbm" if route == "catboost" else "context.json")
+            declared = body.get("artifact", {})
+            if (any(body.get(name) != value for name,value in expected.items()) or
+                    declared.get("package") != key or declared.get("file") != artifact.name or
+                    artifact.is_symlink() or not artifact.is_file() or
+                    body.get("prepared_bytes") != artifact.stat().st_size or
+                    file_sha(artifact) != declared.get("sha256")):
                 raise ValueError("Prepared model package was modified")
         else:
             started = time.perf_counter()

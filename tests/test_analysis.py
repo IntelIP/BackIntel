@@ -18,6 +18,36 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_decide_cache_binds_implementation_libraries_weights_and_metadata(self):
+        import json
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        from runtime import analysis_models as models
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); weights = root/'Decide'; weights.mkdir()
+            weight = weights/'model.bin'; weight.write_text('original fixture')
+            spec = {'revision':models.CONFIG['decide']['revision'],'files':[{'file':weight.name,'sha256':models.file_sha(weight)}]}
+            (weights/'backintel-weights.json').write_text(json.dumps(spec))
+            extractor = Mock();extractor.classify_text.return_value = {'signal':'positive opinion'}
+            auto = Mock();auto.from_pretrained.return_value = extractor
+            real_sha = models.file_sha
+            implementation = ['v1']
+            with patch.dict('sys.modules',{'gliner2':SimpleNamespace(AutoExtractor=auto),'torch':SimpleNamespace(set_num_threads=lambda count:None)}), patch.object(models,'model_root',return_value=root), patch.object(models,'versions',return_value={'gliner2':'v1'}) as versions, patch.object(models,'file_sha',side_effect=lambda path:implementation[0] if Path(path)==Path(models.__file__) else real_sha(path)):
+                rows = [{'text':'fixture text','features':{}}]
+                _, first = models.decide(rows,'commerce')
+                self.assertEqual(models.decide(rows,'commerce')[1],first)
+                self.assertEqual(extractor.classify_text.call_count,1)
+                implementation[0]='v2';models.decide(rows,'commerce')
+                versions.return_value={'gliner2':'v2'};models.decide(rows,'commerce')
+                weight.write_text('updated fixture');spec['files'][0]['sha256']=real_sha(weight)
+                (weights/'backintel-weights.json').write_text(json.dumps(spec))
+                _, latest = models.decide(rows,'commerce')
+                self.assertEqual(extractor.classify_text.call_count,4)
+                path = root/'DecideObservations'/f"{latest[0]['identity']}.json"
+                invalid = json.loads(path.read_text());invalid['input_sha256']='other input';path.write_text(json.dumps(invalid))
+                with self.assertRaisesRegex(ValueError,'cache does not match'):
+                    models.decide(rows,'commerce')
+
     def test_displayed_limitations_require_supported_bounded_text(self):
         results = [{'evidence_id':'observed','kind':'observed','table':[{'group':'A','mean':.2,'count':10}]}]
         answer = {'summary':'Observed results.', 'findings':[

@@ -296,7 +296,7 @@ def handle(store, payload):
         # No failed refresh replaces last_success; no response is disguised as real success.
         status = 'cancelled' if isinstance(error, (InterruptedError, PermissionError)) else 'partial'
         reason = safe_error(error)
-        if payload['operation'] == 'import':
+        if payload['operation'] == 'import' and not isinstance(error, InterruptedError):
             db.write('UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s',
                      (Jsonb({'last_refresh_error':reason, 'last_checked_at':time.time()}), r['body']['domain']))
         result = {'status': status, 'summary': 'This run did not complete.', 'limitations': [reason], 'usage': db.usage(identity)}

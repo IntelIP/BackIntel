@@ -9,6 +9,7 @@ import tempfile
 import threading
 from urllib.request import Request, urlopen
 import zipfile
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -17,7 +18,8 @@ def check_extracted(root):
     sys.path.insert(0, str(root))
     from scripts.package_business_demo import server, verify
     initial = verify(root)
-    api = server(root, 0)
+    with patch('scripts.package_business_demo.Path.home', return_value=root.parent):
+        api = server(root, 0)
     worker = threading.Thread(target=api.serve_forever, daemon=True)
     worker.start()
     base = f'http://127.0.0.1:{api.server_port}'
@@ -77,7 +79,7 @@ def main():
                'exact_commit_product_readiness': 'blocked', 'fresh_extracted_package': True,
                'site_packages_disabled': True, 'new_provider_calls': 0,
                'checks': ['all archived file hashes', 'stdlib-only CLI installation check', 'built frontend served',
-                          'completed Support packet', 'review saved and reloaded only in extracted copy',
+                          'completed Support packet', 'review saved and reloaded in isolated local state',
                           'immutable packaged files unchanged after review'],
                'initial_check': initial, 'after_review_check': after}
     destination = directory / 'PackageValidation.json'

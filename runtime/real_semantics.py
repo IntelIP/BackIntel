@@ -142,7 +142,7 @@ def request_real(task_record: dict, source: dict, authorization_id: str, classif
     content = source["body"]["content"]
     key = digest({"task":task_record["sha256"],"source":source["sha256"],"provider":provider})
     with psycopg.connect(dsn(),autocommit=True) as connection:
-        # Session lock spans the external request without keeping an SQL transaction open.
+        # Serialize requests for this authorization; its row lock also guards dispatch.
         connection.execute("SELECT pg_advisory_lock(hashtextextended(%s,71))",(authorization_id,))
         with connection.transaction():
             authorization = connection.execute("""SELECT model,max_requests,max_input_characters,max_measured_usd,
@@ -204,7 +204,13 @@ def request_real(task_record: dict, source: dict, authorization_id: str, classif
         started = time.perf_counter()
         try:
             classifier = classifier_factory(model) if classifier_factory else _default_classifier(model,credential)
-            response = classifier.invoke({"state":content,"questions":question_objects})
+            with connection.transaction():
+                current = connection.execute("""SELECT model,max_requests,max_input_characters,max_measured_usd,
+                    price_ceiling_known,approved,scope,scope_sha256,expires_at>clock_timestamp()
+                    FROM backintel.capability_provider_authorizations WHERE authorization_id=%s FOR UPDATE""", (authorization_id,)).fetchone()
+                if current != authorization or not current[5] or not current[8]:
+                    raise PermissionError('Provider authorization changed before dispatch')
+                response = classifier.invoke({"state":content,"questions":question_objects})
             answers = answer_payload(response)
             metadata = dict(classifier.last_metadata)
             metadata["request_id"] = metadata.get("request_id") or request_id(response)

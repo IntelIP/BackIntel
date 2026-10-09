@@ -4,10 +4,11 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from runtime.decision_workspace import DecisionStore, simulated_cases
+from runtime.decision_workspace import DecisionStore, decision_context, simulated_cases
 from scripts.package_business_demo import backup_reviews, server, sha, verify
 
 
@@ -47,7 +48,7 @@ class RecordedPackageTests(unittest.TestCase):
                 self.assertFalse(marker.exists())
 
     def test_playback_review_scope_integrity_and_loopback_boundary(self):
-        with tempfile.TemporaryDirectory(prefix="BackIntelPackageChecks") as directory:
+        with tempfile.TemporaryDirectory(prefix="BackIntelPackageChecks") as directory, patch('scripts.package_business_demo.Path.home', return_value=Path(directory)):
             root = Path(directory) / "Package"
             root.mkdir()
             (root / "Frontend").mkdir()
@@ -88,6 +89,10 @@ class RecordedPackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'linked external file'): server(root, 0)
             self.assertEqual(sha(original), original_hash)
             linked.unlink()
+            forged = DecisionStore(state / 'Reviews.sqlite3', cases)
+            forged.decide(cases[0]['id'], {'decision':'follow_up','reason':'Distributor supplied review',
+                'expected_revision':0,'expected_context_sha256':decision_context(cases[0])})
+            verify(root)
             api = server(root, 0)
             worker = threading.Thread(target=api.serve_forever, daemon=True)
             worker.start()
@@ -98,12 +103,19 @@ class RecordedPackageTests(unittest.TestCase):
                     self.assertEqual(response.read(), b"Recorded package")
                 with urlopen(base + "/api/workspace") as response:
                     case = json.load(response)["cases"][0]
+                self.assertIsNone(case['review'])
+                self.assertFalse(api.store.database.is_relative_to(root))
                 body = {"decision": "follow_up", "reason": "Synthetic demo review", "expected_revision": 0,
                         "expected_context_sha256": case["context_sha256"]}
                 request = Request(base + f"/api/cases/{case['id']}/decision", data=json.dumps(body).encode(), method="PUT",
                                   headers={"Content-Type": "application/json", "Origin": base})
                 with urlopen(request) as response:
                     self.assertEqual(json.load(response)["review"]["revision"], 1)
+                reopened = server(root, 0)
+                try:
+                    self.assertEqual(reopened.store.case(case['id'])['review']['reason'], 'Synthetic demo review')
+                finally:
+                    reopened.server_close()
                 self.assertEqual(seed, sha(root / "Records/ReviewsSeed.sqlite3"))
                 for path in ("/%2e%2e/Manifest.json", "/Records/ReviewsSeed.sqlite3"):
                     with self.assertRaises(HTTPError) as denied:

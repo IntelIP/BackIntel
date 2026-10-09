@@ -80,8 +80,17 @@ class RecordedHandler(WorkspaceHandler):
 
 def server(root, port):
     verify(root)
-    state = root / ".demo-state"
-    state.mkdir(exist_ok=True)
+    # Mutable reviews belong to this user's launch, never to redistributed files.
+    location = hashlib.sha256((str(root.resolve()) + sha(root / 'Manifest.json')).encode()).hexdigest()
+    state_root = Path.home() / '.local/state/backintel/recorded-demos'
+    state = state_root / location
+    for path in (state, *(state / name for name in (
+            'Reviews.sqlite3', 'Reviews.sqlite3-wal', 'Reviews.sqlite3-shm', 'Reviews.sqlite3-journal'))):
+        if path.is_symlink() or not path.resolve().is_relative_to(state_root.resolve()):
+            raise ValueError('Demo review state must remain in local storage without links')
+        if path.is_file() and path.stat().st_nlink > 1:
+            raise ValueError('Demo review state must not share a linked external file')
+    state.mkdir(parents=True, exist_ok=True, mode=0o700)
     database = state / "Reviews.sqlite3"
     if not database.exists():
         shutil.copyfile(root / "Records/ReviewsSeed.sqlite3", database)

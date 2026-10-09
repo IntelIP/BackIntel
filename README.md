@@ -20,7 +20,7 @@ Open <http://127.0.0.1:2053/>. Stop with Ctrl-C. Add `--port 2054` to the servin
 
 Run these commands from a trusted repository checkout. The launcher checks the archive against the checkout’s receipt and verifies the extracted files before serving them. It imports no Python code from the extracted package. An embedded `RunDemo.py --check` cannot establish trust in an altered or redistributed package by itself.
 
-The package includes the built interface and saved results. It needs no Node installation, database server, model download, provider key, or paid inference. New review notes are saved only inside the extracted copy.
+The package includes the built interface and saved results. It needs no Node installation, database server, model download, provider key, or paid inference. New review notes are saved under `~/.local/state/backintel/recorded-demos`, separately for each extracted package location and manifest. Saved reviews supplied inside a redistributed package are ignored; the verified seed supplies the initial review state.
 
 Follow the [five-minute narration](docs/demo/SupportNarration.txt): inspect the original support message, interpretation, prediction comparison, corrected result, and recorded human decision. See [package instructions](docs/demo/DemoPackage.txt) for details.
 

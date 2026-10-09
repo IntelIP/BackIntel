@@ -1,6 +1,6 @@
 {
   "status": "passed",
-  "archive_sha256": "4f9a4ca8c4abc006b1c0c2c5962bd0609fcf095c08ef9cff291022740876846f",
+  "archive_sha256": "e5d6942485aec117dbaa925ce3823a3da8e85fa6693ea4bd8855de3edfea6822",
   "mode": "recorded_synthetic_run",
   "exact_commit_product_readiness": "blocked",
   "fresh_extracted_package": true,
@@ -11,7 +11,7 @@
     "stdlib-only CLI installation check",
     "built frontend served",
     "completed Support packet",
-    "review saved and reloaded only in extracted copy",
+    "review saved and reloaded in isolated local state",
     "immutable packaged files unchanged after review"
   ],
   "initial_check": {
