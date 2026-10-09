@@ -299,7 +299,8 @@ class AdapterChecks(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Predicted evidence'):
             validate_answer(answer, results)
         answer['findings'][0]['kind'] = 'estimate'
-        self.assertEqual(validate_answer(answer, results), answer)
+        with self.assertRaisesRegex(ValueError, 'Estimate claims'):
+            validate_answer(answer, results)
         answer['findings'][0]['kind'] = 'fact'
         results[0]['kind'] = 'observed'
         with self.assertRaisesRegex(ValueError, 'Factual claims'):
@@ -405,7 +406,7 @@ class AdapterChecks(unittest.TestCase):
         class Estimator:
             def __init__(self, **kwargs): pass
             def fit(self, rows, targets): return self
-            def predict(self, rows): return [row['x'] for row in rows]
+            def predict(self, rows): return [-row['x'] for row in rows]
 
         files = {}
         def dump(value, path):
@@ -433,6 +434,8 @@ class AdapterChecks(unittest.TestCase):
              patch.object(models, 'sample', side_effect=lambda rows,split:[r for r in rows if r['split']==split]), \
              patch.object(models, 'metrics', side_effect=score):
             original = models.compare('maintenance', rows, 'pinned-snapshot')
+            for method in original['methods'][1:]:
+                self.assertTrue(all(value == 0. for value in method['predictions'].values()))
             manifest = Path(directory)/'Analysis'/original['id']/'manifest.json'
             with patch.object(models.os, 'replace', side_effect=InterruptedError('fixture interruption')):
                 with self.assertRaises(InterruptedError):
@@ -461,6 +464,20 @@ class AdapterChecks(unittest.TestCase):
                 for key in ('metrics','calibration_metrics','predictions'):
                     self.assertEqual(after.get(key), before.get(key))
 
+    def test_estimates_require_supported_metrics_or_rankings(self):
+        from runtime.analysis_agent import validate_answer
+        evidence = [{'tool': 'predict', 'evidence_id': 'prediction', 'kind': 'estimate',
+                     'table': [{'group': 'A', 'mean': .1, 'count': 5}, {'group': 'B', 'mean': .8, 'count': 5}]}]
+        for claim, valid in [('Group A has high churn risk.', False), ('Group A has the highest risk.', False),
+                             ('Group A has the lowest risk.', True), ('Group A risk is 0.1.', True)]:
+            answer = {'summary': claim, 'limitations': [], 'findings': [{'kind': 'estimate', 'claim': claim, 'evidence_ids': ['prediction']}]}
+            with self.subTest(claim=claim):
+                if valid:
+                    validate_answer(answer, evidence)
+                else:
+                    with self.assertRaises(ValueError):
+                        validate_answer(answer, evidence)
+
     def test_decide_prediction_enriches_records_once(self):
         from unittest.mock import Mock, patch
         from runtime.analysis_models import predict
@@ -477,7 +494,13 @@ class AdapterChecks(unittest.TestCase):
              patch('runtime.analysis_models.file_sha', return_value='fixture'), \
              patch.dict('sys.modules', {'joblib': Mock(load=Mock(return_value={'vectorizer': Mock(), 'estimator': estimator}))}):
             self.assertEqual(predict(model, rows), {'fixture': 0.25})
-        enrich.assert_called_once_with(rows, 'commerce')
+            enrich.assert_called_once_with(rows, 'commerce')
+            estimator.predict.return_value = [-2.5]
+            self.assertEqual(predict(model, rows), {'fixture': 0.})
+            for value in (float('nan'), float('inf'), -float('inf')):
+                estimator.predict.return_value = [value]
+                with self.assertRaisesRegex(ValueError, 'nonfinite'):
+                    predict(model, rows)
 
     def test_prediction_rejects_changed_runtime_before_loading_model(self):
         from unittest.mock import Mock, patch

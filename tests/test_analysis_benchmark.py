@@ -41,7 +41,7 @@ class BenchmarkChecks(unittest.TestCase):
         self.oracle = scoring.raw_oracle('churn', [self.path], 100)
         self.spec = scoring.scenario_spec('churn', scoring.SCENARIOS[1], 'contract')
         value = scoring.expected_result(self.spec, self.oracle)
-        claim = json.dumps(value)
+        claim = f"The mean is {value['value']}."
         self.run = {'id':'run','goal_id':'goal','snapshot_id':'snapshot','status':'succeeded',
                     'result':{'summary':claim,'findings':[{'claim':claim,'kind':'fact','evidence_ids':['proof']}],
                               'mode':'real','sources':{'domain':'churn','snapshot':'snapshot'}}}
@@ -53,9 +53,44 @@ class BenchmarkChecks(unittest.TestCase):
         return scoring.score_answer(self.run,self.evidence,self.spec,self.oracle,'snapshot')
 
     def test_structured_answer_and_independent_calculation_pass(self):
+        from runtime.analysis_agent import validate_answer
+        result = self.evidence['proof']['body']['result']
+        self.run['result']['limitations'] = []
+        answer = {key: self.run['result'][key] for key in ('summary', 'findings', 'limitations')}
+        self.run['result'].update(validate_answer(answer, [{**result, 'tool': 'summarize', 'evidence_id': 'proof'}]))
         self.assertTrue(self.score()['correct'])
         self.assertEqual(self.oracle['records'],3)
         self.assertAlmostEqual(self.oracle['overall']['mean'],1/3)
+
+    def test_every_scenario_claim_passes_runtime_validation_and_independent_scoring(self):
+        from runtime.analysis_agent import validate_answer
+        for domain in scoring.TARGETS:
+            for scenario in scoring.SCENARIOS:
+                spec = scoring.scenario_spec(domain, scenario, 'contract')
+                expected = scoring.expected_result(spec, self.oracle)
+                count_case = scenario['id'] == 'record_count'
+                grouped = scenario['id'].endswith('_group')
+                claim = (f"Source contains {expected['value']} records." if count_case else
+                         f"Group {expected['group']} mean is {expected['value']}." if grouped else
+                         f"The mean is {expected['value']}.")
+                result = ({'records': expected['value']} if count_case else
+                          {'kind': 'observed', 'target': spec['target'], 'table': [
+                              {'group': expected['group'], 'mean': expected['value'], 'count': expected['count']}]})
+                tool = 'inspect_source' if count_case else 'summarize'
+                arguments = {'group': 'contract' if grouped else None,
+                             'order': 'descending' if scenario['id'] == 'highest_group' else 'ascending'}
+                evidence = {'proof': {'kind': 'calculation', 'task_id': 'analysis-goal-goal', 'body': {
+                    'snapshot': 'snapshot', 'tool': tool, 'arguments': arguments, 'result': result}}}
+                answer = {'summary': claim, 'limitations': [], 'findings': [
+                    {'claim': claim, 'kind': 'fact', 'evidence_ids': ['proof']}]}
+                with self.subTest(domain=domain, scenario=scenario['id']):
+                    validate_answer(answer, [{**result, 'tool': tool, 'evidence_id': 'proof'}], group='contract')
+                    run = {**self.run, 'result': {**answer, 'mode': 'real', 'sources': {'domain': domain, 'snapshot': 'snapshot'}}}
+                    self.assertTrue(scoring.score_answer(run, evidence, spec, self.oracle, 'snapshot')['correct'])
+                    if not count_case:
+                        result['table'][0]['count'] += 1
+                        with self.assertRaisesRegex(ValueError, 'calculation'):
+                            scoring.score_answer(run, evidence, spec, self.oracle, 'snapshot')
 
     def test_incidental_numbers_and_group_names_never_pass(self):
         for text in ('The rate is 0.99; source identifier 0.3333333333333333.',
@@ -68,12 +103,12 @@ class BenchmarkChecks(unittest.TestCase):
 
     def test_wrong_value_group_unit_snapshot_goal_and_mode_fail(self):
         original=copy.deepcopy(self.run)
-        for field,value in (('value',99),('group','Monthly'),('unit','percent'),('count',2),('value',True)):
-            with self.subTest(field=field,value=value):
-                result=json.loads(original['result']['summary']);result[field]=value
+        for claim in ('The mean is 99.', 'Group Monthly mean is 0.3333333333333333.',
+                      'The mean is 33.33333333333333%.', 'The mean is True.'):
+            with self.subTest(claim=claim):
                 self.run=copy.deepcopy(original)
-                self.run['result']['summary']=json.dumps(result)
-                self.run['result']['findings'][0]['claim']=json.dumps(result)
+                self.run['result']['summary']=claim
+                self.run['result']['findings'][0]['claim']=claim
                 with self.assertRaises(ValueError):self.score()
         self.run=copy.deepcopy(original)
         self.evidence['proof']['body']['snapshot']='old'

@@ -93,6 +93,11 @@ def revise_goal(identity, actor, question=None, paused=None, confirmed=None, thr
         body['notification_delta'] = threshold
     version = g['version'] + int(body != g['body'])
     with db.connect() as c, c.transaction():
+        manager = c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s
+            AND enabled AND (expires_at IS NULL OR expires_at>now())
+            AND role='manager' AND %s=ANY(domains) FOR UPDATE""", (actor['id'], g['domain'])).fetchone()
+        if not manager:
+            raise PermissionError('Current manager authority is required to edit a goal')
         changed = c.execute('UPDATE backintel.analysis_goals SET body=%s,version=%s,paused=%s,confirmed=%s WHERE id=%s AND version=%s AND body=%s AND paused=%s AND confirmed=%s',
                   (Jsonb(body), version, g['paused'] if paused is None else paused,
                    False if version != g['version'] else g['confirmed'] if confirmed is None else confirmed, identity, g['version'], Jsonb(g['body']), g['paused'], g['confirmed']))

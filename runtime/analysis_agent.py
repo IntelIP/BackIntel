@@ -97,7 +97,7 @@ def classification_claims(results):
     return claims
 
 
-def structured_fact(claim, cited, group=None):
+def structured_fact(claim, cited, group=None, kind='fact'):
     if '\0' in claim:
         return False
     if claim in classification_claims(cited):
@@ -112,6 +112,8 @@ def structured_fact(claim, cited, group=None):
     scope = r'(?:(?:the )?(?:observed |current |previous |prior |historical |latest )?)'
     group_name = re.escape(group.replace('_', ' ')) if group else 'group'
     metric = r'(?:mean|average|rate|probability|risk|count)'
+    if kind == 'estimate':
+        metric = r'(?:mean|average|rate|probability|risk|count|estimate)'
     quantity = r'\x00NUM\x00(?:%| percent)?'
     forms = [
         scope + r'(?:target )?' + metric + r'(?: is)? ' + quantity,
@@ -229,8 +231,9 @@ def validate_answer(answer, results, group=None):
     answer['summary'] = ' '.join(f['claim'] for f in answer['findings']) or 'Analysis completed. Review current calculation tables and limitations.'
     for finding in answer['findings']:
         cited = [r for r in results if r['evidence_id'] in finding['evidence_ids']]
-        if finding['kind'] == 'fact' and not structured_fact(finding['claim'], cited, group):
-            raise ValueError('Factual claims must use a calculated metric, ranking, or classification assertion')
+        if finding['kind'] in ('fact', 'estimate') and not structured_fact(finding['claim'], cited, group, finding['kind']):
+            label = 'Factual' if finding['kind'] == 'fact' else 'Estimate'
+            raise ValueError(label + ' claims must use a calculated metric, ranking, or classification assertion')
     return answer
 
 

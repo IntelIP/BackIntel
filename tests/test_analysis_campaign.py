@@ -940,6 +940,21 @@ class CampaignChecks(unittest.TestCase):
         execute.assert_not_called()
         self.assertEqual(db.query('SELECT state FROM backintel.capability_jobs WHERE job_id=%s', (self.run['job_id'],), one=True)['state'], 'cancelled')
 
+    def test_goal_edits_recheck_manager_after_initial_authorization(self):
+        authorize = db.authorize
+        before = db.goal(self.goal)
+        for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='analyst'", "domains=ARRAY['support']"):
+            def revoke(actor, *args, **kwargs):
+                current = authorize(actor, *args, **kwargs)
+                db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (actor['id'],))
+                return current
+            try:
+                with self.subTest(change=change), patch.object(db, 'authorize', side_effect=revoke), self.assertRaises(PermissionError):
+                    service.revise_goal(self.goal, self.actor, question='An unauthorized edit')
+                self.assertEqual(db.goal(self.goal), before)
+            finally:
+                db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
+
     def test_duplicate_submissions_cancel_and_orphan_recovery(self):
         with ThreadPoolExecutor(max_workers=3) as workers:
             duplicates = list(workers.map(lambda _: service.submit(self.goal, self.actor), range(3)))

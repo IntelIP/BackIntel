@@ -5,12 +5,13 @@ import csv
 import hashlib
 import json
 import math
+import re
 import subprocess
 from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SUITE_VERSION = 'backintel-answers/v2'
+SUITE_VERSION = 'backintel-answers/v3'
 SCENARIOS = (
     {'id': 'record_count', 'partition': 'development'},
     {'id': 'observed_mean', 'partition': 'development'},
@@ -88,12 +89,12 @@ def scenario_spec(domain, scenario, group):
               'lowest_group': f'Use summarize grouped by {group}, ascending. Report the group with the lowest observed mean.',
               'highest_group': f'Use summarize grouped by {group}, descending. Report the group with the highest observed mean.'}[key]
     unit = 'records' if key == 'record_count' else UNITS[domain]
-    fields = {'metric': key, 'group': 'all' if key in ('record_count', 'observed_mean') else '<group label>',
-              'value': '<number>', 'count': '<number of records in group>', 'unit': unit}
+    form = ('Source contains <number> records.' if key == 'record_count' else
+            'The mean is <number>.' if key == 'observed_mean' else 'Group <group label> mean is <number>.')
     prompt = (target + ' Break equal means by ascending group label. Use original units, not percentages. '
-              'Keep the normal outer answer schema. Put ONLY a JSON object with these fields in the summary string: '
-              + json.dumps(fields) + '. Use numeric values for value and count. Return exactly one fact finding; '
-              'its claim must be the same JSON object as the summary and cite the calculation evidence. '
+              'Keep the normal outer answer schema. Return exactly one fact finding using this claim form: '
+              + form + ' Replace placeholders with the calculated number and exact group label. '
+              'Use that claim as the summary and cite its calculation evidence, including the record count. '
               'State limitations in the limitations list. If the calculation is unavailable, state that limitation instead of inventing values.')
     spec = {**scenario, 'domain': domain, 'group_field': group, 'unit': unit, 'prompt': prompt,
             'target': TARGETS[domain], 'tolerance': 1e-9, 'tie_policy': 'ascending group label', 'suite_version': SUITE_VERSION}
@@ -187,28 +188,23 @@ def score_answer(run, evidence, spec, oracle, snapshot, mode='real'):
         raise ValueError('Answer status or snapshot differs from the benchmark')
     if answer.get('mode') != mode or answer.get('sources') != {'snapshot': snapshot, 'domain': spec['domain']}:
         raise ValueError('Answer execution mode or source identity differs')
-    try:
-        actual = json.loads(answer['summary'])
-    except (KeyError, TypeError, json.JSONDecodeError) as error:
-        raise ValueError('Answer summary is not the required structured result') from error
-    if not isinstance(actual, dict) or set(actual) != set(expected):
-        raise ValueError('Answer fields differ from the required structured result')
-    for field in ('metric', 'group', 'unit'):
-        if actual[field] != expected[field]:
-            raise ValueError('Answer metric, group or units disagree with original data')
-    for field in ('value', 'count'):
-        value = actual[field]
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-            raise ValueError('Answer measurements must be finite numbers')
-        if not math.isclose(value, expected[field], rel_tol=0, abs_tol=spec['tolerance'] if field == 'value' else 0):
-            raise ValueError('Answer measurement disagrees with original data')
+    number = r'(?P<value>-?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)'
+    pattern = (r'Source contains ' + number + r' records\.' if spec['id'] == 'record_count' else
+               r'The mean is ' + number + r'\.' if spec['id'] == 'observed_mean' else
+               r'Group ' + re.escape(expected['group']) + r' mean is ' + number + r'\.')
+    summary = answer.get('summary')
+    match = re.fullmatch(pattern, summary) if isinstance(summary, str) else None
+    if not match:
+        raise ValueError('Answer summary is not the required structured metric claim')
+    value = float(match['value'])
+    if not math.isfinite(value) or not math.isclose(value, expected['value'], rel_tol=0, abs_tol=spec['tolerance']):
+        raise ValueError('Answer measurement disagrees with original data')
+    # Group, unit and count are independently checked against the cited calculation below.
+    actual = {**expected, 'value': value}
     findings = answer.get('findings', [])
     if len(findings) != 1 or findings[0].get('kind') != 'fact':
         raise ValueError('Benchmark requires one supported fact')
-    try:
-        same_claim = json.loads(findings[0]['claim']) == actual
-    except (KeyError, TypeError, json.JSONDecodeError):
-        same_claim = False
+    same_claim = findings[0].get('claim') == summary
     if not same_claim or not findings[0].get('evidence_ids'):
         raise ValueError('Finding does not state and cite the structured answer')
     supported = False

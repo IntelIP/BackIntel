@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gc
 import json
+import math
 import os
 import resource
 import tempfile
@@ -26,10 +27,18 @@ def matrix_features(row):
     return values
 
 
+def prediction_values(kind, values):
+    # Both regression targets are nonnegative: resolution hours and remaining cycles.
+    values = [float(value) for value in values]
+    if any(not math.isfinite(value) for value in values):
+        raise ValueError('Predictor returned a nonfinite value')
+    return [max(value, 0.) if kind == 'regression' else value for value in values]
+
+
 def metrics(kind, truth, predicted):
     import numpy as np
     from sklearn.metrics import average_precision_score, brier_score_loss, mean_absolute_error, mean_squared_error, roc_auc_score
-    y, p = np.asarray(truth), np.asarray(predicted)
+    y, p = np.asarray(truth), np.asarray(prediction_values(kind, predicted))
     if kind == 'regression':
         return {'mae': float(mean_absolute_error(y,p)), 'rmse': float(mean_squared_error(y,p)**.5), 'n': len(y)}
     p = np.clip(p,0,1)
@@ -222,6 +231,7 @@ def compare(domain, rows, snapshot):
                 estimator.fit(x,y)
                 joblib.dump({'vectorizer':vectorizer,'estimator':estimator},artifact)
             predicted=estimator.predict_proba(xx)[:,list(estimator.classes_).index(1)] if kind=='classification' else estimator.predict(xx)
+            predicted = prediction_values(kind, predicted)
             calibrated, predicted = predicted[:len(cal)], predicted[len(cal):]
             output['artifacts'].append(fingerprint(artifact))
             output['methods'].append({'route':route,'features':feature_set,'artifact':artifact.name,
@@ -269,7 +279,7 @@ def predict(model, rows):
     x=package['vectorizer'].transform([matrix_features(r) for r in prepared])
     estimator=package['estimator']
     values=estimator.predict_proba(x)[:,list(estimator.classes_).index(1)] if body['kind']=='classification' else estimator.predict(x)
-    return {r['id']:float(v) for r,v in zip(rows,values)}
+    return {r['id']:v for r,v in zip(rows,prediction_values(body['kind'], values))}
 
 
 if __name__ == '__main__':
