@@ -11,6 +11,52 @@ from scripts import analysis_benchmark_support as scoring
 
 
 class BenchmarkChecks(unittest.TestCase):
+    def test_default_preflight_preserves_paid_receipt(self):
+        import os
+        from unittest.mock import patch
+        from scripts import analysis_benchmark as producer
+        with tempfile.TemporaryDirectory() as directory:
+            accepted = Path(directory)/'Analysis/benchmark-evidence.json'
+            accepted.parent.mkdir()
+            accepted.write_text('{"status":"passed","paid_fixture":true}')
+            before = accepted.read_bytes()
+            with patch.dict(os.environ, {'BACKINTEL_MODEL_DIR':directory}), \
+                 patch('sys.argv', ['analysis_benchmark', '--domains', 'churn']), \
+                 patch.object(producer, 'source_files', return_value=[self.path]), \
+                 patch.object(producer, 'candidate_identity', return_value={}):
+                self.assertEqual(producer.main(), 1)
+            self.assertEqual(accepted.read_bytes(), before)
+            self.assertTrue((accepted.parent/'benchmark-preflight.json').is_file())
+
+    def test_campaign_recomputes_answers_and_accepts_current_schema(self):
+        from copy import deepcopy
+        from unittest.mock import patch
+        from scripts.validation import benchmark_campaign as campaign
+        helper = vars(scoring).copy()
+        helper['SCENARIOS'] = [scoring.SCENARIOS[1]]
+        helper['receipt_identity_error'] = lambda *args: None
+        answer = {'scenario':self.spec, 'status':'passed', 'correct':True,
+                  'run_id':'run', 'run':self.run, 'evidence':self.evidence}
+        receipt = {'schema':scoring.SUITE_VERSION, 'mode':'real', 'charge_status':'measured',
+                   'scenarios':[self.spec], 'scenario_hash':scoring.digest([self.spec]),
+                   'charges':[{'run_id':'run'}], 'domains':[{'domain':'churn', 'status':'passed',
+                   'oracle':self.oracle, 'snapshot_id':'snapshot', 'answers':[answer]}]}
+        def read_script(path):
+            return helper if str(path).endswith('analysis_benchmark_support.py') else {'source_files':lambda domain:[self.path]}
+        with patch.object(campaign, 'identity_error', return_value=None), patch.object(campaign.runpy, 'run_path', side_effect=read_script):
+            self.assertEqual(campaign.real_result({'evidence':'analyst'}, 'churn', [receipt], {})[0], 'passed')
+            for field in ('run', 'evidence', 'oracle', 'measurement', 'charge'):
+                forged = deepcopy(receipt)
+                row = forged['domains'][0]
+                if field == 'oracle': row[field] = {'fabricated':True}
+                elif field == 'measurement':
+                    row['answers'][0]['run']['result']['summary'] = 'The mean is 99.'
+                    row['answers'][0]['run']['result']['findings'][0]['claim'] = 'The mean is 99.'
+                elif field == 'charge': forged['charges'] = [{'run_id':'other-run'}]
+                else: row['answers'][0][field] = {}
+                with self.subTest(field=field):
+                    self.assertEqual(campaign.real_result({'evidence':'analyst'}, 'churn', [forged], {})[0], 'blocked')
+
     def test_real_validator_accepts_the_producers_dependency_digest(self):
         import ast
         from unittest.mock import patch

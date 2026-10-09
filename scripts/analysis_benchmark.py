@@ -44,8 +44,11 @@ def main():
     parser.add_argument('--comparisons',action='store_true',help='Also run full predictor comparisons')
     parser.add_argument('--candidate-manifest',help='Clean host candidate_identity JSON; verify complete runtime file set and bytes inside an image without Git')
     parser.add_argument('--execute-real',action='store_true',help='Explicitly execute hosted analyst calls under existing campaign limits')
-    parser.add_argument('--output',default=str(Path(os.getenv('BACKINTEL_MODEL_DIR','/models'))/'Analysis/benchmark-evidence.json'))
+    parser.add_argument('--output')
     args=parser.parse_args()
+    if args.output is None:
+        name='benchmark-evidence.json' if args.execute_real else 'benchmark-preflight.json'
+        args.output=str(Path(os.getenv('BACKINTEL_MODEL_DIR','/models'))/'Analysis'/name)
     specs=[scenario_spec(domain,scenario,CONFIG['sources'][domain]['group']) for domain in args.domains
            for scenario in SCENARIOS if args.partition=='all' or scenario['partition']==args.partition]
     receipt={'schema':SUITE_VERSION,'mode':'real','status':'blocked','domains':[],
@@ -104,6 +107,7 @@ def main():
                             raise RuntimeError(answer.get('error') or 'Frontier answer incomplete')
                         evidence={identity:db.query('SELECT * FROM backintel.capability_evidence WHERE sha256=%s',(identity,),one=True)
                                   for finding in answer['result'].get('findings',[]) for identity in finding.get('evidence_ids',[])}
+                        checked.update(run=answer,evidence=evidence)
                         checked.update(score_answer(answer,evidence,spec,oracle,snapshot))
                         checked.update(status='passed',usage=answer['result']['usage'])
                     except Exception as error:

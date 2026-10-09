@@ -250,13 +250,14 @@ def real_result(spec, domain, receipts, candidate, checkout=None):
                              for method in receipt['methods']]
         detail['dependencies'] = dependencies
         return status, 'Native partial real prediction comparison; missing routes remain excluded', detail
-    if receipt.get('schema') != 'backintel-answers/v2' or not receipt.get('scenario_hash'):
-        return 'blocked', 'Current analyst scenario and identity receipt is missing', None
     helper_path = Path(checkout or ROOT) / 'scripts/analysis_benchmark_support.py'
     if not helper_path.is_file():
         return 'blocked', 'Current real-analyst receipt validator is unavailable', None
     helper = runpy.run_path(str(helper_path))
-    sources = read_json(Path(checkout or ROOT) / 'config/analysis.json', {}).get('sources', {})
+    if receipt.get('schema') != helper['SUITE_VERSION'] or not receipt.get('scenario_hash'):
+        return 'blocked', 'Current analyst scenario identity receipt missing', None
+    config = read_json(Path(checkout or ROOT) / 'config/analysis.json', {})
+    sources = config.get('sources', {})
     requested_domains = {row.get('domain') for row in receipt.get('domains', [])}
     if not requested_domains or not requested_domains <= sources.keys():
         return 'blocked', 'Analyst receipt includes unknown domains', None
@@ -281,7 +282,25 @@ def real_result(spec, domain, receipts, candidate, checkout=None):
         return 'blocked', 'Analyst scenario coverage or independent oracle is incomplete', None
     if receipt.get('charge_status') not in ('reconciled', 'settled', 'measured'):
         return 'blocked', 'Analyst charges are not reconciled', None
-    status = 'passed' if all(a.get('correct') is True and a.get('status') == 'passed' for a in answers) else 'failed'
+    try:
+        data = runpy.run_path(str(Path(checkout or ROOT) / 'runtime/analysis_data.py'))
+        oracle = helper['raw_oracle'](domain, data['source_files'](domain), config['limits']['source_rows'])
+        if oracle != row['oracle']:
+            raise ValueError('Analyst oracle differs from current original source files')
+        snapshot = row.get('snapshot_id')
+        if not snapshot:
+            raise ValueError('Analyst snapshot identity missing')
+        for answer in answers:
+            definition = next(item for item in definitions if item['id'] == answer['scenario']['id'])
+            run = answer.get('run') or {}
+            if not answer.get('run_id') or run.get('id') != answer['run_id']:
+                raise ValueError('Analyst run identity missing or inconsistent')
+            if not any(charge.get('run_id') == run['id'] for charge in receipt['charges']):
+                raise ValueError('Analyst run has no provider charge record')
+            helper['score_answer'](run, answer.get('evidence') or {}, definition, oracle, snapshot)
+    except (KeyError, TypeError, ValueError, AttributeError, OSError, StopIteration) as error:
+        return 'blocked', 'Analyst answer evidence could not be independently verified: '+str(error), None
+    status = 'passed'
     return status, 'Real analyst answers with explicit scenario checks', {
         'scenario_hash': receipt['scenario_hash'], 'oracle': row['oracle'], 'provider_usd': receipt.get('provider_usd'),
         'provider_calls': receipt.get('provider_calls')}
