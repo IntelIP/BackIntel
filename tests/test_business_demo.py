@@ -82,14 +82,29 @@ class BusinessDemoTests(unittest.TestCase):
             self.assertFalse((owned / ".web").exists())
             self.assertIn('frontend_port=3002', (owned / "rxconfig.py").read_text())
 
-    def packet(self, requests=(), stages=0, jobs=(), triggers=(), sources=()):
+    def packet(self, requests=(), stages=0, jobs=(), triggers=(), sources=(), observations=(), corrections=(), analyses=()):
         store = Mock(task_id="support-test")
         store.find.side_effect = lambda kind, identity: {"body": {"task": "task", "at": 10}} if identity == "history-v1" else {"body": {"arrival_plans": ["arrival-1", "arrival-2", "arrival-3"]}} if identity == "followups-v1" else None
-        store.get.return_value = {"sha256": "task", "body": {"measures": [{"id": "load", "unit": "tickets"}]}}
-        store.list.side_effect = lambda kind, *args: [{"available_at": 10 + index} for index in range(stages)] if kind == "real_stage_result" else []
-        with patch("runtime.contracts.current_sources", return_value=sources):
+        store.get.side_effect = lambda identity: next((r for r in observations if r["sha256"] == identity), {"sha256": "task", "body": {"measures": [{"id": "load", "unit": "tickets"}]}})
+        store.list.side_effect = lambda kind, *args: [{"available_at": 10 + index} for index in range(stages)] if kind == "real_stage_result" else {"observation": observations, "correction": corrections, "analysis": analyses}.get(kind, [])
+        with patch("runtime.contracts.current_sources", return_value=sources) as current:
             self.last_packet = snapshot(store, jobs, requests, triggers)
+            self.last_cutoff = current.call_args.args[1]
             return self.last_packet["demo"]
+
+    def test_packet_uses_corrected_interpretation_after_a_later_accepted_analysis(self):
+        source = {"sha256": "a" * 64, "identity": "test-report", "available_at": 10,
+                  "body": {"id": "test-report", "entity": "Access", "content": "Synthetic login failure", "measures": {"load": 70}}}
+        observation = {'sha256':'original', 'available_at':10, 'body':{'source':source['sha256'],
+                       'question_id':'urgent', 'response':{'value':True}}}
+        correction = {'sha256':'corrected', 'available_at':20, 'body':{**observation['body'],
+                      'observation':'original', 'sequence':1, 'response':{'value':False}}}
+        self.packet(sources=[source], observations=[observation], corrections=[correction],
+                    analyses=[{'available_at':25}])
+        self.assertEqual(self.last_cutoff,25)
+        finding = self.last_packet['cases'][0]['finding']['text']
+        self.assertIn('urgent: False',finding)
+        self.assertNotIn('urgent: True',finding)
 
     def test_packet_exposes_admitted_measurements_with_original_text(self):
         source = {"sha256": "a" * 64, "identity": "test-report", "available_at": 10,

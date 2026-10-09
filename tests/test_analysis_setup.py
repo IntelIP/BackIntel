@@ -53,6 +53,10 @@ class SetupChecks(unittest.TestCase):
                 self.assertTrue(receipt['terms_acknowledged'])
                 self.assertFalse(receipt['competition_rules_accepted_by_tool'])
                 self.assertEqual(receipt, setup.import_data('churn', source))
+                receipt_path = base / 'datasets/Churn/source-receipt.json'
+                receipt_path.unlink()
+                self.assertEqual(receipt, setup.import_data('churn', source))
+                self.assertEqual(json.loads(receipt_path.read_text()), receipt)
                 original = (base / 'datasets/Churn' / source.name).read_bytes()
                 source.write_text(source.read_text().replace('Yes', 'No'))
                 with self.assertRaisesRegex(ValueError, 'Existing dataset differs'):

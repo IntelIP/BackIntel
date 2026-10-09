@@ -174,23 +174,46 @@ def build(root, demo_id, destination):
     return archive
 
 
+def verify_trusted_package(root):
+    """Verify extracted bytes against the archive receipt in the trusted checkout.
+
+    This path imports no Python modules from the extracted package.
+    """
+    distribution = ROOT / "docs/demo/Packages"
+    receipt = json.loads((distribution / "PackageReceipt.json").read_text())
+    archive = distribution / receipt["archive"]
+    if sha(archive) != receipt["archive_sha256"]:
+        raise ValueError("Archive differs from the trusted checkout receipt")
+    with zipfile.ZipFile(archive) as zipped:
+        manifest = zipped.read("BackIntelDemo/Manifest.json")
+    if (root / "Manifest.json").read_bytes() != manifest:
+        raise ValueError("Extracted manifest differs from the trusted archive")
+    return verify(root)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--package-root", type=Path, help="Verify and serve an extracted package using this trusted checkout")
     parser.add_argument("--demo-id", default="business-v4")
     parser.add_argument("--output", type=Path, default=ROOT / "docs/demo/Packages")
     parser.add_argument("--port", type=int, default=2053)
     args = parser.parse_args()
     if args.demo_id != "business-v4" or not 1 <= args.port <= 65535:
         parser.error("This package owns business-v4; use a valid local port")
+    playback_root = args.package_root.resolve() if args.package_root else ROOT
+    if args.package_root:
+        if args.build:
+            parser.error("--package-root cannot be combined with --build")
+        verify_trusted_package(playback_root)
     if args.build:
         print(build(ROOT, args.demo_id, args.output))
     elif args.check:
-        manifest = verify(ROOT)
+        manifest = verify(playback_root)
         print(json.dumps({"status": "passed", "files": len(manifest["files"]), "new_provider_calls": 0}))
     else:
-        api = server(ROOT, args.port)
+        api = server(playback_root, args.port)
         print(f"Recorded demo: http://127.0.0.1:{api.server_port}/ · no new model calls", flush=True)
         try:
             api.serve_forever()

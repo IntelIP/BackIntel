@@ -12,12 +12,13 @@ Requirements: Python 3.10 or later and an unzip utility. From this repository ch
 
 ```sh
 unzip docs/demo/Packages/BackIntelDemoBusinessV4.zip -d /path/to/a/new/demo-folder
-cd /path/to/a/new/demo-folder/BackIntelDemo
-python3 RunDemo.py --check
-python3 RunDemo.py
+python3 -m scripts.package_business_demo --package-root /path/to/a/new/demo-folder/BackIntelDemo --check
+python3 -m scripts.package_business_demo --package-root /path/to/a/new/demo-folder/BackIntelDemo
 ```
 
-Open <http://127.0.0.1:2053/>. Stop with Ctrl-C. Use `python3 RunDemo.py --port 2054` if that port is occupied. Extract into a new folder to preserve any previous demo reviews.
+Open <http://127.0.0.1:2053/>. Stop with Ctrl-C. Add `--port 2054` to the serving command if that port is occupied. Extract into a new folder to preserve any previous demo reviews.
+
+Run these commands from a trusted repository checkout. The launcher checks the archive against the checkout’s receipt and verifies the extracted files before serving them. It imports no Python code from the extracted package. An embedded `RunDemo.py --check` cannot establish trust in an altered or redistributed package by itself.
 
 The package includes the built interface and saved results. It needs no Node installation, database server, model download, provider key, or paid inference. New review notes are saved only inside the extracted copy.
 

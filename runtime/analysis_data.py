@@ -117,13 +117,16 @@ def churn(paths):
 
 def credit(paths):
     # Deterministic bounded applicant cohort; histories are streamed at their own grain.
-    applicants = {}
-    for r in csv_rows(paths[0]):
+    cohort = []
+    limit = CONFIG['limits']['source_rows']
+    for index, r in enumerate(csv_rows(paths[0])):
         identity = r['SK_ID_CURR']
-        if int(digest(identity)[:8], 16) % 31 == 0:
-            applicants[identity] = r
-            if len(applicants) >= CONFIG['limits']['source_rows']:
-                break
+        hashed = digest(identity)
+        if int(hashed[:8], 16) % 31 == 0:
+            heapq.heappush(cohort, (-int(hashed, 16), index, identity, r))
+            if len(cohort) > limit:
+                heapq.heappop(cohort)
+    applicants = {identity: r for _, _, identity, r in sorted(cohort, reverse=True)}
     histories = defaultdict(lambda: {'bureau_count': 0, 'bureau_credit_sum': 0., 'bureau_debt_sum': 0., 'bureau_active': 0})
     for r in csv_rows(paths[1]):
         identity = r['SK_ID_CURR']

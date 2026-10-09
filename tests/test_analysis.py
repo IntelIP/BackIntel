@@ -167,6 +167,25 @@ class AdapterChecks(unittest.TestCase):
         results[0]['kind'] = 'observed'
         self.assertEqual(validate_answer(answer, results), answer)
 
+    def test_credit_cohort_does_not_depend_on_application_order(self):
+        from unittest.mock import patch
+        from runtime.analysis_data import CONFIG, digest
+        from scripts.analysis_benchmark_support import raw_oracle
+        eligible = [str(i) for i in range(1000) if int(digest(str(i))[:8], 16) % 31 == 0][:8]
+        applications = [{'SK_ID_CURR':identity, 'TARGET':index % 2} for index,identity in enumerate(eligible)]
+        with tempfile.TemporaryDirectory() as directory, patch.dict(CONFIG['limits'], {'source_rows':3}):
+            source = csv_file(directory, 'applications.csv', applications)
+            bureau = csv_file(directory, 'bureau.csv', [{'SK_ID_CURR':'outside', 'DAYS_CREDIT':-1}])
+            before = list(credit([source,bureau]))
+            first_oracle = raw_oracle("credit",[source,bureau],3)
+            csv_file(directory, 'applications.csv', list(reversed(applications)))
+            after = list(credit([source,bureau]))
+            second_oracle = raw_oracle("credit",[source,bureau],3)
+        self.assertEqual(len(before),3)
+        self.assertEqual(before,after)
+        self.assertEqual(first_oracle["cohort_ids"], sorted(sorted(eligible,key=digest)[:3]))
+        self.assertEqual(first_oracle["cohort_hash"], second_oracle["cohort_hash"])
+
     def test_cached_comparison_rebinds_metadata_and_recomputes_scores(self):
         import json
         from copy import deepcopy

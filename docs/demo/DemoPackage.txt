@@ -8,8 +8,8 @@ prediction methods, arrivals, corrections, and a shared human review.
 Start the packaged React demo
 1. Extract BackIntelDemoBusinessV4.zip. It creates one BackIntelDemo folder.
 2. Open a terminal in BackIntelDemo.
-3. Run: python3 RunDemo.py --check
-4. Run: python3 RunDemo.py
+3. From a trusted repository checkout, run: python3 -m scripts.package_business_demo --package-root /path/to/BackIntelDemo --check
+4. From the same checkout, run: python3 -m scripts.package_business_demo --package-root /path/to/BackIntelDemo
 5. Open http://127.0.0.1:2053/
 Python 3.10 or later is enough. React is already built. No Node installation,
 database service, model download, provider key, or paid inference is needed.
@@ -72,3 +72,5 @@ python3 -m scripts.package_business_demo --build
 The build reads retained business-v4 files and a read-only SQLite backup. It
 does not run Jev, train models, or start the autonomous worker. Fresh engine
 execution is separate and retains its task-scoped authorizations and cost limits.
+
+Verify redistributed or altered copies through the trusted checkout. This launcher compares the archive with its trusted receipt, verifies the extracted manifest and files, and imports no Python from the extracted package. The embedded RunDemo.py is not an independent trust source.

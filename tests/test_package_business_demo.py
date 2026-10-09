@@ -12,6 +12,40 @@ from scripts.package_business_demo import backup_reviews, server, sha, verify
 
 
 class RecordedPackageTests(unittest.TestCase):
+    def test_trusted_checkout_rejects_package_code_before_it_can_execute(self):
+        import zipfile
+        from unittest.mock import patch
+        from scripts.package_business_demo import verify_trusted_package
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = Path(directory)
+            package = checkout / 'BackIntelDemo'
+            (package / 'Records').mkdir(parents=True)
+            (package / 'scripts').mkdir()
+            script = package / 'scripts/__init__.py'
+            script.write_text('')
+            (package / 'Records/Workspace.json').write_text(json.dumps({'demo':{'status':'completed','demo_id':'business-v4'}}))
+            files = [{'path':str(p.relative_to(package)), 'sha256':sha(p)} for p in package.rglob('*') if p.is_file()]
+            manifest = package / 'Manifest.json'
+            manifest.write_text(json.dumps({'demo_id':'business-v4','files':files}))
+            distribution = checkout / 'docs/demo/Packages'
+            distribution.mkdir(parents=True)
+            archive = distribution / 'demo.zip'
+            with zipfile.ZipFile(archive,'w') as zipped:
+                for file in package.rglob('*'):
+                    if file.is_file(): zipped.write(file,str(file.relative_to(checkout)))
+            (distribution / 'PackageReceipt.json').write_text(json.dumps({'archive':archive.name,'archive_sha256':sha(archive)}))
+            marker = checkout / 'executed'
+            with patch('scripts.package_business_demo.ROOT',checkout):
+                verify_trusted_package(package)
+                script.write_text('from pathlib import Path\nPath('+repr(str(marker))+').touch()\n')
+                with self.assertRaises(ValueError): verify_trusted_package(package)
+                self.assertFalse(marker.exists())
+                forged = json.loads(manifest.read_text())
+                next(f for f in forged['files'] if f['path']=='scripts/__init__.py')['sha256'] = sha(script)
+                manifest.write_text(json.dumps(forged))
+                with self.assertRaisesRegex(ValueError,'trusted archive'): verify_trusted_package(package)
+                self.assertFalse(marker.exists())
+
     def test_playback_review_scope_integrity_and_loopback_boundary(self):
         with tempfile.TemporaryDirectory(prefix="BackIntelPackageChecks") as directory:
             root = Path(directory) / "Package"

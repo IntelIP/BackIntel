@@ -146,11 +146,9 @@ def raw_oracle(domain, paths, limit):
             if domain in ('commerce', 'credit') and value not in (None, 0, 1):
                 raise ValueError('Invalid original binary label')
             rows.append((identity, value, record.get(group_key, '')))
-            if domain == 'credit' and len(rows) == limit:
-                break
     if len({row[0] for row in rows}) != len(rows):
         raise ValueError('Duplicate original record identity')
-    if domain not in ('credit', 'maintenance'):
+    if domain != 'maintenance':
         rows = sorted(rows, key=lambda row: digest(row[0]))[:limit]
     if not rows:
         raise ValueError('Original cohort has no records')

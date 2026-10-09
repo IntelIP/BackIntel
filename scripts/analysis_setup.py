@@ -135,6 +135,8 @@ def import_data(domain, source, provenance=None):
             existing, _, _ = validate_files(domain, destination)
             if existing != files:
                 raise ValueError('Existing dataset differs; preserve it and choose a new BACKINTEL_DATASET_DIR')
+            if not (destination / 'source-receipt.json').exists():
+                (staging / 'source-receipt.json').replace(destination / 'source-receipt.json')
             return receipt
         staging.rename(destination)
     return receipt

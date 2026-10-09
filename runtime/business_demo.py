@@ -161,10 +161,13 @@ def snapshot(store, jobs, requests, triggers=()):
     task = store.get(plan["body"]["task"])
     measure_units = {measure["id"]: measure["unit"] for measure in task["body"]["measures"]}
     stages = store.list("real_stage_result")
-    at = max([plan["body"]["at"], *[record["available_at"] for record in stages]])
+    accepted = [*stages, *store.list("analysis"), *store.list("correction")]
+    at = max([plan["body"]["at"], *[record["available_at"] for record in accepted]])
     from runtime.contracts import current_sources
     sources = current_sources(store, at, task["sha256"])
-    observations = store.list("observation", at)
+    from runtime.observations import effective_observation
+    observations = [effective_observation(store, record["sha256"], at)
+                    for record in store.list("observation", at)]
     models = store.list("model", at)
     comparisons = store.list("comparison", at)
     comparison_rows = []
