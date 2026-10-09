@@ -575,6 +575,44 @@ class CampaignChecks(unittest.TestCase):
             service.promote(candidate, self.actor)
         self.assertIsNone(db.goal(self.goal)['active_model'])
 
+    def test_promotion_rolls_back_when_manager_authority_changes_after_admission(self):
+        admit = service._admit_run
+        candidate = self.candidate_fixture()
+        for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='analyst'", "domains=ARRAY['support']"):
+            before = db.query('SELECT count(*) AS n FROM backintel.analysis_runs WHERE goal_id=%s', (self.goal,), one=True)['n']
+            def revoke_after_admission(*args, **kwargs):
+                run_id = admit(*args, **kwargs)
+                db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
+                return run_id
+            try:
+                with self.subTest(change=change), patch.object(service, '_admit_run', side_effect=revoke_after_admission), self.assertRaisesRegex(PermissionError, 'Current manager authority'):
+                    service.promote(candidate, self.actor)
+                self.assertIsNone(db.goal(self.goal)['active_model'])
+                self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
+                self.assertEqual(db.query('SELECT count(*) AS n FROM backintel.analysis_runs WHERE goal_id=%s', (self.goal,), one=True)['n'], before)
+            finally:
+                db.write("UPDATE backintel.analysis_principals SET enabled=true,expires_at=NULL,role='manager',domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
+
+    def test_snapshot_reversion_compares_previous_installation_not_creation_time(self):
+        from runtime.analysis_agent import tool
+        first = self.snapshot
+        second_rows = [{**self.rows[0], 'target': 0}]
+        second = digest(second_rows)
+        db.save_snapshot('commerce', second, {'fixture': True}, second_rows)
+        middle = service.submit(self.goal, self.actor)
+        self.assertEqual(middle['body']['prior_snapshot'], first)
+        db.save_snapshot('commerce', first, {'fixture': True}, self.rows)
+        reverted = service.submit(self.goal, self.actor)
+        self.assertNotEqual(reverted['id'], self.run['id'])
+        self.assertEqual(reverted['body']['prior_snapshot'], second)
+        comparison = tool(reverted['id'], 'compare_snapshots', {})
+        self.assertEqual(comparison['prior_snapshot'], second)
+        self.assertEqual(comparison['current'][0]['mean'], 1)
+        self.assertEqual(comparison['previous'][0]['mean'], 0)
+        db.save_snapshot('commerce', first, {'fixture': True}, self.rows)
+        self.assertEqual(db.source('commerce')['body']['previous_snapshot'], second)
+        self.assertEqual(service.submit(self.goal, self.actor)['id'], reverted['id'])
+
     def test_implementation_change_marks_previous_answer_stale(self):
         from runtime.analysis_api import goals
         db.write("UPDATE backintel.analysis_sources SET body=body-'last_refresh_error' WHERE id='commerce'")

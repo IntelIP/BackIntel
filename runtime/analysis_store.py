@@ -75,7 +75,9 @@ def save_snapshot(domain, identity, body, rows, *, connection=None):
         with c.cursor() as cur:
             cur.executemany('INSERT INTO backintel.analysis_records(snapshot_id,id,body) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING',
                             [(identity, r['id'], Jsonb(r)) for r in rows])
-        c.execute('UPDATE backintel.analysis_sources SET latest_snapshot=%s,updated_at=now() WHERE id=%s', (identity, domain))
+        c.execute("""UPDATE backintel.analysis_sources SET body=CASE WHEN latest_snapshot IS DISTINCT FROM %s
+            THEN body || jsonb_build_object('previous_snapshot', latest_snapshot) ELSE body END,
+            latest_snapshot=%s,updated_at=now() WHERE id=%s""", (identity, identity, domain))
         e = Evidence(c, 'analysis-source-'+domain)
         e.put('source_snapshot', identity, body, int(time.time())) if not e.find('source_snapshot', identity) else None
 

@@ -136,7 +136,8 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
         raise ValueError('Invalid follow-up question')
     question = question or g['body']['question']
     implementation = analysis_identity()
-    run_id = digest([identity, g['version'], snapshot, operation, question, g['active_model'], implementation])
+    prior_snapshot = source['body'].get('previous_snapshot')
+    run_id = digest([identity, g['version'], snapshot, prior_snapshot, operation, question, g['active_model'], implementation])
     existing = c.execute('SELECT r.status,j.state FROM backintel.analysis_runs r JOIN backintel.capability_jobs j ON j.job_id=r.job_id WHERE r.id=%s', (run_id,)).fetchone()
     # An active worker owns the job lock and needs the source/goal locks to finish.
     # Replays must return without waiting for that worker while holding these locks.
@@ -154,7 +155,7 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
         raise RuntimeError('Source analysis queue has reached its 20 pending-run limit')
     payload = {'run_id': run_id, 'operation': operation}
     c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
-              (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model'], 'analysis_identity': implementation})))
+              (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model'], 'analysis_identity': implementation, 'prior_snapshot': prior_snapshot})))
     store = Evidence(c, 'analysis-job-'+run_id)
     job_id = enqueue(store, payload, run_id)
     c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, run_id))
@@ -234,6 +235,11 @@ def promote(identity, actor, route='catboost-facts'):
         if not changed:
             raise ValueError('Goal changed during promotion; reload it and try again')
         run_id = _admit_run(c, g, actor)
+        manager = c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s AND enabled
+            AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND role='manager'
+            AND %s=ANY(domains) FOR UPDATE""", (actor['id'], g['domain'])).fetchone()
+        if not manager:
+            raise PermissionError('Current manager authority is required to promote a predictor')
         if not locked[1]:
             body = {**locked[0], 'approved_route': route, 'approved_by': actor['id']}
             c.execute('UPDATE backintel.analysis_models SET promoted=true,body=%s WHERE id=%s', (Jsonb(body), identity))

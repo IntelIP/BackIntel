@@ -18,6 +18,20 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_factual_prose_cannot_add_unmeasured_qualitative_assertions(self):
+        results = [{'tool': 'summarize', 'kind': 'observed', 'evidence_id': 'summary', 'table': [{'group': 'A', 'mean': .2, 'count': 10}]},
+                   {'tool': 'inspect_source', 'evidence_id': 'source', 'records': 10, 'missing': {'age': 0}}]
+        for evidence in ('summary', 'source'):
+            for claim in ('Customers are satisfied.', 'The sampled messages are routine requests.', 'The mean is NUM.'):
+                answer = {'summary': claim, 'findings': [{'claim': claim, 'kind': 'fact', 'evidence_ids': [evidence]}], 'limitations': []}
+                with self.subTest(evidence=evidence, claim=claim), self.assertRaisesRegex(ValueError, 'Factual claims'):
+                    validate_answer(answer, results)
+                answer['findings'][0]['kind'] = 'hypothesis'
+                self.assertEqual(validate_answer(answer, results)['findings'][0]['kind'], 'hypothesis')
+        claim = 'Group A mean is 0.2, so customers are satisfied.'
+        with self.assertRaisesRegex(ValueError, 'Factual claims'):
+            validate_answer({'summary': claim, 'findings': [{'claim': claim, 'kind': 'fact', 'evidence_ids': ['summary']}], 'limitations': []}, results)
+
     def test_text_classification_facts_bind_labels_counts_and_records(self):
         from runtime.analysis_agent import classification_claims
         results = [{'tool': 'interpret_text', 'kind': 'classification', 'evidence_id': 'text',
@@ -276,6 +290,10 @@ class AdapterChecks(unittest.TestCase):
         self.assertEqual(validate_answer(answer, results), answer)
         answer['findings'][0]['kind'] = 'fact'
         results[0]['kind'] = 'observed'
+        with self.assertRaisesRegex(ValueError, 'Factual claims'):
+            validate_answer(answer, results)
+        results[0]['table'] = [{'mean': .2}]
+        answer['findings'][0]['claim'] = 'The observed mean is 0.2.'
         self.assertEqual(validate_answer(answer, results), answer)
 
     def test_numeric_claims_are_bound_to_the_named_group(self):

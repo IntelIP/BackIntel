@@ -47,7 +47,7 @@ services:
       OTEL_TARGETS: ""
       OTEL_CONSOLE_EXPORT: "false"
     cpus: 2.0
-    mem_limit: 5g
+    mem_limit: 8g
     tmpfs: ["/run/backintel-credentials:mode=0700,size=1m"]
     ports: ["127.0.0.1:2028:2026"]
     volumes:
