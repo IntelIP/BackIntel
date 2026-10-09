@@ -51,6 +51,12 @@ def fixtures(directory):
     (folder / 'train_FD001.txt').write_text(''.join(line(engine, cycle) for engine in (1, 5) for cycle in (1, 2)))
     (folder / 'test_FD001.txt').write_text(line(1, 1))
     (folder / 'RUL_FD001.txt').write_text('7\n')
+    from unittest.mock import patch
+    from scripts.analysis_setup import import_data
+    with patch.dict(os.environ, {'BACKINTEL_DATASET_DIR': str(directory)}):
+        for domain in CONFIG['sources']:
+            import_data(domain, directory / domain.title(), provenance={
+                'kind': 'generated offline fixture', 'original_byte_identity': 'synthetic'})
 
 
 def ready(server, base):

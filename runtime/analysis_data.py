@@ -225,7 +225,7 @@ def adapt(domain, paths=None):
         ordered = sorted(r['event_at'] for r in rows if r['event_at'] is not None)
         if len(ordered) != len(rows):
             raise ValueError('Support requires valid creation timestamps')
-        cutoffs = (ordered[int(len(ordered)*.7)], ordered[int(len(ordered)*.85)])
+        cutoffs = [ordered[int(len(ordered)*.7)], ordered[int(len(ordered)*.85)]]
     for r in rows:
         if r['split'] is not None:
             continue

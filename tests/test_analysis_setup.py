@@ -173,6 +173,15 @@ class SetupChecks(unittest.TestCase):
                 setup.import_data('churn', archive)
             self.assertEqual(sorted(p.name for p in (base / 'datasets/Churn').iterdir()), [source.name, 'source-receipt.json'])
 
+    def test_all_offline_source_receipts_survive_json_roundtrip(self):
+        from scripts.validation.run_analysis_offline import fixtures
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'BACKINTEL_DATASET_DIR':temporary}):
+            fixtures(Path(temporary))
+            for domain in CONFIG['sources']:
+                with self.subTest(domain=domain):
+                    receipt = setup.validate_source_receipt(domain)
+                    self.assertEqual(receipt['provenance']['kind'], 'generated offline fixture')
+
     def test_seed_manager_domain_upgrade_requires_explicit_cli_option(self):
         with patch('sys.argv', ['analysis_demo', 'seed', '--grant-manager-sources']), patch.object(demo, 'seed') as seed:
             demo.main()
