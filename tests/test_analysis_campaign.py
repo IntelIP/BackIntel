@@ -1143,6 +1143,24 @@ class CampaignChecks(unittest.TestCase):
         tools.assert_not_called()
         self.assertEqual(db.query('SELECT count(*) AS n FROM backintel.analysis_steps WHERE run_id=%s', (self.run['id'],), one=True)['n'], 0)
 
+    def test_forecasts_require_findings_citing_prediction_evidence(self):
+        import json
+        from runtime import analysis_agent as agent
+        observed = {'tool':'summarize','evidence_id':'observed','kind':'observed','table':[{'group':'A','mean':.2,'count':10}]}
+        prediction = {**observed,'tool':'predict','evidence_id':'predicted','kind':'estimate'}
+        for question in ('What is the forecast?', 'What is the probability?', 'What is the likelihood?', 'What are the predictions?'):
+            db.write("UPDATE backintel.analysis_runs SET body=body || %s WHERE id=%s", (Jsonb({'question':question}),self.run['id']))
+            for evidence,kind,expected in (('observed','fact',False), ('predicted','estimate',True)):
+                answer = {'summary':'Group A mean is 0.2.', 'limitations':[], 'findings':[{'claim':'Group A mean is 0.2.','kind':kind,'evidence_ids':[evidence]}]}
+                calls = {'output':[{'type':'function_call','name':name,'arguments':'{}','call_id':name} for name in ('summarize','predict')]}
+                final = {'output':[{'type':'message','content':[{'type':'output_text','text':json.dumps(answer)}]}]}
+                with self.subTest(question=question,evidence=evidence), patch.object(agent,'request',side_effect=[calls,final]), patch.object(agent,'tool',side_effect=[observed,prediction]):
+                    if expected:
+                        self.assertEqual(agent.analyze(self.run['id'])['status'],'succeeded')
+                    else:
+                        with self.assertRaisesRegex(ValueError,'Requested prediction is unavailable'):
+                            agent.analyze(self.run['id'])
+
     def test_valid_tool_loop_stops_before_thirteenth_execution(self):
         from runtime import analysis_agent as agent
         response = {'_backintel_fixture': True, 'output': [{'type': 'function_call', 'name': 'inspect_source',

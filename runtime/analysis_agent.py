@@ -365,7 +365,9 @@ def analyze(identity):
         if not calls:
             texts = [part.get('text', '') for item in outputs if item.get('type') == 'message' for part in item.get('content', []) if part.get('type') == 'output_text']
             answer = validate_answer(json.loads(''.join(texts)), results, g['body']['definitions']['group'])
-            if re.search(r'\b(estimated|predict|may take|remaining life|risk)\b',r['body']['question'],re.I) and not any(item.get('tool')=='predict' for item in results):
+            if re.search(r'\b(estimat(?:e|ed|es|ing)|predict(?:ion|ions|ed|ing|ive|s)?|forecast(?:s|ing)?|probabilit(?:y|ies)|likelihood|may take|remaining life|risk)\b',r['body']['question'],re.I) and not any(
+                    finding['kind']=='estimate' and all(any(item.get('tool')=='predict' and item.get('kind')=='estimate' and item['evidence_id']==evidence for item in results) for evidence in finding['evidence_ids'])
+                    for finding in answer['findings']):
                 raise ValueError('Requested prediction is unavailable; observed outcomes cannot replace it')
             db.check_run(identity)
             answer.update({'tables': [{'title': res['tool'], 'rows': res['table'], 'evidence_id': res['evidence_id'], **({'group_by': res['group_by']} if 'group_by' in res else {})} for res in results if 'table' in res],

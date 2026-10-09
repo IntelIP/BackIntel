@@ -97,7 +97,7 @@ class BusinessDemoTests(unittest.TestCase):
                   "body": {"id": "test-report", "entity": "Access", "content": "Synthetic login failure", "measures": {"load": 70}}}
         observation = {'sha256':'original', 'available_at':10, 'body':{'source':source['sha256'],
                        'question_id':'urgent', 'response':{'value':True}}}
-        correction = {'sha256':'corrected', 'available_at':20, 'body':{**observation['body'],
+        correction = {'sha256':'corrected', 'available_at':20, 'body':{
                       'observation':'original', 'sequence':1, 'response':{'value':False}}}
         self.packet(sources=[source], observations=[observation], corrections=[correction],
                     analyses=[{'available_at':25}])

@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "archive": "BackIntelDemoBusinessV4.zip",
-  "archive_sha256": "85042a71ef31680a976af76f9545660bb7babfb5a7f47be55f30d0e8a086cbd8",
+  "archive_sha256": "4f9a4ca8c4abc006b1c0c2c5962bd0609fcf095c08ef9cff291022740876846f",
   "mode": "recorded_synthetic_run",
   "files": 341,
   "new_provider_calls": 0,

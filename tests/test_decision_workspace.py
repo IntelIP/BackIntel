@@ -12,6 +12,23 @@ from runtime.decision_workspace import Conflict, DecisionStore, WorkspaceServer,
 
 
 class DecisionWorkspaceTests(unittest.TestCase):
+    def test_workspace_connections_close_after_reads_and_writes(self):
+        from unittest.mock import patch
+        import sqlite3
+        connections = []
+        connect = self.store.connect
+        def track():
+            connection = connect()
+            connections.append(connection)
+            return connection
+        with patch.object(self.store, 'connect', side_effect=track):
+            self.store.workspace(self.mode)
+            self.store.decide(self.cases[0]['id'], self.body)
+        self.assertTrue(connections)
+        for connection in connections:
+            with self.assertRaises(sqlite3.ProgrammingError):
+                connection.execute('SELECT 1')
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / "reviews.sqlite3"
@@ -121,7 +138,6 @@ class DecisionWorkspaceTests(unittest.TestCase):
 
     def test_packet_refresh_waits_for_decision_commit_and_response(self):
         from concurrent.futures import ThreadPoolExecutor
-        from contextlib import contextmanager
         from threading import Event
         from unittest.mock import patch
         path = Path(self.tmp.name) / 'packet.json'
@@ -129,14 +145,12 @@ class DecisionWorkspaceTests(unittest.TestCase):
         self.store.packet_path = path
         entered, release, refresh_started, refreshed = Event(), Event(), Event(), Event()
         original_connect = self.store.connect
-        @contextmanager
         def connect():
             if not entered.is_set():
                 entered.set()
                 if not release.wait(5):
                     raise TimeoutError('Test did not release decision')
-            with original_connect() as connection:
-                yield connection
+            return original_connect()
         def refresh():
             refresh_started.set()
             packet = self.store.workspace(self.mode)

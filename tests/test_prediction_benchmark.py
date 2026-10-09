@@ -7,6 +7,19 @@ from scripts.analysis_prediction_benchmark import verify_source
 
 
 class PredictionCandidateChecks(unittest.TestCase):
+    def test_invalid_source_receipt_prevents_predictor_execution(self):
+        from unittest.mock import patch
+        from scripts.analysis_prediction_benchmark import child
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output/'candidate.json').write_text('{}')
+            with patch('scripts.analysis_prediction_benchmark.verify_source'), patch('scripts.analysis_setup.validate_source_receipt', side_effect=ValueError('Source receipt does not match current files')) as validate, patch('runtime.analysis_models.compare') as compare:
+                self.assertEqual(child('commerce',output),1)
+            validate.assert_called_once_with('commerce')
+            compare.assert_not_called()
+            self.assertEqual(json.loads((output/'receipt.json').read_text())['status'],'failed')
+
     def test_only_matching_clean_source_can_execute(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

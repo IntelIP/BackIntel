@@ -6,6 +6,7 @@ are explicitly simulated. No model, network collection, or paid inference runs.
 
 import argparse
 from copy import deepcopy
+from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -134,7 +135,7 @@ class DecisionStore:
         self.demo = None
         self.database.parent.mkdir(parents=True, exist_ok=True)
         self.cases = {case["id"]: deepcopy(case) for case in cases}
-        with self.connect() as connection:
+        with closing(self.connect()) as connection, connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.execute("""CREATE TABLE IF NOT EXISTS reviews (
                 case_id TEXT NOT NULL, revision INTEGER NOT NULL,
@@ -156,7 +157,7 @@ class DecisionStore:
                 raise KeyError("Case not found")
             item = deepcopy(self.cases[case_id])
             item["context_sha256"] = decision_context(item)
-            with self.connect() as connection:
+            with closing(self.connect()) as connection, connection:
                 rows = connection.execute("SELECT decision,reason,revision,recorded_at FROM reviews WHERE case_id=? AND context_sha256=? ORDER BY revision DESC", (case_id, item["context_sha256"])).fetchall()
             item["history"] = [dict(row) for row in rows]
             item["review"] = item["history"][0] if rows else None
@@ -211,7 +212,7 @@ class DecisionStore:
             context_sha256 = decision_context(self.cases[case_id])
             if body["expected_context_sha256"] != context_sha256:
                 raise Conflict("This case or its analysis changed. Refresh before saving.")
-            with self.connect() as connection:
+            with closing(self.connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
                 revision = connection.execute("SELECT COALESCE(MAX(revision),0) FROM reviews WHERE case_id=? AND context_sha256=?", (case_id, context_sha256)).fetchone()[0]
                 if body["expected_revision"] != revision:

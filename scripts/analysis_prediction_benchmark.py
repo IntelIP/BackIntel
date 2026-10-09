@@ -40,7 +40,8 @@ def verify_source(root, identity):
 
 def child(domain, output):
     sys.path.insert(0, '/app')
-    from runtime.analysis_data import CONFIG, adapt, root, source_files
+    from runtime.analysis_data import CONFIG, adapt, source_files
+    from scripts.analysis_setup import validate_source_receipt
     from runtime.analysis_models import compare, predict
     from runtime.analysis_data import sample
     started = time.monotonic()
@@ -51,9 +52,7 @@ def child(domain, output):
                'analyst_tested': False, 'provider_calls': 0, 'provider_usd': 0,
                'local_compute_usd': None, 'network': 'disabled', 'status': 'blocked'}
     try:
-        permission = root() / domain.title() / 'source-receipt.json'
-        if not permission.exists() or json.loads(permission.read_text()).get('terms_acknowledged') is not True:
-            raise FileNotFoundError('Dataset or source-use confirmation is unavailable')
+        validate_source_receipt(domain)
         paths = source_files(domain)
         snapshot, source, rows = adapt(domain, paths)
         receipt.update(snapshot_id=snapshot, source=source,

@@ -166,7 +166,7 @@ def snapshot(store, jobs, requests, triggers=()):
     from runtime.contracts import current_sources
     sources = current_sources(store, at, task["sha256"])
     from runtime.observations import effective_observation
-    observations = [effective_observation(store, record["sha256"], at)
+    observations = [{**record, "body": {**record["body"], "response": effective_observation(store, record["sha256"], at)["body"]["response"]}}
                     for record in store.list("observation", at)]
     models = store.list("model", at)
     comparisons = store.list("comparison", at)
