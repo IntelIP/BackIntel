@@ -34,9 +34,9 @@ def fixture_send(client, request, *args, **kwargs):
             calculation = json.loads(outputs[-1]['output'])
             table = calculation.get('table', [])
             mean = table[0]['mean'] if table else None
-            summary = ('Explicit fixture: observed mean ' + str(mean) + '.') if mean is not None else 'Explicit fixture: calculation unavailable.'
+            summary = ('Explicit fixture: Group ' + str(table[0]['group']) + ' observed mean ' + str(mean) + '.') if mean is not None else 'Explicit fixture: calculation unavailable.'
             if 'fixture_invalid_number' in context['question']:
-                summary = 'Explicit fixture: observed mean 999999.'
+                summary = 'Explicit fixture: Group ' + str(table[0]['group']) + ' observed mean 999999.'
             answer = {'summary': summary, 'findings': [{'claim': summary, 'kind': 'estimate' if calculation.get('kind') == 'estimate' else 'fact',
                        'evidence_ids': [calculation.get('evidence_id', 'unavailable')]}],
                        'limitations': ['Synthetic validation inputs and deterministic provider/model fixtures.']}
