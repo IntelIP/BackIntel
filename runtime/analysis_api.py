@@ -146,7 +146,7 @@ async def refresh_source(domain:str,p=Depends(access)):
 @app.get('/api/v1/goals')
 def goals(p=Depends(access)):
     p=db.authorize(p)
-    result=db.query('SELECT * FROM backintel.analysis_goals WHERE domain=ANY(%s) ORDER BY created_at DESC',(p['domains'],))
+    result=db.query('SELECT * FROM backintel.analysis_goals WHERE domain=ANY(%s) ORDER BY created_at DESC',([domain for domain in p['domains'] if domain in CONFIG['sources']],))
     for g in result:
         source=db.source(g['domain'])
         previous=db.run(g['last_success']) if g['last_success'] else None
@@ -303,7 +303,9 @@ def review(identity:str,body:ReviewInput,p=Depends(access)):
     db.authorize(p,db.goal(identity)['domain'],('manager','analyst'))
     if body.kind not in ('comment','correction') or (body.run_id and db.run(body.run_id)['goal_id']!=identity):
         raise ValueError('Invalid review context')
-    db.write('INSERT INTO backintel.analysis_reviews(goal_id,run_id,actor,body) VALUES(%s,%s,%s,%s)',(identity,body.run_id,p['id'],Jsonb(body.model_dump())))
+    with db.connect() as c, c.transaction():
+        db.authorize(p, db.goal(identity)['domain'], ('manager','analyst'), connection=c)
+        db.write('INSERT INTO backintel.analysis_reviews(goal_id,run_id,actor,body) VALUES(%s,%s,%s,%s)',(identity,body.run_id,p['id'],Jsonb(body.model_dump())),connection=c)
     return {'saved':True}
 
 

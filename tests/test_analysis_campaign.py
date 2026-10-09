@@ -300,6 +300,23 @@ class CampaignChecks(unittest.TestCase):
                 self.assertEqual(db.run(run['id'])['status'], 'cancelled')
                 self.assertEqual(db.goal(self.goal)['last_success'], standing)
 
+    def test_review_insertion_rechecks_analyst_authority(self):
+        from runtime import analysis_api as api
+        actor = {'id':'campaign-analyst'}
+        original = db.authorize
+        def revoke(p, domain=None, roles=('manager','analyst','viewer'), **kwargs):
+            current = original(p, domain, roles, **kwargs)
+            if kwargs.get('connection') is None:
+                db.write('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s', (p['id'],))
+            return current
+        try:
+            with patch.object(db, 'authorize', side_effect=revoke), self.assertRaises(PermissionError):
+                api.review(self.goal, api.ReviewInput(text='Revoked analyst fixture'), actor)
+            self.assertEqual(db.query('SELECT id FROM backintel.analysis_reviews WHERE goal_id=%s', (self.goal,)), [])
+        finally:
+            db.write('UPDATE backintel.analysis_principals SET enabled=true WHERE id=%s', (actor['id'],))
+        self.assertTrue(api.review(self.goal, api.ReviewInput(text='Authorized analyst fixture'), actor)['saved'])
+
     def test_goal_creation_rechecks_manager_authority_before_inserting(self):
         original = db.source
         before = db.query('SELECT count(*) AS count FROM backintel.analysis_goals', one=True)['count']
@@ -596,12 +613,16 @@ class CampaignChecks(unittest.TestCase):
 
     def test_source_listing_skips_retired_domains_with_persisted_grants(self):
         from runtime import analysis_api as api
+        active = service.create_goal(self.actor, 'support', 'Active source fixture')
         before = [source['domain'] for source in api.sources(self.actor)]
         self.assertIn('commerce', before)
         configured = {domain: spec for domain, spec in api.CONFIG['sources'].items() if domain != 'commerce'}
         with patch.dict(api.CONFIG['sources'], configured, clear=True):
             self.assertEqual([source['domain'] for source in api.sources(self.actor)],
                              [domain for domain in before if domain != 'commerce'])
+            visible = api.goals(self.actor)
+            self.assertIn(active['id'], [goal['id'] for goal in visible])
+            self.assertNotIn(self.goal, [goal['id'] for goal in visible])
     def test_source_queue_limit_is_atomic_and_replays_remain_available(self):
         from runtime.analysis_api import cancel_run
         for index in range(18):
