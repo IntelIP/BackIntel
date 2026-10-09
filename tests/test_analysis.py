@@ -248,7 +248,8 @@ class AdapterChecks(unittest.TestCase):
                  patch.object(service,'source_files',return_value=[]), \
                  patch.object(service.db,'query',return_value={'body':original}), \
                  patch.object(service,'adapter_identity',return_value=identity), \
-                 patch.object(service,'adapt',return_value=('new',identity,[])) as adapt, \
+                 patch.object(service,'validate_source_receipt',return_value={'snapshot_id':'new','adapter_receipt':identity | {'files':[]}}), \
+                 patch.object(service,'adapt',return_value=('new',identity | {'files':[]},[])) as adapt, \
                  patch.object(service.db,'save_snapshot'), patch.object(service.db,'connect'):
                 self.assertEqual(service._import_source('commerce',{'id':'manager'}), {'snapshot':'new','changed':True})
                 adapt.assert_called_once()
@@ -463,6 +464,15 @@ class AdapterChecks(unittest.TestCase):
             for before, after in zip(original['methods'], rebuilt['methods']):
                 for key in ('metrics','calibration_metrics','predictions'):
                     self.assertEqual(after.get(key), before.get(key))
+
+    def test_negative_regression_targets_are_rejected_before_sampling(self):
+        from unittest.mock import patch
+        from runtime import analysis_data as data
+        for domain in ('support', 'maintenance'):
+            with self.subTest(domain=domain), patch.dict(data.ADAPTERS, {domain: lambda paths: iter([{'id':'negative', 'target':-1}])}), \
+                    patch.object(data, 'source_files', return_value=[]):
+                with self.assertRaisesRegex(ValueError, 'nonnegative'):
+                    data.adapt(domain)
 
     def test_estimates_require_supported_metrics_or_rankings(self):
         from runtime.analysis_agent import validate_answer

@@ -208,6 +208,8 @@ def adapt(domain, paths=None):
         total_rows+=1
         if CONFIG['sources'][domain]['kind']=='classification' and r['target'] not in (None,0,1):
             raise ValueError('Invalid binary source outcome')
+        if CONFIG['sources'][domain]['kind']=='regression' and r['target'] is not None and r['target'] < 0:
+            raise ValueError('Regression source outcomes must be nonnegative')
         if domain in ('credit','maintenance'):
             rows.append(r)
         else:

@@ -330,7 +330,7 @@ class CampaignChecks(unittest.TestCase):
                     if boundary == 'interrupt_before_commit':
                         raise KeyboardInterrupt('Fixture interruption before acceptance')
                     return result
-                with patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=adapt):
+                with patch.object(service, 'validate_source_receipt', return_value={'snapshot_id':snapshot,'adapter_receipt':{'files':[],'mode':'fixture'}}), patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=adapt):
                     if boundary == 'interrupt_before_commit':
                         with self.assertRaises(KeyboardInterrupt):
                             service.execute(run['job_id'], handler)
@@ -347,10 +347,87 @@ class CampaignChecks(unittest.TestCase):
                     self.assertFalse(db.query('SELECT id FROM backintel.analysis_snapshots WHERE id=%s', (snapshot,)))
                     self.assertFalse(db.query('SELECT id FROM backintel.analysis_runs WHERE snapshot_id=%s', (snapshot,)))
 
+    def test_import_checks_registered_bytes_before_reusing_a_snapshot(self):
+        import tempfile
+        from pathlib import Path
+        from scripts import analysis_setup
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'BACKINTEL_DATASET_DIR': temporary}):
+            incoming = Path(temporary)/'incoming.csv'
+            incoming.write_text('customerID,Churn,Contract,tenure,MonthlyCharges,TotalCharges\na,Yes,Monthly,1,2,2\nb,No,Annual,2,2,4\n')
+            db.write("UPDATE backintel.analysis_principals SET domains=ARRAY['commerce','support','churn'] WHERE id=%s", (self.actor['id'],))
+            self.addCleanup(db.write, "UPDATE backintel.analysis_principals SET domains=ARRAY['commerce','support'] WHERE id=%s", (self.actor['id'],))
+            receipt = analysis_setup.import_data('churn', incoming)
+            result = service.import_source('churn', self.actor)
+            self.assertEqual(result['snapshot'], receipt['snapshot_id'])
+            self.assertFalse(service.import_source('churn', self.actor)['changed'])
+            installed = Path(temporary)/'Churn'/CONFIG['sources']['churn']['files'][0]
+            installed.write_text(installed.read_text().replace('Yes', 'No'))
+            with self.assertRaises(PermissionError):
+                service.import_source('churn', self.actor)
+            self.assertEqual(db.source('churn')['latest_snapshot'], result['snapshot'])
+            installed.write_bytes(incoming.read_bytes())
+            (installed.parent/'source-receipt.json').unlink()
+            with self.assertRaises(PermissionError):
+                service.import_source('churn', self.actor)
+
+    def test_source_health_is_written_before_a_later_import_can_enter(self):
+        import threading
+        failed_health, release, successful_import = threading.Event(), threading.Event(), threading.Event()
+        write = db.write
+        def importing(domain, actor, **kwargs):
+            if actor.get('fail'):
+                raise OSError('Earlier failed import')
+            successful_import.set()
+            return {'snapshot': self.snapshot, 'changed': False}
+        def delayed_write(sql, params=(), **kwargs):
+            if params and isinstance(params[0], Jsonb) and params[0].obj.get('last_refresh_error') == 'Earlier failed import':
+                failed_health.set()
+                if not release.wait(5):
+                    raise TimeoutError('Fixture health write was not released')
+            return write(sql, params, **kwargs)
+        with patch.object(service, '_import_source', side_effect=importing), patch.object(db, 'write', side_effect=delayed_write), ThreadPoolExecutor(max_workers=2) as workers:
+            failed = workers.submit(service.import_source, 'commerce', {**self.actor, 'fail': True})
+            try:
+                self.assertTrue(failed_health.wait(5))
+                succeeded = workers.submit(service.import_source, 'commerce', self.actor)
+                self.assertFalse(successful_import.wait(.2))
+            finally:
+                release.set()
+            with self.assertRaises(OSError):
+                failed.result(timeout=5)
+            succeeded.result(timeout=5)
+        self.assertNotIn('last_refresh_error', db.source('commerce')['body'])
+
+    def test_late_queued_failure_cannot_overwrite_newer_successful_refresh(self):
+        run = service.submit_import('commerce', self.actor)
+        write = db.write
+        def newer_success(sql, params=(), **kwargs):
+            if sql.startswith('UPDATE backintel.analysis_sources') and kwargs.get('connection') is None:
+                service.import_source('commerce', self.actor)
+            return write(sql, params, **kwargs)
+        with patch.object(service, '_import_source', side_effect=[OSError('Earlier queued failure'), {'snapshot':self.snapshot, 'changed':False}]), \
+                patch.object(db, 'write', side_effect=newer_success):
+            service.execute(run['job_id'], service.handle)
+        self.assertNotIn('last_refresh_error', db.source('commerce')['body'])
+        self.assertEqual(db.run(run['id'])['status'], 'partial')
+
+    def test_operator_can_explicitly_grant_new_configured_sources_to_manager(self):
+        import tempfile
+        from pathlib import Path
+        from scripts import analysis_demo
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'BACKINTEL_ACCESS_CREDENTIAL_FILE': str(Path(temporary)/'access.json')}):
+            analysis_demo.seed()
+            db.write("UPDATE backintel.analysis_principals SET domains=ARRAY['commerce'] WHERE id IN ('manager','analyst')")
+            analysis_demo.seed()
+            self.assertEqual(db.query("SELECT domains FROM backintel.analysis_principals WHERE id='manager'", one=True)['domains'], ['commerce'])
+            analysis_demo.seed(grant_manager_sources=True)
+            self.assertEqual(set(db.query("SELECT domains FROM backintel.analysis_principals WHERE id='manager'", one=True)['domains']), set(CONFIG['sources']))
+            self.assertEqual(db.query("SELECT domains FROM backintel.analysis_principals WHERE id='analyst'", one=True)['domains'], ['commerce'])
+
     def test_failed_queued_import_preserves_refresh_error(self):
         db.write("UPDATE backintel.analysis_sources SET body=body || %s WHERE id='commerce'", (Jsonb({'terms_acknowledged':True}),))
         run = service.submit_import('commerce', self.actor)
-        with patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=OSError('Fixture source unavailable')):
+        with patch.object(service, 'validate_source_receipt', return_value={'snapshot_id':'unused','adapter_receipt':{'files':[]}}), patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=OSError('Fixture source unavailable')):
             service.execute(run['job_id'], service.handle)
         source = db.source('commerce')
         self.assertEqual(source['latest_snapshot'], self.snapshot)
@@ -562,7 +639,7 @@ class CampaignChecks(unittest.TestCase):
         def records(identity, **kwargs):
             correction_read.set()
             return original_records(identity, **kwargs)
-        with patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=adapt), patch.object(db, 'records', side_effect=records), ThreadPoolExecutor(max_workers=2) as workers:
+        with patch.object(service, 'validate_source_receipt', return_value={'snapshot_id':snapshot,'adapter_receipt':{'files':[],'mode':'fixture'}}), patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=adapt), patch.object(db, 'records', side_effect=records), ThreadPoolExecutor(max_workers=2) as workers:
             imported = workers.submit(service.import_source, 'commerce', self.actor)
             try:
                 self.assertTrue(adapting.wait(5))

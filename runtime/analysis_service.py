@@ -18,6 +18,7 @@ from runtime.analysis_data import CONFIG, adapt, adapter_identity, digest, finge
 from runtime.analysis_errors import safe_error
 from runtime.evidence import Evidence
 from runtime.jobs import enqueue, execute, runnable
+from scripts.analysis_setup import validate_source_receipt
 
 
 def _import_source(domain, actor, *, connection=None, run_id=None):
@@ -27,14 +28,20 @@ def _import_source(domain, actor, *, connection=None, run_id=None):
         source = db.source(domain, connection=c)
         if not source['body'].get('terms_acknowledged'):
             raise PermissionError('Source access and terms must be confirmed before import')
+        approved = validate_source_receipt(domain)
         paths = source_files(domain)
+        files = [fingerprint(p) for p in paths]
+        if files != approved['adapter_receipt']['files']:
+            raise PermissionError('Source bytes changed after receipt validation')
         if source['latest_snapshot']:
             prior = db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s', (source['latest_snapshot'],), one=True)
-            if (prior['body']['files'] == [fingerprint(p) for p in paths]
+            if (prior['body']['files'] == files
                     and all(prior['body'].get(key) == value for key, value in adapter_identity(domain).items())
                     and (domain!='maintenance' or prior['body'].get('unit_mapping')=='dataset-qualified-engine-v2')):
                 return {'snapshot': source['latest_snapshot'], 'changed': False}
         identity, body, rows = adapt(domain, paths)
+        if identity != approved['snapshot_id'] or body != approved['adapter_receipt']:
+            raise PermissionError('Source changed after receipt validation; reimport with authorization')
         if domain=='maintenance':
             body['unit_mapping']='dataset-qualified-engine-v2'
             identity=digest(body)
@@ -48,14 +55,21 @@ def _import_source(domain, actor, *, connection=None, run_id=None):
 
 def import_source(domain, actor, *, connection=None, run_id=None):
     db.authorize(actor, domain, ('manager',))
-    try:
-        result = _import_source(domain, actor, connection=connection, run_id=run_id)
-    except (OSError, ValueError, PermissionError, RuntimeError) as error:
-        db.write('UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s',
-                 (Jsonb({'last_refresh_error':safe_error(error),'last_checked_at':time.time()}),domain), connection=connection)
-        raise
-    db.write("UPDATE backintel.analysis_sources SET body=(body-'last_refresh_error') || %s WHERE id=%s",
-             (Jsonb({'last_checked_at':time.time()}),domain), connection=connection)
+    failure = None
+    with (nullcontext(connection) if connection is not None else db.connect()) as c:
+        with c.transaction():
+            c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
+            try:
+                result = _import_source(domain, actor, connection=c, run_id=run_id)
+            except (OSError, ValueError, PermissionError, RuntimeError) as error:
+                failure = error
+                db.write('UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s',
+                         (Jsonb({'last_refresh_error':safe_error(error),'last_checked_at':time.time()}),domain), connection=c)
+            else:
+                db.write("UPDATE backintel.analysis_sources SET body=(body-'last_refresh_error') || %s WHERE id=%s",
+                         (Jsonb({'last_checked_at':time.time()}),domain), connection=c)
+        if failure is not None:
+            raise failure
     return result
 
 
@@ -268,6 +282,7 @@ def handle(store, payload):
     r = db.run(identity)
     if r['status'] == 'succeeded':
         return store.put('analysis_result', identity, r['result'], int(time.time())) if not store.find('analysis_result', identity) else store.find('analysis_result', identity)
+    refresh_before = db.source(r['body']['domain']) if payload['operation'] == 'import' else None
     db.write("UPDATE backintel.analysis_runs SET status='running',updated_at=now() WHERE id=%s", (identity,))
     db.event(identity, 'started', {'operation': payload['operation']})
     try:
@@ -322,8 +337,11 @@ def handle(store, payload):
         status = 'cancelled' if isinstance(error, (InterruptedError, PermissionError)) else 'partial'
         reason = safe_error(error)
         if payload['operation'] == 'import' and not isinstance(error, InterruptedError):
-            db.write('UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s',
-                     (Jsonb({'last_refresh_error':reason, 'last_checked_at':time.time()}), r['body']['domain']))
+            db.write("""UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s
+                     AND latest_snapshot IS NOT DISTINCT FROM %s
+                     AND COALESCE(body->'last_checked_at','null'::jsonb)=%s""",
+                     (Jsonb({'last_refresh_error':reason, 'last_checked_at':time.time()}), r['body']['domain'],
+                      refresh_before['latest_snapshot'], Jsonb(refresh_before['body'].get('last_checked_at'))))
         result = {'status': status, 'summary': 'This run did not complete.', 'limitations': [reason], 'usage': db.usage(identity)}
         db.write('UPDATE backintel.analysis_runs SET status=%s,result=%s,error=%s,updated_at=now() WHERE id=%s', (status, Jsonb(result), reason, identity))
         db.event(identity, 'completed', {'status': status, 'reason': reason})

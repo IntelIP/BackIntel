@@ -22,7 +22,7 @@ def access_path():
     return Path(os.getenv('BACKINTEL_ACCESS_CREDENTIAL_FILE', '/run/backintel-credentials/access.json'))
 
 
-def seed():
+def seed(*, grant_manager_sources=False):
     from runtime.analysis_data import CONFIG
     from runtime import analysis_store as db
     db.catalog()
@@ -33,8 +33,12 @@ def seed():
         raise ValueError('Access credential file must not be a symbolic link')
     values=json.loads(path.read_text()) if path.exists() else {role:secrets.token_urlsafe(32) for role in ('manager','analyst','viewer','worker')}
     for role,token in values.items():
-        db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s) ON CONFLICT(id) DO UPDATE SET token_hash=excluded.token_hash',
-                 (role,hashlib.sha256(token.encode()).hexdigest(),role,list(CONFIG['sources'])))
+        db.write("""INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s)
+                 ON CONFLICT(id) DO UPDATE SET token_hash=excluded.token_hash,
+                 domains=CASE WHEN %s AND backintel.analysis_principals.role='manager'
+                    THEN ARRAY(SELECT DISTINCT unnest(backintel.analysis_principals.domains || excluded.domains))
+                    ELSE backintel.analysis_principals.domains END""",
+                 (role,hashlib.sha256(token.encode()).hexdigest(),role,list(CONFIG['sources']),grant_manager_sources and role=='manager'))
     path.write_text(json.dumps(values));path.chmod(0o600)
     print('Local access grants ready; credential values are hidden.')
 
@@ -141,8 +145,12 @@ def main():
         sub.add_parser(name)
     a=sub.add_parser('acquire');a.add_argument('--domain',required=True,choices=('commerce','support','churn','maintenance','credit'));a.add_argument('--acknowledge-terms',action='store_true')
     a=sub.add_parser('open');a.add_argument('--role',choices=('manager','analyst','viewer'),default='manager')
+    sub.choices['seed'].add_argument('--grant-manager-sources', action='store_true',
+        help='Explicitly grant the seeded manager every configured source; preserve other grants.')
     args=parser.parse_args()
-    if args.command=='acquire':
+    if args.command=='seed':
+        seed(grant_manager_sources=args.grant_manager_sources)
+    elif args.command=='acquire':
         acquire(args.domain,args.acknowledge_terms)
     elif args.command=='open':
         token=runtime_access()[args.role]

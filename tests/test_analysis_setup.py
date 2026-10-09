@@ -173,6 +173,11 @@ class SetupChecks(unittest.TestCase):
                 setup.import_data('churn', archive)
             self.assertEqual(sorted(p.name for p in (base / 'datasets/Churn').iterdir()), [source.name, 'source-receipt.json'])
 
+    def test_seed_manager_domain_upgrade_requires_explicit_cli_option(self):
+        with patch('sys.argv', ['analysis_demo', 'seed', '--grant-manager-sources']), patch.object(demo, 'seed') as seed:
+            demo.main()
+        seed.assert_called_once_with(grant_manager_sources=True)
+
     def test_seed_uses_configured_private_file_without_printing_credentials(self):
         from runtime import analysis_store as db
         with tempfile.TemporaryDirectory() as temporary:
