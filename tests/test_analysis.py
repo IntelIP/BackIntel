@@ -167,6 +167,19 @@ class AdapterChecks(unittest.TestCase):
         results[0]['kind'] = 'observed'
         self.assertEqual(validate_answer(answer, results), answer)
 
+    def test_numeric_claims_are_bound_to_the_named_group(self):
+        results = [{'evidence_id':'table','tool':'summarize','table':[
+            {'group':'A','mean':.2,'count':10},{'group':'B','mean':.8,'count':40}]}]
+        def answer(claims):
+            return {'summary':' '.join(claims),'limitations':[],
+                    'findings':[{'claim':c,'kind':'fact','evidence_ids':['table']} for c in claims]}
+        correct = answer(['A has a rate of 20%.','B has a rate of 80%.'])
+        self.assertEqual(validate_answer(correct,results),correct)
+        for claim in ('A has a rate of 80%.','B has 10 records.','a has a rate of 80%.',
+                      'A has a rate of 80% and B has a rate of 20%.'):
+            with self.subTest(claim=claim), self.assertRaises(ValueError):
+                validate_answer(answer([claim]),results)
+
     def test_run_identity_includes_shared_predictor_implementation(self):
         from unittest.mock import patch
         from runtime import analysis_service as service

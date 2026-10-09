@@ -42,6 +42,29 @@ class SetupChecks(unittest.TestCase):
             self.assertTrue(context.check_hostname)
             self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
 
+    def test_source_receipt_is_bound_to_data_and_current_terms(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source = churn_csv(base)
+            with patch.dict(os.environ,{'BACKINTEL_DATASET_DIR':str(base/'datasets')}):
+                receipt = setup.import_data('churn',source)
+                self.assertEqual(setup.validate_source_receipt('churn'),receipt)
+                path = base/'datasets/Churn/source-receipt.json'
+                for key,value in [('schema','forged'),('domain','credit'),('files',[]),
+                                  ('snapshot_id','wrong'),('source_spec_sha256','old'),('terms_acknowledged',False)]:
+                    with self.subTest(key=key):
+                        path.write_text(json.dumps({**receipt,key:value}))
+                        with self.assertRaises(PermissionError): setup.validate_source_receipt('churn')
+                path.write_text(json.dumps(receipt))
+                current = base/'datasets/Churn'/source.name
+                current.write_text(current.read_text().replace('Yes','No'))
+                with self.assertRaises(PermissionError): setup.validate_source_receipt('churn')
+                current.write_bytes(source.read_bytes())
+                with patch.dict(CONFIG['sources']['churn'],{'license':'Changed terms'}):
+                    with self.assertRaises(PermissionError): setup.validate_source_receipt('churn')
+                    renewed = setup.import_data('churn',source)
+                    self.assertEqual(setup.validate_source_receipt('churn'),renewed)
+
     def test_valid_import_is_atomic_fingerprinted_and_idempotent(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary); incoming = base / 'incoming'; incoming.mkdir()

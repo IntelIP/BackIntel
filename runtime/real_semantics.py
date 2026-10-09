@@ -144,12 +144,6 @@ def request_real(task_record: dict, source: dict, authorization_id: str, classif
     with psycopg.connect(dsn(),autocommit=True) as connection:
         # Session lock spans the external request without keeping an SQL transaction open.
         connection.execute("SELECT pg_advisory_lock(hashtextextended(%s,71))",(authorization_id,))
-        existing = connection.execute("SELECT state,response,metadata FROM backintel.capability_model_requests WHERE request_key=%s",(key,)).fetchone()
-        if existing:
-            if existing[0] != "completed":
-                raise RuntimeError("Previous provider request is uncertain/blocked; automatic paid retry prohibited")
-            _verified_metadata(existing[2],provider["version"])
-            return {"request_key":key,"response":existing[1],"metadata":existing[2],"cached":True}
         with connection.transaction():
             authorization = connection.execute("""SELECT model,max_requests,max_input_characters,max_measured_usd,
                 price_ceiling_known,approved,scope,scope_sha256,expires_at>now()
@@ -161,6 +155,14 @@ def request_real(task_record: dict, source: dict, authorization_id: str, classif
                 raise PermissionError("Provider request exceeds approved source/question/model scope")
             if not isinstance(content,str) or not content.strip() or len(content)>max_characters:
                 raise ValueError("Provider input violates approved character bound")
+            existing = connection.execute("SELECT state,response,metadata,authorization_id FROM backintel.capability_model_requests WHERE request_key=%s",(key,)).fetchone()
+            if existing:
+                if existing[3] != authorization_id:
+                    raise PermissionError("Cached response belongs to a different provider authorization")
+                if existing[0] != "completed":
+                    raise RuntimeError("Previous provider request is uncertain/blocked; automatic paid retry prohibited")
+                _verified_metadata(existing[2],provider["version"])
+                return {"request_key":key,"response":existing[1],"metadata":existing[2],"cached":True}
             previous = connection.execute("SELECT state,metadata FROM backintel.capability_model_requests WHERE authorization_id=%s",(authorization_id,)).fetchall()
             if len(previous)>=limit or (not priced and (limit != 1 or previous)):
                 raise RuntimeError("Provider request budget exhausted or unpriced multi-request execution prohibited")

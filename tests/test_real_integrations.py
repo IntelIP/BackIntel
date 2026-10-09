@@ -169,6 +169,22 @@ class RealBoundaryTests(unittest.TestCase):
         self.assertTrue(request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)['cached'])
         self.assertEqual(FixtureClassifier.calls, 1)
 
+    def test_cached_response_requires_current_matching_authorization(self):
+        from runtime.real_semantics import request_real
+        self.conn.execute('UPDATE backintel.capability_provider_authorizations SET approved=true WHERE authorization_id=%s',(self.authorization,))
+        request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)
+        self.assertTrue(request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)['cached'])
+        with self.assertRaises(PermissionError):
+            request_real(self.task,self.sources[0],'not-authorized',FixtureClassifier)
+        self.conn.execute('UPDATE backintel.capability_provider_authorizations SET approved=false WHERE authorization_id=%s',(self.authorization,))
+        with self.assertRaises(PermissionError): request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)
+        self.conn.execute("UPDATE backintel.capability_provider_authorizations SET approved=true,expires_at=now()-interval '1 second' WHERE authorization_id=%s",(self.authorization,))
+        with self.assertRaises(PermissionError): request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)
+        scope = {**scope_for(self.task,self.sources),'source_sha256s':[]}
+        self.conn.execute("UPDATE backintel.capability_provider_authorizations SET expires_at=now()+interval '1 hour',scope=%s,scope_sha256=%s WHERE authorization_id=%s",(Jsonb(scope),digest(scope),self.authorization))
+        with self.assertRaises(PermissionError): request_real(self.task,self.sources[0],self.authorization,FixtureClassifier)
+        self.assertEqual(FixtureClassifier.calls,1)
+
     def test_capped_request_without_known_finite_ceiling_is_not_dispatched(self):
         from runtime.real_semantics import request_real
         for priced, value in ((False, '.01'), (True, None), (True, 'NaN'), (True, '-1'), (True, '0')):

@@ -74,9 +74,12 @@ def main():
                 from runtime import analysis_store as db, analysis_service as service
                 actor=db.authorize({'id':'manager'},domain,('manager',))
                 source=db.source(domain)
-                source_receipt=root()/domain.title()/'source-receipt.json'
-                if source_receipt.exists() and json.loads(source_receipt.read_text()).get('terms_acknowledged'):
-                    db.write('UPDATE backintel.analysis_sources SET body=%s WHERE id=%s',(Jsonb({**source['body'],'terms_acknowledged':True,'terms_actor':'manager','terms_basis':'operator download receipt'}),domain))
+                from scripts.analysis_setup import validate_source_receipt
+                source_receipt=validate_source_receipt(domain)
+                consent=db.query("UPDATE backintel.analysis_sources SET body=body || %s WHERE id=%s AND body->>'source_spec_sha256'=%s RETURNING id",
+                                 (Jsonb({'terms_acknowledged':True}),domain,source_receipt['source_spec_sha256']),one=True)
+                if not consent:
+                    raise PermissionError('Source terms changed before receipt approval')
                 service.import_source(domain,actor)
                 snapshot=db.source(domain)['latest_snapshot']
                 result['snapshot_id']=snapshot

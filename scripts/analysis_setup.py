@@ -13,7 +13,7 @@ import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from runtime.analysis_data import CONFIG, adapt, fingerprint, root
+from runtime.analysis_data import CONFIG, adapt, digest, fingerprint, root
 from runtime.real_models import CONFIG as MODEL_CONFIG, file_sha, model_root
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -122,7 +122,7 @@ def import_data(domain, source, provenance=None):
         else:
             raise ValueError('Supply a complete source directory, ZIP archive, or single expected CSV')
         files, snapshot, body = validate_files(domain, staging)
-        receipt = {'schema': 'backintel-source-import/v1', 'domain': domain,
+        receipt = {'schema': 'backintel-source-import/v1', 'domain': domain, 'source_spec_sha256': digest(CONFIG['sources'][domain]),
                    'kaggle': CONFIG['sources'][domain]['kaggle'],
                    'attribution': CONFIG['sources'][domain]['name'],
                    'declared_source_license': CONFIG['sources'][domain]['license'],
@@ -135,10 +135,29 @@ def import_data(domain, source, provenance=None):
             existing, _, _ = validate_files(domain, destination)
             if existing != files:
                 raise ValueError('Existing dataset differs; preserve it and choose a new BACKINTEL_DATASET_DIR')
-            if not (destination / 'source-receipt.json').exists():
-                (staging / 'source-receipt.json').replace(destination / 'source-receipt.json')
+            (staging / 'source-receipt.json').replace(destination / 'source-receipt.json')
             return receipt
         staging.rename(destination)
+    return receipt
+
+
+def validate_source_receipt(domain):
+    """Bind source consent to the current bytes, adapter and displayed terms."""
+    directory = root() / domain.title()
+    path = directory / 'source-receipt.json'
+    if path.is_symlink() or not path.is_file():
+        raise PermissionError('Import the source with current explicit authorization first')
+    receipt = json.loads(path.read_text())
+    files, snapshot, body = validate_files(domain,directory)
+    spec = CONFIG['sources'][domain]
+    expected = {'schema':'backintel-source-import/v1', 'domain':domain,
+                'source_spec_sha256':digest(spec), 'kaggle':spec['kaggle'],
+                'attribution':spec['name'], 'declared_source_license':spec['license'],
+                'terms_acknowledged':True, 'authorization_basis':'operator-authorized benchmark/testing use',
+                'competition_rules_accepted_by_tool':False,
+                'files':files, 'snapshot_id':snapshot, 'adapter_receipt':body}
+    if not isinstance(receipt,dict) or any(receipt.get(key) != value for key,value in expected.items()):
+        raise PermissionError('Source receipt no longer matches the dataset or source terms; reimport with authorization')
     return receipt
 
 
