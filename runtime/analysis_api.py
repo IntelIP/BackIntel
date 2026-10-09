@@ -326,6 +326,8 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
         if target_supplied:
             if body.target is not None and CONFIG['sources'][domain]['kind']=='classification' and body.target not in (0,1):
                 raise ValueError('Classification target must be 0 or 1')
+            if body.target is not None and domain in ('support','maintenance') and body.target < 0:
+                raise ValueError('Duration and remaining-life targets must be nonnegative')
             row['target']=body.target
             row['split']='unlabeled'  # A late correction never contaminates a historical benchmark.
         prior=db.query('SELECT body FROM backintel.analysis_snapshots WHERE id=%s',(source['latest_snapshot'],),one=True,connection=c)['body']

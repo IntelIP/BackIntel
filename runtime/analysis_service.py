@@ -145,6 +145,13 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
             # This identity pins the current goal, snapshot, model and implementation.
             c.execute('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s', (run_id, identity))
         return run_id
+    # The source advisory lock serializes admission across all goals and owners.
+    pending = c.execute("""SELECT count(*) FROM backintel.analysis_runs r
+        JOIN backintel.analysis_goals g ON g.id=r.goal_id
+        JOIN backintel.capability_jobs j ON j.job_id=r.job_id
+        WHERE g.domain=%s AND j.state IN ('queued','running','retry')""", (g['domain'],)).fetchone()[0]
+    if pending >= 20:
+        raise RuntimeError('Source analysis queue has reached its 20 pending-run limit')
     payload = {'run_id': run_id, 'operation': operation}
     c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
               (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model'], 'analysis_identity': implementation})))

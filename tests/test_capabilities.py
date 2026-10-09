@@ -24,6 +24,31 @@ from runtime.prediction import (cases, chronological_split, compare, evaluate, f
 
 
 class CapabilityTests(unittest.TestCase):
+    def test_operational_prediction_cache_changes_with_implementation(self):
+        from unittest.mock import MagicMock, patch
+        from runtime import prediction
+        store = MagicMock()
+        saved = {}
+        store.find.side_effect = lambda kind, key: saved.get(key)
+        def put(kind, key, body, *args):
+            saved[key] = {'body': body}
+            return saved[key]
+        store.put.side_effect = put
+        store.get.return_value = {'kind': 'model', 'body': {'task': 'task', 'prepared_at': 0, 'implementation_mode': 'simulated'}}
+        task = {'sha256': 'task', 'body': {'policy': {}}}
+        feature = {'sha256': 'feature', 'available_at': 0, 'body': {'task': 'task', 'target_at': 2, 'cutoff': 0, 'entity': 'entity'}}
+        with patch.object(prediction, 'registry', return_value={'active': 'model'}), patch.object(prediction, 'predict', return_value=1) as predict, patch.object(prediction, 'implementation_identity', return_value='original') as code:
+            first = prediction.score(store, task, feature, 1)
+            self.assertEqual(prediction.score(store, task, feature, 1), first)
+            self.assertEqual(predict.call_count, 1)
+            code.return_value = 'updated'
+            predict.return_value = 2
+            second = prediction.score(store, task, feature, 1)
+            self.assertEqual(second['body']['implementation_sha256'], 'updated')
+            self.assertEqual(second['body']['value'], 2)
+            self.assertNotEqual(first, second)
+            self.assertEqual(predict.call_count, 2)
+
     def test_evaluation_cache_changes_with_scoring_implementation(self):
         from unittest.mock import MagicMock,patch
         from runtime import prediction

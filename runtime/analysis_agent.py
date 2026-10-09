@@ -224,10 +224,22 @@ def tool(identity, name, args):
         model = db.query('SELECT * FROM backintel.analysis_models WHERE id=%s AND promoted', (r['body']['model_id'],), one=True)
         if not model or model['goal_id'] != g['id']:
             raise PermissionError('Predictor is not approved for this goal')
-        cohort = sorted(rows, key=lambda row: digest(row['id']))[:CONFIG['limits']['test']]
+        eligible = rows
+        if g['domain']=='maintenance':
+            latest = {}
+            for row in rows:
+                if row['entity'].startswith('test-') and (row['entity'] not in latest or
+                        (row['features']['cycle'],row['id']) > (latest[row['entity']]['features']['cycle'],latest[row['entity']]['id'])):
+                    latest[row['entity']] = row
+            eligible = list(latest.values())
+            if not eligible:
+                raise ValueError('No current operational test-engine states are available')
+        cohort = sorted(eligible, key=lambda row: digest(row['entity'] if g['domain']=='maintenance' else row['id']))[:CONFIG['limits']['test']]
         values = predict(model, cohort)
         result = {'table': aggregate(cohort, args.get('group'), values, args.get('order','ascending')), 'group_by': args.get('group'), 'kind': 'estimate', 'model_id': model['id'],
                   'sample_size': len(cohort), 'source_size': len(rows), 'caveat': 'Fixed bounded cohort; estimates do not describe every source record.'}
+        if g['domain']=='maintenance':
+            result['cohort_definition']='Latest available state per test engine; training histories are excluded.'
     elif name == 'interpret_text':
         if g['domain'] not in ('commerce', 'support'):
             raise ValueError('This structured source has no text to interpret')

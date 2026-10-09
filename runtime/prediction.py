@@ -233,8 +233,12 @@ def evaluate(store, model: dict, holdout: list[dict], at: int) -> dict:
         return _evaluate(store,model,holdout,at)
 
 
+def implementation_identity():
+    return digest({name:Path(__file__).with_name(name).read_text() for name in ('prediction.py','real_models.py','simulation.py')})
+
+
 def _evaluate(store, model: dict, holdout: list[dict], at: int) -> dict:
-    implementation = digest({name:Path(__file__).with_name(name).read_text() for name in ('prediction.py','real_models.py','simulation.py')})
+    implementation = implementation_identity()
     key = digest([model["sha256"], [[r["feature"]["sha256"],r["outcome"]["sha256"]] for r in holdout], implementation])
     existing = store.find("evaluation", key)
     if existing:
@@ -343,14 +347,15 @@ def score(store, task_record: dict, feature: dict, at: int, fallback: str | None
             raise ValueError("Model unavailable at feature cutoff")
         if mode == "fallback" and model["body"]["route"] != "baseline":
             raise ValueError("Fallback must use the explicit baseline")
-        key = digest([feature["sha256"], selected, mode, task_record["sha256"]])
+        implementation = implementation_identity()
+        key = digest([feature["sha256"], selected, mode, task_record["sha256"], implementation])
         previous = store.find("prediction", key)
         if previous:
             return previous
         body = {"task":task_record["sha256"], "feature":feature["sha256"], "model":selected, "mode":mode,
                 "entity":feature["body"]["entity"], "cutoff":feature["body"]["cutoff"], "target_at":feature["body"]["target_at"],
                 "value":predict(model,feature), "implementation_mode":model["body"]["implementation_mode"],
-                "policy_sha256":digest(task_record["body"]["policy"])}
+                "policy_sha256":digest(task_record["body"]["policy"]), "implementation_sha256":implementation}
         transitions = store.list("model_transition",at) if mode == "active" else []
         return store.put("prediction", key, body, at, [task_record["sha256"], feature["sha256"], selected,
                                                        *[r["sha256"] for r in transitions[-1:]]])

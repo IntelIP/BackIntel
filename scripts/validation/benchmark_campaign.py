@@ -141,6 +141,9 @@ def real_result(spec, domain, receipts, candidate, checkout=None):
             return 'blocked', 'Native prediction provenance is incomplete', None
         if receipt.get('model_restore_predictions_verified') is not True or len(receipt.get('methods', [])) < 2:
             return 'blocked', 'Comparison or saved prediction reproduction is missing', None
+        dependencies = receipt.get('model_comparison', {}).get('dependencies') if native else receipt.get('dependencies')
+        if not isinstance(dependencies, dict) or not isinstance(dependencies.get('libraries'), dict) or not dependencies['libraries']:
+            return 'blocked', 'Prediction dependency identities are missing', None
         implementation_path = 'runtime/analysis_models.py' if native else 'scripts/analysis_local_benchmark.py'
         if native and receipt['harness_sha256'] != candidate['files'].get('scripts/analysis_prediction_benchmark.py'):
             return 'blocked', 'Prediction harness fingerprint differs from candidate', None
@@ -153,6 +156,7 @@ def real_result(spec, domain, receipts, candidate, checkout=None):
                   'comparison_scope', 'missing_routes', 'source_files', 'harness_sha256', 'wall_seconds', 'peak_rss_bytes', 'provider_usd', 'local_compute_usd')}
         detail['methods'] = [{key: value for key, value in method.items() if key not in ('predictions', 'artifact')}
                              for method in receipt['methods']]
+        detail['dependencies'] = dependencies
         return status, 'Native partial real prediction comparison; missing routes remain excluded', detail
     if receipt.get('schema') != 'backintel-answers/v2' or not receipt.get('scenario_hash'):
         return 'blocked', 'Current analyst scenario and identity receipt is missing', None
@@ -318,6 +322,16 @@ def compare(baseline, candidate):
             local_reasons.append('Execution modes differ')
         if 'blocked' in (left.get('status'), right.get('status')):
             local_reasons.append('A run is blocked')
+        if left.get('mode') == 'real':
+            measurements = [row.get('measurements') or {} for row in (left, right)]
+            if any('methods' in row for row in measurements):
+                dependencies = [row.get('dependencies') for row in measurements]
+                if any(not isinstance(dep, dict) or not dep.get('libraries') for dep in dependencies):
+                    local_reasons.append('Real prediction dependency identities are missing')
+                else:
+                    identities = [{k: v for k, v in dep.items() if k != 'implementation_sha256'} for dep in dependencies]
+                    if identities[0] != identities[1]:
+                        local_reasons.append('Real prediction dependencies differ')
         if left.get('mode') == 'real' and left.get('measurements') != right.get('measurements'):
             # Implementation and model parameters are tested variables; data and scoring protocol must match.
             for field in ('source', 'splits', 'scenario_hash', 'oracle', 'source_files', 'harness_sha256'):

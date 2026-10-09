@@ -43,6 +43,7 @@ class CampaignChecks(unittest.TestCase):
         self.addCleanup(worker.stop)
         # The class guard above permits cleanup only in the disposable fixture DB.
         db.write('DELETE FROM backintel.analysis_requests')
+        db.write('UPDATE backintel.analysis_goals SET paused=true')
         db.write("UPDATE backintel.capability_jobs SET state='cancelled' WHERE state IN ('queued','retry') AND task_id LIKE 'analysis-job-%'")
         self.rows = [{'id': str(uuid.uuid4()), 'entity': 'fixture', 'features': {'age': 40},
                       'target': 1, 'groups': {'department': 'A'}, 'text': 'fixture', 'split': 'train'}]
@@ -303,6 +304,67 @@ class CampaignChecks(unittest.TestCase):
             self.assertEqual(db.source('commerce')['latest_snapshot'], self.snapshot)
         correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], target=None, explanation='Fixture remove mistaken label'), self.actor)
         self.assertIsNone(db.records(db.source('commerce')['latest_snapshot'])[0]['target'])
+
+    def test_source_queue_limit_is_atomic_and_replays_remain_available(self):
+        from runtime.analysis_api import cancel_run
+        for index in range(18):
+            service.submit(self.goal, self.actor, question=f'Queued question {index}')
+        barrier = threading.Barrier(2)
+        def submit(index):
+            barrier.wait(timeout=5)
+            try:
+                return service.submit(self.goal, self.actor, question=f'Racing question {index}')
+            except RuntimeError as exc:
+                self.assertIn('20 pending-run limit', str(exc))
+                return None
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            results = list(workers.map(submit, range(2)))
+        self.assertEqual(sum(row is not None for row in results), 1)
+        self.assertEqual(service.submit(self.goal, self.actor)['id'], self.run['id'])
+        cancel_run(self.run['id'], self.actor)
+        self.assertIsNotNone(service.submit(self.goal, self.actor, question='After cancellation'))
+
+    def test_duration_corrections_reject_negative_and_accept_zero(self):
+        from runtime.analysis_api import correction, CorrectionInput
+        original = db.query('SELECT domains FROM backintel.analysis_principals WHERE id=%s', (self.actor['id'],), one=True)['domains']
+        db.write('UPDATE backintel.analysis_principals SET domains=%s WHERE id=%s', (['commerce', 'support', 'maintenance'], self.actor['id']))
+        try:
+            for domain in ('support', 'maintenance'):
+                rows = [{**self.rows[0], 'target': 5}]
+                snapshot = digest([domain, rows])
+                db.save_snapshot(domain, snapshot, {'fixture': True}, rows)
+                db.write("UPDATE backintel.analysis_sources SET body=body||%s WHERE id=%s", (Jsonb({'terms_acknowledged': True}), domain))
+                with self.subTest(domain=domain), self.assertRaisesRegex(ValueError, 'nonnegative'):
+                    correction(domain, CorrectionInput(record_id=rows[0]['id'], target=-1, explanation='Invalid duration'), self.actor)
+                self.assertEqual(db.source(domain)['latest_snapshot'], snapshot)
+                self.assertEqual(db.records(snapshot)[0]['target'], 5)
+                with patch.object(service, 'schedule_snapshot', return_value=[]):
+                    correction(domain, CorrectionInput(record_id=rows[0]['id'], target=0, explanation='Valid zero duration'), self.actor)
+                self.assertEqual(db.records(db.source(domain)['latest_snapshot'])[0]['target'], 0)
+        finally:
+            db.write('UPDATE backintel.analysis_principals SET domains=%s WHERE id=%s', (original, self.actor['id']))
+
+    def test_maintenance_predictions_use_latest_test_engine_states(self):
+        from runtime import analysis_agent as agent, analysis_models
+        def row(identity, entity, cycle, split):
+            return {'id': identity, 'entity': entity, 'features': {'cycle': cycle}, 'groups': {}, 'target': None, 'split': split}
+        rows = [row('training', 'train-1', 99, 'train'), row('old', 'test-1', 1, 'test'),
+                row('corrected', 'test-1', 3, 'unlabeled'), row('second', 'test-2', 2, 'test'), row('third', 'test-3', 4, 'test')]
+        run = {'snapshot_id': 'snapshot', 'body': {'model_id': 'model'}}
+        goal = {'id': 'goal', 'domain': 'maintenance'}
+        with patch.object(db, 'check_run', return_value=(run, goal)), patch.object(db, 'step', return_value=None), patch.object(db, 'records', return_value=rows) as records, patch.object(db, 'query', return_value={'id': 'model', 'goal_id': 'goal'}), patch.object(db, 'evidence', return_value='evidence'), patch.object(db, 'save_step', side_effect=lambda identity, key, kind, body: body), patch.object(analysis_models, 'predict', side_effect=lambda model, cohort: [1] * len(cohort)) as predict, patch.dict(agent.CONFIG['limits'], test=2):
+            first = agent.tool('run', 'predict', {})
+            cohort = predict.call_args.args[1]
+            self.assertEqual(len(cohort), 2)
+            self.assertEqual(len({r['entity'] for r in cohort}), 2)
+            self.assertTrue(all(r['entity'].startswith('test-') and r['id'] != 'old' for r in cohort))
+            self.assertEqual(first['sample_size'], 2)
+            records.return_value = list(reversed(rows))
+            self.assertEqual(agent.tool('run', 'predict', {}), first)
+            self.assertEqual(predict.call_args.args[1], cohort)
+            with patch.dict(agent.CONFIG['limits'], test=10):
+                agent.tool('run', 'predict', {})
+                self.assertEqual({r['id'] for r in predict.call_args.args[1]}, {'corrected', 'second', 'third'})
 
     def test_source_terms_changes_share_the_import_lock(self):
         from runtime.analysis_api import terms, TermsInput
@@ -626,6 +688,7 @@ class CampaignChecks(unittest.TestCase):
         for i in range(200):
             other = service.submit(self.goal, self.actor, question='Attempt fixture ' + str(i))
             self.settled('attempt-' + str(i), Decimal('0'), other)
+            db.write("UPDATE backintel.capability_jobs SET state='cancelled' WHERE job_id=%s", (other['job_id'],))
         with self.assertRaisesRegex(RuntimeError, 'Campaign provider attempt'):
             db.reserve(self.run['id'], 'attempt-201', .01)
 

@@ -93,9 +93,12 @@ class CampaignReceiptChecks(unittest.TestCase):
                    'candidate_commit': 'abc', 'dirty_tree': False, 'source_hashes': {'runtime/analysis_models.py':'sha'},
                    'status': 'passed', 'source': {'files': ['source']}, 'source_files': ['source'],
                    'splits': {'test': ['a']}, 'implementation': {'sha256': 'sha'}, 'harness_sha256': 'harness',
-                   'model_comparison': {'methods': ['baseline', 'catboost']},
+                   'model_comparison': {'methods': ['baseline', 'catboost'], 'dependencies': {'libraries': {'catboost': '1.2.8'}, 'checkpoint': {'sha256': 'weights'}}},
                    'model_restore_predictions_verified': True, 'methods': [{}, {}]}
         self.assertEqual(campaign.real_result(spec, 'churn', [receipt], candidate)[0], 'passed')
+        detail = campaign.real_result(spec, 'churn', [receipt], candidate)[2]
+        self.assertEqual(detail['dependencies'], receipt['model_comparison']['dependencies'])
+        self.assertEqual(campaign.real_result(spec, 'churn', [{**receipt, 'model_comparison': {'methods': ['baseline', 'catboost']}}], candidate)[0], 'blocked')
         for change in ({'mode': 'fixture'}, {'dirty_tree': True}, {'splits': {}}, {'model_restore_predictions_verified': False}, {'harness_sha256':'stale-harness'}):
             self.assertEqual(campaign.real_result(spec, 'churn', [{**receipt, **change}], candidate)[0], 'blocked')
         self.assertEqual(campaign.real_result(spec, 'credit', [receipt], candidate)[0], 'blocked')
@@ -129,11 +132,20 @@ class CampaignReceiptChecks(unittest.TestCase):
         candidate['candidate']['commit'] = 'new'
         candidate['scenarios'][0]['measurements']['implementation'] = {'sha256': 'new'}
         candidate['scenarios'][0]['measurements']['catboost_parameters'] = {'depth': 6}
+        for receipt in (baseline, candidate):
+            receipt['scenarios'][0]['measurements'].update(methods=['baseline', 'catboost'], dependencies={'libraries': {'catboost': '1.2.8'}, 'checkpoint': {'sha256': 'weights'}, 'implementation_sha256': receipt['candidate']['commit']})
         self.assertTrue(campaign.compare(baseline, candidate)['comparable'])
         for field in ('splits', 'source', 'harness_sha256'):
             mismatched = copy.deepcopy(candidate)
             mismatched['scenarios'][0]['measurements'][field] = 'different'
             self.assertFalse(campaign.compare(baseline, mismatched)['comparable'])
+        for field in ('libraries', 'checkpoint'):
+            mismatched = copy.deepcopy(candidate)
+            mismatched['scenarios'][0]['measurements']['dependencies'][field] = {'different': 'identity'}
+            self.assertFalse(campaign.compare(baseline, mismatched)['comparable'])
+        for receipt in (baseline, candidate):
+            del receipt['scenarios'][0]['measurements']['dependencies']
+        self.assertFalse(campaign.compare(baseline, candidate)['comparable'])
 
 
 if __name__ == '__main__':
