@@ -199,9 +199,9 @@ def compare(domain, rows, snapshot, *, trusted_comparisons=()):
         for key, value in output.items():
             if key not in ('methods','artifacts') and candidate.get(key) != value:
                 raise ValueError('Cached comparison metadata mismatch: '+key)
-        features=['facts','facts-decide'] if domain in ('commerce','support') else ['facts']
+        features=['facts','facts-decide'] if any(method.get('features') == 'facts-decide' for method in candidate.get('methods', [])) else ['facts']
         files=[f'{route}-{feature}.joblib' for feature in features for route in ('catboost','tabiclv2')]
-        if domain in ('commerce','support'):
+        if 'facts-decide' in features:
             files.append('observations.json')
         artifacts=candidate.get('artifacts',[])
         try:
@@ -223,20 +223,31 @@ def compare(domain, rows, snapshot, *, trusted_comparisons=()):
             raise RuntimeError('Model resource limit exceeded')
     if domain in ('commerce','support'):
         tfidf=TfidfVectorizer(max_features=2000,min_df=2)
-        xt=tfidf.fit_transform([r['text'] for r in train])
-        simple=LogisticRegression(max_iter=300,random_state=42) if kind=='classification' else Ridge()
-        simple.fit(xt,y)
-        predicted=simple.predict_proba(tfidf.transform([r['text'] for r in test]))[:,list(simple.classes_).index(1)] if kind=='classification' else simple.predict(tfidf.transform([r['text'] for r in test]))
-        calibrated=simple.predict_proba(tfidf.transform([r['text'] for r in calibration]))[:,list(simple.classes_).index(1)] if kind=='classification' else simple.predict(tfidf.transform([r['text'] for r in calibration]))
-        output['methods'].append({'route':'simple-text','metrics':metrics(kind,yt,predicted),
-                                  'calibration_metrics':metrics(kind,yc,calibrated)})
+        try:
+            xt=tfidf.fit_transform([r['text'] for r in train])
+        except ValueError as error:
+            if not any(message in str(error).lower() for message in ('empty vocabulary', 'no terms remain')):
+                raise
+            output.setdefault('unsupported_methods', []).append({'route':'simple-text','status':'unsupported',
+                'reason':'Training text has no usable vocabulary with min_df=2'})
+        else:
+            simple=LogisticRegression(max_iter=300,random_state=42) if kind=='classification' else Ridge()
+            simple.fit(xt,y)
+            predicted=simple.predict_proba(tfidf.transform([r['text'] for r in test]))[:,list(simple.classes_).index(1)] if kind=='classification' else simple.predict(tfidf.transform([r['text'] for r in test]))
+            calibrated=simple.predict_proba(tfidf.transform([r['text'] for r in calibration]))[:,list(simple.classes_).index(1)] if kind=='classification' else simple.predict(tfidf.transform([r['text'] for r in calibration]))
+            output['methods'].append({'route':'simple-text','metrics':metrics(kind,yt,predicted),
+                                      'calibration_metrics':metrics(kind,yc,calibrated)})
     sets=[('facts',train+calibration+test)]
-    if domain in ('commerce','support'):
+    if domain in ('commerce','support') and any(row['text'].strip() for row in train):
         semantic,observations=decide(train+calibration+test,domain)
         sets.append(('facts-decide',semantic))
         obs_path=directory/'observations.json'
         obs_path.write_text(json.dumps(observations))
         output['artifacts'].append(fingerprint(obs_path))
+    elif domain in ('commerce','support'):
+        output.setdefault('unsupported_methods', []).extend(
+            {'route':route,'features':'facts-decide','status':'unsupported','reason':'Training text is empty'}
+            for route in ('catboost','tabiclv2'))
     for feature_set,cases in sets:
         a=cases[:len(train)]; b=cases[len(train)+len(calibration):]; cal=cases[len(train):len(train)+len(calibration)]
         vectorizer=DictVectorizer(sparse=False)

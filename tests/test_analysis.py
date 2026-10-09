@@ -495,6 +495,22 @@ class AdapterChecks(unittest.TestCase):
             loader.assert_not_called()
             self.assertEqual(len(recovered['artifacts']), 2)
             self.assertTrue(all((manifest.parent/item['file']).is_file() for item in recovered['artifacts']))
+            for text, message in [('', 'empty vocabulary; perhaps the documents only contain stop words'),
+                                  ('unique words', 'After pruning, no terms remain')]:
+                with self.subTest(text=text):
+                    text_rows = [{**row, 'text':text} for row in rows]
+                    tfidf = Mock()
+                    tfidf.fit_transform.side_effect = ValueError(message)
+                    with patch.object(modules['sklearn.feature_extraction.text'], 'TfidfVectorizer', return_value=tfidf), \
+                         patch.object(models, 'decide', return_value=(text_rows, [])) as semantic:
+                        comparison = models.compare('support', text_rows, 'text-fixture-'+text)
+                        self.assertEqual({method['route'] for method in comparison['methods']}, {'baseline', 'catboost', 'tabiclv2'})
+                        self.assertTrue(any(method['route']=='simple-text' for method in comparison['unsupported_methods']))
+                        self.assertEqual(semantic.call_count, 1 if text else 0)
+                        if not text:
+                            loader.reset_mock()
+                            models.compare('support', text_rows, 'text-fixture-'+text, trusted_comparisons=[comparison])
+                            self.assertEqual(loader.call_count, 2)
 
     def test_model_bytes_rejects_tampering_before_deserialization(self):
         import hashlib

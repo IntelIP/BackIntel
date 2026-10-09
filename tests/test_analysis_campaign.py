@@ -300,6 +300,37 @@ class CampaignChecks(unittest.TestCase):
                 self.assertEqual(db.run(run['id'])['status'], 'cancelled')
                 self.assertEqual(db.goal(self.goal)['last_success'], standing)
 
+    def test_goal_creation_rechecks_manager_authority_before_inserting(self):
+        original = db.source
+        before = db.query('SELECT count(*) AS count FROM backintel.analysis_goals', one=True)['count']
+        def revoke(domain, **kwargs):
+            source = original(domain, **kwargs)
+            db.write('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s', (self.actor['id'],))
+            return source
+        try:
+            with patch.object(db, 'source', side_effect=revoke), self.assertRaises(PermissionError):
+                service.create_goal(self.actor, 'commerce', 'Revoked goal fixture')
+            self.assertEqual(db.query('SELECT count(*) AS count FROM backintel.analysis_goals', one=True)['count'], before)
+        finally:
+            db.write('UPDATE backintel.analysis_principals SET enabled=true WHERE id=%s', (self.actor['id'],))
+
+    def test_scheduled_import_rechecks_manager_after_adaptation(self):
+        snapshot = digest([self.snapshot, 'revoked scheduled import'])
+        body = {'files':[], 'mode':'fixture'}
+        domains = db.query('SELECT domains FROM backintel.analysis_principals WHERE id=%s', (self.actor['id'],), one=True)['domains']
+        def revoke(domain, paths):
+            db.write("UPDATE backintel.analysis_principals SET domains=ARRAY[]::text[] WHERE id=%s", (self.actor['id'],))
+            return snapshot, body, self.rows
+        try:
+            with patch.object(service, 'validate_source_receipt', return_value={'snapshot_id':snapshot,'adapter_receipt':body}), \
+                 patch.object(service, 'source_files', return_value=[]), patch.object(service, 'adapt', side_effect=revoke), \
+                 self.assertRaises(PermissionError):
+                service.import_source('commerce', self.actor)
+            self.assertEqual(db.source('commerce')['latest_snapshot'], self.snapshot)
+            self.assertIsNone(db.query('SELECT id FROM backintel.analysis_snapshots WHERE id=%s', (snapshot,), one=True))
+        finally:
+            db.write('UPDATE backintel.analysis_principals SET domains=%s WHERE id=%s', (domains, self.actor['id']))
+
     def test_cancel_run_rechecks_manager_authority_after_admission(self):
         from runtime import analysis_api as api
         original = db.authorize

@@ -40,8 +40,11 @@ def principal(token):
     return p
 
 
-def authorize(p, domain=None, roles=('manager', 'analyst', 'viewer')):
-    current = query('SELECT id,role,domains FROM backintel.analysis_principals WHERE id=%s AND enabled AND (expires_at IS NULL OR expires_at>now())', (p['id'],), one=True)
+def authorize(p, domain=None, roles=('manager', 'analyst', 'viewer'), *, connection=None):
+    sql = 'SELECT id,role,domains FROM backintel.analysis_principals WHERE id=%s AND enabled AND (expires_at IS NULL OR expires_at>clock_timestamp())'
+    if connection is not None:
+        sql += ' FOR UPDATE'
+    current = query(sql, (p['id'],), one=True, connection=connection)
     if not current or current['role'] not in roles or (domain and domain not in current['domains']):
         raise PermissionError('Role or source access is denied')
     return current

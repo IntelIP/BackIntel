@@ -38,6 +38,7 @@ def _import_source(domain, actor, *, connection=None, run_id=None):
             if (prior['body']['files'] == files
                     and all(prior['body'].get(key) == value for key, value in adapter_identity(domain).items())
                     and (domain!='maintenance' or prior['body'].get('unit_mapping')=='dataset-qualified-engine-v2')):
+                db.authorize(actor, domain, ('manager',), connection=c)
                 return {'snapshot': source['latest_snapshot'], 'changed': False}
         identity, body, rows = adapt(domain, paths)
         if identity != approved['snapshot_id'] or body != approved['adapter_receipt']:
@@ -50,6 +51,7 @@ def _import_source(domain, actor, *, connection=None, run_id=None):
             cancelled = c.execute('SELECT cancel_requested FROM backintel.capability_jobs WHERE job_id=%s FOR UPDATE', (db.run(run_id)['job_id'],)).fetchone()[0]
             if cancelled:
                 raise InterruptedError('Import cancelled')
+        db.authorize(actor, domain, ('manager',), connection=c)
         db.save_snapshot(domain, identity, body, rows, connection=c)
         return {'snapshot': identity, 'changed': source['latest_snapshot'] != identity}
 
@@ -84,6 +86,7 @@ def create_goal(actor, domain, question):
             'population': 'registered source snapshot', 'caveat': spec['caveat']},
             'notification_delta': .05 if spec['kind'] == 'classification' else 5., 'refresh_seconds': 3600, 'budget_usd': 1.}
     with db.connect() as c, c.transaction():
+        db.authorize(actor, domain, ('manager',), connection=c)
         c.execute('INSERT INTO backintel.analysis_goals(id,owner,domain,version,body) VALUES(%s,%s,%s,1,%s)', (identity, actor['id'], domain, Jsonb(body)))
         c.execute('INSERT INTO backintel.analysis_goal_versions(goal_id,version,body,actor) VALUES(%s,1,%s,%s)', (identity, Jsonb(body), actor['id']))
     return db.goal(identity)
