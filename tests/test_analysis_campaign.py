@@ -247,6 +247,7 @@ class CampaignChecks(unittest.TestCase):
 
     def test_cancelled_import_preserves_healthy_source(self):
         from runtime.jobs import cancel
+        db.write("UPDATE backintel.analysis_sources SET body=body-'last_refresh_error' WHERE id='commerce'")
         run = service.submit_import('commerce',self.actor)
         def interrupted(domain,actor,**kwargs):
             with db.connect() as connection:
