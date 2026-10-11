@@ -44,12 +44,17 @@ Try the five-minute showcase
 Use SupportNarration.txt. Show the manual preparation problem, original customer
 report, actual Jev finding, method comparison, corrected report, and shared
 human decision. Mark any recording-time review 'Synthetic demo review'.
-The saved Access review is under Reviewed. New notes affect only this copy.
+For a fresh extraction, open All cases / Access and save a current review first.
+Then open Reviewed and check the saved reason. Notes belong to this extraction's
+local review store. Use this checkout's guide; embedded narration preserves the
+original recording.
 
 Verification
 Run --check before starting. It verifies every packaged file against Manifest.json.
-Workflow demo must show completed. Reviewed / Access must show the synthetic
-reason. The two scenarios recorded 54 provider calls and 90 completed jobs.
+Workflow demo must show completed. After saving a current Access review,
+Reviewed / Access must show its reason. Restart the same extraction and check
+that the review remains. The two scenarios recorded 54 provider calls and
+90 completed jobs.
 Records/Replay.json proves unchanged evidence across replay of those 90 jobs.
 Records/Budget.json preserves measured charges and the three unknown older charges.
 The package itself makes zero new provider or prediction-model calls.

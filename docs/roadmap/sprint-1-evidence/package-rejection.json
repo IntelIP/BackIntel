@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "removed_file": "Frontend/index.html",
+  "launcher_exit_code": 1,
+  "error": "ValueError: Package file set differs from its manifest",
+  "trusted_checkout_launcher": true,
+  "disposable_copy_removed": true,
+  "normal_demo_copy_preserved": true,
+  "reporting_note": "The launcher rejected the altered package. Two report-script assertions expected different error wording; their captured rejection output established the actual message."
+}

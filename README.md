@@ -4,7 +4,7 @@ BackIntel helps a reviewer inspect an operational finding, check its evidence, a
 
 **Status: demonstration proof of concept.** The recorded demo uses synthetic business data and saved results. The current analysis workspace uses known dataset formats. Autonomous collection and preparation of unfamiliar data remain future work.
 
-[Try the recorded demo](#try-the-recorded-demo) · [Current capabilities](docs/demo/PoCStatus.txt) · [Architecture](docs/architecture/current-system.md) · [Future product concept](docs/research/autonomous-workflow-concept.txt)
+[Try the recorded demo](#try-the-recorded-demo) · [Current capabilities](docs/demo/PoCStatus.txt) · [Architecture](docs/architecture/current-system.md) · [Roadmap](docs/roadmap/README.md) · [Future product concept](docs/research/autonomous-workflow-concept.txt)
 
 ## Try the recorded demo
 
@@ -62,7 +62,7 @@ Demo merges use `tabellio.demo.validation.json`: recorded-package installation, 
 
 The intended product accepts an objective and permitted information, acquires and prepares unfamiliar data in its own workspace, completes the task, and saves a reusable workflow. That broader capability is not implemented by the current demo.
 
-The agreed sequence is to clean up and clarify this proof of concept before expanding. The [saved concept and research](docs/research/autonomous-workflow-concept.txt) records that direction and the remaining gaps.
+Clean up and clarify this proof of concept first. Then reconcile and qualify the existing agent toolkit alpha before expanding into autonomous preparation of unfamiliar data. The [consolidated roadmap](docs/roadmap/README.md) records milestone scope, completion checks, and delivery status. The [saved concept and research](docs/research/autonomous-workflow-concept.txt) retains the broader direction and remaining gaps.
 
 ## License
 

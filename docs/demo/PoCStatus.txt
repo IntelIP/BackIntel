@@ -3,8 +3,12 @@ BACKINTEL DEMO POC — SCOPE AND EVIDENCE
 Prepared October 7, 2026 for source publication and demo review.
 
 What a reviewer can do now
-Extract BackIntelDemoBusinessV4.zip, check its manifest, run RunDemo.py, inspect
-saved findings and evidence, and record a decision in the extracted copy.
+Extract BackIntelDemoBusinessV4.zip, verify and launch it from a trusted checkout,
+inspect saved findings and evidence, and record a decision for the current
+evidence. Follow DemoPackage.txt; reviews live outside the extracted folder.
+The recorded browser journey, review retention after restart, and rejection of
+a missing package file were rechecked October 10, 2026. See
+docs/roadmap/sprint-1-review.md for observations and remaining source access.
 The package contains synthetic business data and historical model results.
 Opening it makes no new model calls and does not start a production workflow.
 

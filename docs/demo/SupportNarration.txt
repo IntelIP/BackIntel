@@ -12,7 +12,11 @@ synthetic. The interpretation and prediction executions are real. This recording
 walks through saved execution evidence; navigating the report makes no model calls.
 The earlier business-v3 run used short messages and remains an engine rehearsal.
 
-Open these existing services:
+For the packaged demonstration, follow DemoPackage.txt and open
+http://127.0.0.1:2053/. This uses the trusted-checkout launcher and saved results.
+A fresh extraction needs a new current review before the Reviewed showcase.
+
+The original recording used these existing services:
 React: http://127.0.0.1:5174/
 Python / Reflex: http://127.0.0.1:3002/
 Shared report and review API: http://127.0.0.1:2043/
@@ -75,10 +79,11 @@ evidence but lose authority when their source changes. This is the autonomous
 preparation demonstrated here. The human owns the business decision."
 
 2:50-3:40: The human decision and shared interfaces
-Open Access under Reviewed. Show Follow up and its saved reason. In Reflex,
-select Reviewed and confirm that same Access reason.
-For an interaction during recording, label any new note 'Synthetic demo review',
-save it in React, then select Refresh workspace in Reflex.
+In All cases, open Access, choose Follow up, and save a reason labelled
+'Synthetic demo review'. Open Reviewed and show that saved reason. Restart the
+same extraction to show retention. If the optional Reflex interface is already
+configured, select Refresh workspace and confirm the same reason there. The
+packaged React review does not require starting Reflex.
 Say: "The reviewer records a proposed investigation and explains why. The review
 belongs to this evidence version. React and the Python Reflex interface read the
 same decision through one API. This saved note is an internal demo review.
