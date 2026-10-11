@@ -2,6 +2,8 @@
 
 October 10, 2026. **Closed; Hudson accepted the results and continuation.**
 
+The accepted [Sprint 1 plan](sprint-1.md) is archived. Sprint 2 is now the [current sprint](current-sprint.md).
+
 The reviewer can inspect the recorded support finding, compare prediction methods, and save a decision that survives a restart. The existing toolkit alpha has a specific recovery locator, but its contents are not accessible in this local chat. This sprint does not qualify the alpha.
 
 ## User issues and dispositions

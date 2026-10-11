@@ -4,7 +4,7 @@ Updated October 10, 2026. This is the maintained roadmap entry point. It brings 
 
 Use the [ordered user-story backlog](agile-backlog.md) for the step-by-step delivery plan: seven proposed increments, individual tasks and acceptance checks, and explicit dependencies. Increment scope becomes a sprint commitment only after owners and capacity are assigned.
 
-The [current executable sprint](current-sprint.md) scopes the first working day: verify the available recorded demo and establish access to the reported alpha source. Installation follows verified candidate recovery.
+The [current sprint](current-sprint.md) is Sprint 2: recover and reconcile the alpha source, then confirm installation from a clean environment. Execution is blocked on the original candidate ZIP. Installation follows verified recovery.
 
 The [Sprint 1 review](sprint-1-review.md) records the verified browser demo and saved-review restart. Hudson accepted the result and continuation on October 10. Source discovery is complete; alpha recovery is blocked on retrieving the reported cloud ZIP.
 

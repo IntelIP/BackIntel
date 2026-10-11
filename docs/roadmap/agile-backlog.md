@@ -2,7 +2,7 @@
 
 Updated October 10, 2026. Planning document for the [product roadmap](README.md). The product goal is to help a person or agent complete a permitted business task, check the result, and save work that can run again.
 
-The [current sprint](current-sprint.md) commits S01 verification and a bounded source-discovery task under S02. Full S02 recovery and S03 installation retain their own dependency and completion conditions.
+The [Sprint 1 plan](sprint-1.md) and its accepted review are closed. The [current sprint](current-sprint.md) is Sprint 2: full S02 recovery and reconciliation, followed by S03 installation when its prerequisites are known. Candidate access remains the first dependency.
 
 **Immediate delivery goal:** qualify the existing toolkit alpha after clarifying the current PoC. An independent developer must be able to install it, complete commerce and support analyses, inspect the evidence, and resume interrupted work within known limits.
 
@@ -11,7 +11,7 @@ The [current sprint](current-sprint.md) commits S01 verification and a bounded s
 - S01–S31 are local planning labels, not AgentShift or GitHub issue IDs. No external tickets are created by this document.
 - These are proposed delivery increments, not calendar sprint commitments. Owners, capacity, estimates, implementation surfaces, and dates must be assigned at refinement. Unstarted stories remain in **Refine**; S01 is **Done** and full S02 is **Blocked**, as recorded in the [Sprint 1 review](sprint-1-review.md); conditional expansion stories are an option backlog.
 - Use AgentShift for execution tracking when authorized. Read existing records before creating or updating them and retain verified mappings.
-- Begin with S01 and S02. Do not rebuild an allegedly completed alpha from chat descriptions. Recover its source and check what can be reused.
+- S01 is Done. Continue S02 before pulling S03. Do not rebuild an allegedly completed alpha from chat descriptions. Recover its source and check what can be reused.
 - Pull a story only when its dependencies, owner, bounded session scope, expected result, access, and applicable tests are clear. S02 requires verified access to the reported candidate; that access is currently unverified.
 - Use at most three started stories, including work under review, validation, demonstration, or a started blocked state. This is a ceiling, not a target. Dependencies govern pull order.
 - Finish each story by showing its stated user outcome and material failure case. A dependency blocks the affected work; it does not erase independent progress.
@@ -63,6 +63,8 @@ Every increment has a terminal review: classify committed stories as Done, Block
 ### Install the toolkit from a clean environment
 
 **S03 · P0 · Work type: implementation · Depends on: S02.**
+
+**Status:** Refine; selected as the conditional next pull in Sprint 2. Candidate identity, installation surfaces, and inputs must be established by S02 first.
 
 **Story:** As an agent developer, I need a reliable installation and quickstart, so that I can begin without the team's private workspace.
 
