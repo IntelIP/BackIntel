@@ -1,10 +1,10 @@
 # BackIntel product roadmap and delivery plan
 
-Updated October 10, 2026. This is the maintained roadmap entry point. It brings together the repository plans and decisions from other BackIntel chats. It does not certify a release or start implementation work.
+Updated October 11, 2026. This is the maintained roadmap entry point. It brings together the repository plans and decisions from other BackIntel chats. It does not certify a release or start implementation work.
 
 Use the [ordered user-story backlog](agile-backlog.md) for the step-by-step delivery plan: seven proposed increments, individual tasks and acceptance checks, and explicit dependencies. Increment scope becomes a sprint commitment only after owners and capacity are assigned.
 
-The [current sprint](current-sprint.md) is Sprint 2: recover and reconcile the alpha source, then confirm installation from a clean environment. Execution is blocked on the original candidate ZIP. Installation follows verified recovery.
+The [current sprint](current-sprint.md) is Sprint 2: restore the app in the supplied recovery ZIP, install its recorded demo from scratch, and open it in a browser. Hudson approved this change on October 11. The [Sprint 2 review](sprint-2-review.md) records its completed installation, browser, and missing-file remedy checks. The separate toolkit recovery and installation stories, S02/S03, remain unfinished; this sprint does not qualify that toolkit.
 
 The [Sprint 1 review](sprint-1-review.md) records the verified browser demo and saved-review restart. Hudson accepted the result and continuation on October 10. Source discovery is complete; alpha recovery is blocked on retrieving the reported cloud ZIP.
 
@@ -21,6 +21,7 @@ The first external audience is developers adding analytical tools to agents. The
 | Area | Status | What the evidence supports |
 | --- | --- | --- |
 | Published demonstration | Confirmed | [PR #2](https://github.com/IntelIP/BackIntel/pull/2) merged the consolidated demo source into `main` at `c6de6ae`. Reviewers can inspect saved findings and record decisions. The recorded demo uses synthetic data and historical results. |
+| Supplied app demo installation | Confirmed | [Sprint 2](sprint-2-review.md) restored source `f5e2b6` from the supplied ZIP and opened its recorded demo in a fresh Python environment. The missing-file setup remedy worked. This is the older saved app, not toolkit qualification or new analysis. |
 | Known-dataset analysis workspace | Confirmed implementation; limited historical evaluation | Saved questions, permitted sources, prepared snapshots, evidence, follow-ups, corrections, predictor comparisons, durable jobs, and recovery exist. Four domains ran actual local predictors in the October 6 campaign. These results retain their original source revision and scope. |
 | Agent toolkit alpha | Blocked source access; candidate contents unverified | The chat reports a `0.1.0a2` candidate at commit `f0a3d2573fb3da9469d81e35691f60a42a0d9a1b`. Its cloud ZIP is not accessible in this local chat; GitHub could not resolve the exact commit or branch on October 10. Retrieve the bundle before reconciliation or installation. |
 | Full five-domain live acceptance | Blocked | Credit inputs and five live analyst cases remained blocked in the consolidated campaign. Publishing the demo did not complete this acceptance. |
@@ -33,6 +34,7 @@ Use the [PoC scope and evidence](../demo/PoCStatus.txt) and [current architectur
 
 - Clean up and clarify the existing proof of concept before expanding. Preserve useful source, history, datasets, models, and evidence.
 - Qualify the existing toolkit alpha first after that cleanup. Hudson confirmed this priority in “Review BackIntel roadmap status” on October 9.
+- On October 11, Hudson approved testing installation of the available app for Sprint 2. Preserve the separate toolkit work on the roadmap rather than treating the app demo as its completion.
 - Start the developer alpha with LangGraph and self-contained commerce and support examples. Preserve reusable analytical interfaces for later Agno and OpenAI Agents SDK integrations.
 - Let the agent select appropriate analytical steps. Show evidence, uncertainty, missing information, unsuccessful hypotheses, and cases where the baseline remains preferable.
 - Keep the broader autonomous-data direction: unfamiliar inputs, checked preparation, reusable tables and workflows, repeated invocation, recovery, and permitted collection.

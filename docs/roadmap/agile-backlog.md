@@ -2,13 +2,13 @@
 
 Updated October 10, 2026. Planning document for the [product roadmap](README.md). The product goal is to help a person or agent complete a permitted business task, check the result, and save work that can run again.
 
-The [Sprint 1 plan](sprint-1.md) and its accepted review are closed. The [current sprint](current-sprint.md) is Sprint 2: full S02 recovery and reconciliation, followed by S03 installation when its prerequisites are known. Candidate access remains the first dependency.
+The [Sprint 1 plan](sprint-1.md) and its accepted review are closed. On October 11, Hudson changed [Sprint 2](current-sprint.md) to restore the supplied app and check its recorded demo's installation. APP-01 and APP-02 are Done, with actual results in the [Sprint 2 review](sprint-2-review.md). They do not close S02 or S03; the separate toolkit still needs accessible source before its installation and analysis checks.
 
 **Immediate delivery goal:** qualify the existing toolkit alpha after clarifying the current PoC. An independent developer must be able to install it, complete commerce and support analyses, inspect the evidence, and resume interrupted work within known limits.
 
 ## Planning status and operating rules
 
-- S01–S31 are local planning labels, not AgentShift or GitHub issue IDs. No external tickets are created by this document.
+- S01–S31 and Sprint 2's APP-01/APP-02 are local planning labels, not AgentShift or GitHub issue IDs. No external tickets are created by this document.
 - These are proposed delivery increments, not calendar sprint commitments. Owners, capacity, estimates, implementation surfaces, and dates must be assigned at refinement. Unstarted stories remain in **Refine**; S01 is **Done** and full S02 is **Blocked**, as recorded in the [Sprint 1 review](sprint-1-review.md); conditional expansion stories are an option backlog.
 - Use AgentShift for execution tracking when authorized. Read existing records before creating or updating them and retain verified mappings.
 - S01 is Done. Continue S02 before pulling S03. Do not rebuild an allegedly completed alpha from chat descriptions. Recover its source and check what can be reused.
