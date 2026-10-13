@@ -1,10 +1,10 @@
 # BackIntel product roadmap and delivery plan
 
-Updated October 11, 2026. This is the maintained roadmap entry point. It brings together the repository plans and decisions from other BackIntel chats. It does not certify a release or start implementation work.
+Updated October 12, 2026. This is the maintained roadmap entry point. It brings together the repository plans and decisions from other BackIntel chats. It does not certify a release or start implementation work.
 
 Use the [ordered user-story backlog](agile-backlog.md) for the step-by-step delivery plan: seven proposed increments, individual tasks and acceptance checks, and explicit dependencies. Increment scope becomes a sprint commitment only after owners and capacity are assigned.
 
-The [current sprint](current-sprint.md) is Sprint 2: restore the app in the supplied recovery ZIP, install its recorded demo from scratch, and open it in a browser. Hudson approved this change on October 11. The [Sprint 2 review](sprint-2-review.md) records its completed installation, browser, and missing-file remedy checks. The separate toolkit recovery and installation stories, S02/S03, remain unfinished; this sprint does not qualify that toolkit.
+The [current sprint](current-sprint.md) is Sprint 3, now Done for its approved local sample scope. A fresh fictional support-ticket set produced a checked finding with supporting records. The [Sprint 3 review](sprint-3-review.md) records the result and independent calculation. Hudson approved this work on October 12. The [Sprint 2 review](sprint-2-review.md) preserves the completed demo setup checks. The separate toolkit recovery and installation stories, S02/S03, remain unfinished; the current app work does not qualify that toolkit.
 
 The [Sprint 1 review](sprint-1-review.md) records the verified browser demo and saved-review restart. Hudson accepted the result and continuation on October 10. Source discovery is complete; alpha recovery is blocked on retrieving the reported cloud ZIP.
 
@@ -35,6 +35,7 @@ Use the [PoC scope and evidence](../demo/PoCStatus.txt) and [current architectur
 - Clean up and clarify the existing proof of concept before expanding. Preserve useful source, history, datasets, models, and evidence.
 - Qualify the existing toolkit alpha first after that cleanup. Hudson confirmed this priority in “Review BackIntel roadmap status” on October 9.
 - On October 11, Hudson approved testing installation of the available app for Sprint 2. Preserve the separate toolkit work on the roadmap rather than treating the app demo as its completion.
+- On October 12, Hudson approved a fresh local support analysis for Sprint 3, using fictional tickets and no paid calls. Keep its observed-statistics result separate from prediction and autonomous agent execution.
 - Start the developer alpha with LangGraph and self-contained commerce and support examples. Preserve reusable analytical interfaces for later Agno and OpenAI Agents SDK integrations.
 - Let the agent select appropriate analytical steps. Show evidence, uncertainty, missing information, unsuccessful hypotheses, and cases where the baseline remains preferable.
 - Keep the broader autonomous-data direction: unfamiliar inputs, checked preparation, reusable tables and workflows, repeated invocation, recovery, and permitted collection.

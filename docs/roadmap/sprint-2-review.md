@@ -84,4 +84,4 @@ The automated browser was closed after the check. The isolated local demo server
 
 The revised sprint's setup outcome is complete. Fresh business analysis, prediction accuracy, customer usefulness, and release readiness remain untested by this sprint. The separate toolkit still needs accessible original source before S02/S03 and their dependent qualification stories can finish. Do not advance those stories using this demo result.
 
-See the [current sprint](current-sprint.md), [ordered backlog](agile-backlog.md), and [roadmap](README.md).
+See the [completed Sprint 2 plan](sprint-2.md), [current sprint](current-sprint.md), [ordered backlog](agile-backlog.md), and [roadmap](README.md).

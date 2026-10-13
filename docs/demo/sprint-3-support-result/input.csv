@@ -1,0 +1,25 @@
+ticket_id,customer_id,created_at,customer_segment,channel,product_area,language,sla_plan,initial_message,resolution_time_hours
+S3-E01,fictional-E01,2026-10-05T08:00:00Z,Sample,Email,Account access,en,Sample plan,Fictional closed support ticket,9
+S3-E02,fictional-E02,2026-10-05T08:00:00Z,Sample,Email,Account access,en,Sample plan,Fictional closed support ticket,11
+S3-E03,fictional-E03,2026-10-05T08:00:00Z,Sample,Email,Account access,en,Sample plan,Fictional closed support ticket,13
+S3-E04,fictional-E04,2026-10-05T08:00:00Z,Sample,Email,Account access,en,Sample plan,Fictional closed support ticket,12
+S3-E05,fictional-E05,2026-10-05T08:00:00Z,Sample,Email,Account access,en,Sample plan,Fictional closed support ticket,14
+S3-E06,fictional-E06,2026-10-05T08:00:00Z,Sample,Email,Account access,en,Sample plan,Fictional closed support ticket,10
+S3-E07,fictional-E07,2026-10-05T08:00:00Z,Sample,Email,Account access,en,Sample plan,Fictional closed support ticket,15
+S3-E08,fictional-E08,2026-10-05T08:00:00Z,Sample,Email,Account access,en,Sample plan,Fictional closed support ticket,12
+S3-C01,fictional-C01,2026-10-05T08:00:00Z,Sample,Chat,Account access,en,Sample plan,Fictional closed support ticket,2
+S3-C02,fictional-C02,2026-10-05T08:00:00Z,Sample,Chat,Account access,en,Sample plan,Fictional closed support ticket,3
+S3-C03,fictional-C03,2026-10-05T08:00:00Z,Sample,Chat,Account access,en,Sample plan,Fictional closed support ticket,4
+S3-C04,fictional-C04,2026-10-05T08:00:00Z,Sample,Chat,Account access,en,Sample plan,Fictional closed support ticket,4
+S3-C05,fictional-C05,2026-10-05T08:00:00Z,Sample,Chat,Account access,en,Sample plan,Fictional closed support ticket,5
+S3-C06,fictional-C06,2026-10-05T08:00:00Z,Sample,Chat,Account access,en,Sample plan,Fictional closed support ticket,2
+S3-C07,fictional-C07,2026-10-05T08:00:00Z,Sample,Chat,Account access,en,Sample plan,Fictional closed support ticket,3
+S3-C08,fictional-C08,2026-10-05T08:00:00Z,Sample,Chat,Account access,en,Sample plan,Fictional closed support ticket,5
+S3-P01,fictional-P01,2026-10-05T08:00:00Z,Sample,Phone,Account access,en,Sample plan,Fictional closed support ticket,1
+S3-P02,fictional-P02,2026-10-05T08:00:00Z,Sample,Phone,Account access,en,Sample plan,Fictional closed support ticket,2
+S3-P03,fictional-P03,2026-10-05T08:00:00Z,Sample,Phone,Account access,en,Sample plan,Fictional closed support ticket,3
+S3-P04,fictional-P04,2026-10-05T08:00:00Z,Sample,Phone,Account access,en,Sample plan,Fictional closed support ticket,2
+S3-P05,fictional-P05,2026-10-05T08:00:00Z,Sample,Phone,Account access,en,Sample plan,Fictional closed support ticket,1
+S3-P06,fictional-P06,2026-10-05T08:00:00Z,Sample,Phone,Account access,en,Sample plan,Fictional closed support ticket,2
+S3-P07,fictional-P07,2026-10-05T08:00:00Z,Sample,Phone,Account access,en,Sample plan,Fictional closed support ticket,4
+S3-P08,fictional-P08,2026-10-05T08:00:00Z,Sample,Phone,Account access,en,Sample plan,Fictional closed support ticket,1

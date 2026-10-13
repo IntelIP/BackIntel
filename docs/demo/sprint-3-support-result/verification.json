@@ -1,0 +1,46 @@
+{
+  "status": "passed",
+  "method": "Independent csv.DictReader and Decimal calculations; no runtime analysis helpers.",
+  "input_sha256": "b19bc97f78f66e1d32ee519d0f743b783a9d7c3d16034381efda5e38471309f4",
+  "ticket_count": 24,
+  "queues": {
+    "Email": {
+      "count": 8,
+      "total_hours": "96",
+      "mean": "12"
+    },
+    "Chat": {
+      "count": 8,
+      "total_hours": "28",
+      "mean": "3.5"
+    },
+    "Phone": {
+      "count": 8,
+      "total_hours": "16",
+      "mean": "2"
+    }
+  },
+  "selected_queues": [
+    "Email"
+  ],
+  "supporting_ticket_ids": [
+    "S3-E01",
+    "S3-E02",
+    "S3-E03",
+    "S3-E04",
+    "S3-E05",
+    "S3-E06",
+    "S3-E07",
+    "S3-E08"
+  ],
+  "checks": [
+    "queue counts",
+    "duration totals",
+    "queue averages",
+    "selected queues",
+    "all ticket identities and durations",
+    "supporting identities in Markdown",
+    "input hash",
+    "saved input bytes"
+  ]
+}

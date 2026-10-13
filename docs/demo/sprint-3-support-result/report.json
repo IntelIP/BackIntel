@@ -1,0 +1,188 @@
+{
+  "question": "Which queue needs attention?",
+  "attention_rule": "Review all channel queues with the highest average resolution time.",
+  "selected_queues": [
+    "Email"
+  ],
+  "answer": {
+    "summary": "Email has the highest mean. Group Email mean is 12. Email has 8 records.",
+    "findings": [
+      {
+        "claim": "Email has the highest mean.",
+        "kind": "fact",
+        "evidence_ids": [
+          "322740e832e38077da5dd43a97e239bca63cbd8aa3059887ed2efb281ca2d873"
+        ]
+      },
+      {
+        "claim": "Group Email mean is 12.",
+        "kind": "fact",
+        "evidence_ids": [
+          "322740e832e38077da5dd43a97e239bca63cbd8aa3059887ed2efb281ca2d873"
+        ]
+      },
+      {
+        "claim": "Email has 8 records.",
+        "kind": "fact",
+        "evidence_ids": [
+          "322740e832e38077da5dd43a97e239bca63cbd8aa3059887ed2efb281ca2d873"
+        ]
+      }
+    ],
+    "limitations": [
+      "These are fictional closed tickets, not measured customer performance.",
+      "The review rule uses observed resolution times for this sample.",
+      "Text interpretation, prediction, and the autonomous agent were not run."
+    ]
+  },
+  "evidence": {
+    "evidence_id": "322740e832e38077da5dd43a97e239bca63cbd8aa3059887ed2efb281ca2d873",
+    "input_sha256": "b19bc97f78f66e1d32ee519d0f743b783a9d7c3d16034381efda5e38471309f4",
+    "group_by": "channel",
+    "unit": "hours",
+    "records": [
+      {
+        "ticket_id": "S3-E01",
+        "queue": "Email",
+        "resolution_hours": 9.0
+      },
+      {
+        "ticket_id": "S3-E02",
+        "queue": "Email",
+        "resolution_hours": 11.0
+      },
+      {
+        "ticket_id": "S3-E03",
+        "queue": "Email",
+        "resolution_hours": 13.0
+      },
+      {
+        "ticket_id": "S3-E04",
+        "queue": "Email",
+        "resolution_hours": 12.0
+      },
+      {
+        "ticket_id": "S3-E05",
+        "queue": "Email",
+        "resolution_hours": 14.0
+      },
+      {
+        "ticket_id": "S3-E06",
+        "queue": "Email",
+        "resolution_hours": 10.0
+      },
+      {
+        "ticket_id": "S3-E07",
+        "queue": "Email",
+        "resolution_hours": 15.0
+      },
+      {
+        "ticket_id": "S3-E08",
+        "queue": "Email",
+        "resolution_hours": 12.0
+      },
+      {
+        "ticket_id": "S3-C01",
+        "queue": "Chat",
+        "resolution_hours": 2.0
+      },
+      {
+        "ticket_id": "S3-C02",
+        "queue": "Chat",
+        "resolution_hours": 3.0
+      },
+      {
+        "ticket_id": "S3-C03",
+        "queue": "Chat",
+        "resolution_hours": 4.0
+      },
+      {
+        "ticket_id": "S3-C04",
+        "queue": "Chat",
+        "resolution_hours": 4.0
+      },
+      {
+        "ticket_id": "S3-C05",
+        "queue": "Chat",
+        "resolution_hours": 5.0
+      },
+      {
+        "ticket_id": "S3-C06",
+        "queue": "Chat",
+        "resolution_hours": 2.0
+      },
+      {
+        "ticket_id": "S3-C07",
+        "queue": "Chat",
+        "resolution_hours": 3.0
+      },
+      {
+        "ticket_id": "S3-C08",
+        "queue": "Chat",
+        "resolution_hours": 5.0
+      },
+      {
+        "ticket_id": "S3-P01",
+        "queue": "Phone",
+        "resolution_hours": 1.0
+      },
+      {
+        "ticket_id": "S3-P02",
+        "queue": "Phone",
+        "resolution_hours": 2.0
+      },
+      {
+        "ticket_id": "S3-P03",
+        "queue": "Phone",
+        "resolution_hours": 3.0
+      },
+      {
+        "ticket_id": "S3-P04",
+        "queue": "Phone",
+        "resolution_hours": 2.0
+      },
+      {
+        "ticket_id": "S3-P05",
+        "queue": "Phone",
+        "resolution_hours": 1.0
+      },
+      {
+        "ticket_id": "S3-P06",
+        "queue": "Phone",
+        "resolution_hours": 2.0
+      },
+      {
+        "ticket_id": "S3-P07",
+        "queue": "Phone",
+        "resolution_hours": 4.0
+      },
+      {
+        "ticket_id": "S3-P08",
+        "queue": "Phone",
+        "resolution_hours": 1.0
+      }
+    ],
+    "table": [
+      {
+        "group": "Email",
+        "count": 8,
+        "labeled": 8,
+        "mean": 12.0
+      },
+      {
+        "group": "Chat",
+        "count": 8,
+        "labeled": 8,
+        "mean": 3.5
+      },
+      {
+        "group": "Phone",
+        "count": 8,
+        "labeled": 8,
+        "mean": 2.0
+      }
+    ]
+  },
+  "execution": "Local support adapter, aggregate, and answer validator; no provider dispatch.",
+  "created_at": "2026-10-12T23:59:05.239811+00:00"
+}
