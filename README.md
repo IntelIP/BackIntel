@@ -69,3 +69,18 @@ Clean up and clarify this proof of concept first. Then reconcile and qualify the
 BackIntel source is licensed under [MIT](LICENSE), copyright 2026 IntelIP. Preserve the recorded package's [dependency and dataset notices](docs/demo/DemoLicensing.txt) when sharing it. Third-party software, models, and services retain their own terms.
 
 [Website and SEO source](https://github.com/IntelIP/BackIntelWebsite)
+
+## Run a fresh support check locally
+
+The current web app can also calculate a fresh support-queue comparison from a CSV, show the supporting tickets, and download a checked report. This local mode uses observed resolution times. The included example is fictional.
+
+With the existing repository Python and web dependencies, run from the checkout:
+
+```sh
+npm run build --prefix apps/web
+.venv/bin/python -m scripts.support_workspace --port 2055
+```
+
+Open <http://127.0.0.1:2055/support>. Select a support-ticket CSV or choose **Use fictional example**, then **Run analysis**. Expand **Supporting tickets** and select **Save checked report**. Processing stays on this computer.
+
+See the [Sprint 4 setup and review](docs/roadmap/sprint-4-review.md) for the required CSV columns, file limits, tested workflow, and result boundaries. This adds a local calculation; the recorded demonstration above remains available.

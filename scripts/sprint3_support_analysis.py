@@ -9,13 +9,14 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from runtime.analysis_agent import aggregate, validate_answer
 from runtime.analysis_data import digest, support
 
 
-def analyze(source: Path) -> dict:
+def analyze(source: Path, *, fictional: bool = True) -> dict:
     rows = list(support([source]))
     if not rows or any(row['target'] is None or row['target'] < 0 for row in rows):
         raise ValueError('Provide closed tickets with nonnegative resolution_time_hours.')
@@ -48,12 +49,14 @@ def analyze(source: Path) -> dict:
         'summary': ' '.join(finding['claim'] for finding in findings),
         'findings': findings,
         'limitations': [
-            'These are fictional closed tickets, not measured customer performance.',
+            'These are fictional closed tickets, not measured customer performance.' if fictional else
+            'These are reviewer-supplied closed-ticket records; their accuracy is not independently verified.',
             'The review rule uses observed resolution times for this sample.',
             'Text interpretation, prediction, and the autonomous agent were not run.',
         ],
     }, [evidence], group='channel')
     return {
+        'fictional': fictional,
         'question': 'Which queue needs attention?',
         'attention_rule': 'Review all channel queues with the highest average resolution time.',
         'selected_queues': [row['group'] for row in selected],
@@ -63,27 +66,34 @@ def analyze(source: Path) -> dict:
     }
 
 
-def markdown(result: dict) -> str:
+def markdown_text(value: str) -> str:
+    return re.sub(r'([\\`*_{}\[\]()#+!|>])', r'\\\1', value).replace('\n', ' ')
+
+
+def markdown(result: dict, *, include_file_links: bool = True) -> str:
     evidence = result['evidence']
     lines = [
         '# Fresh support queue analysis', '',
-        '**Fictional sample.** No customer-performance claim.', '',
-        f"**Queue to review: {', '.join(result['selected_queues'])}.**", '',
+        '**Fictional sample.** No customer-performance claim.' if result.get('fictional', True) else
+        '**Uploaded closed-ticket records.** The supplied values are not independently verified.', '',
+        f"**Queue to review: {', '.join(markdown_text(queue) for queue in result['selected_queues'])}.**", '',
         'Rule: review the channel queue with the highest average time to resolve closed tickets.', '',
         '| Queue | Tickets | Average resolution time (hours) |',
         '| --- | --- | --- |',
     ]
-    lines.extend(f"| {row['group']} | {row['count']} | {row['mean']:.12g} |"
+    lines.extend(f"| {markdown_text(row['group'])} | {row['count']} | {row['mean']:.12g} |"
                  for row in evidence['table'])
     lines.extend(['', '## Supporting tickets', '',
                   '| Ticket | Queue | Resolution time (hours) |', '| --- | --- | --- |'])
-    lines.extend(f"| {row['ticket_id']} | {row['queue']} | {row['resolution_hours']:.12g} |"
+    lines.extend(f"| {markdown_text(row['ticket_id'])} | {markdown_text(row['queue'])} | {row['resolution_hours']:.12g} |"
                  for row in evidence['records'] if row['queue'] in result['selected_queues'])
     lines.extend(['', '## Checked findings', ''])
-    lines.extend(f"- {finding['claim']}" for finding in result['answer']['findings'])
+    lines.extend(f"- {markdown_text(finding['claim'])}" for finding in result['answer']['findings'])
     lines.extend(['', '## Limits', ''])
     lines.extend(f'- {text}' for text in result['answer']['limitations'])
-    lines.extend(['', 'Source: [input.csv](input.csv). Details: [report.json](report.json).',
+    if include_file_links:
+        lines.extend(['', 'Source: [input.csv](input.csv). Details: [report.json](report.json).'])
+    lines.extend(['',
                   f"Input SHA-256: `{evidence['input_sha256']}`.",
                   f"Calculation evidence: `{evidence['evidence_id']}`.", ''])
     return '\n'.join(lines)

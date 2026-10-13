@@ -56,4 +56,4 @@ This sprint demonstrates a fresh local statistical calculation on fictional clos
 
 Live agent reasoning, prediction accuracy, scheduled processing, measured customer benefit, release readiness, and the separate developer toolkit remain unverified by this result. Toolkit stories S02/S03 stay unfinished.
 
-See the [completed Sprint 3 plan](current-sprint.md), [ordered backlog](agile-backlog.md), and [Sprint 2 review](sprint-2-review.md).
+See the [completed Sprint 3 plan](sprint-3.md), [ordered backlog](agile-backlog.md), and [Sprint 2 review](sprint-2-review.md).

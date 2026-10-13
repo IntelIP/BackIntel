@@ -1,63 +1,43 @@
-# Sprint 3 — Produce and check a fresh support finding
+# Sprint 4 — Run fresh support analysis from the app
 
-Selected October 12, 2026. **Status: Done for the approved local sample scope.** See the [sprint review](sprint-3-review.md). Hudson approved this sprint with “Proceed.”
+Selected October 12, 2026. **Status: Done for the approved local app scope.** See the [sprint review](sprint-4-review.md). Hudson approved executing the proposed plan.
 
 ## User outcome
 
-A reviewer supplies a new, fictional ticket set and receives a finding with the supporting records. This answers “Which queue needs attention?” under a stated rule, rather than playing back the Sprint 2 recording.
+A reviewer chooses a support-ticket CSV, gets the queue comparison in the current app, inspects the supporting tickets, and saves a self-contained checked report. Changing the file must produce the correct new answer.
 
-**Rule:** group closed tickets by communication channel, treat each channel as a queue, and review every queue tied for the highest average resolution time. This is a descriptive check of observed durations, not a prediction or an autonomous model interpretation.
+The rule reviews all channel queues tied for the longest average observed resolution time among closed tickets. This is a local statistical calculation, not AI reasoning or a prediction.
 
-**Owner:** Codex. **Timebox:** one focused working session. **Boundary:** local execution, no paid calls, no private data, no credential discovery, no changes to existing services. Reuse the current analysis functions and installed environment. The separate toolkit stories S02/S03 remain unfinished.
+**Owner:** Codex. **Timebox:** one focused working session. **Boundary:** local execution and fictional validation inputs, no paid calls, no model download, no database provisioning, no publication. Reuse the current web app and Sprint 3 calculation. Keep the existing authenticated workspace and recorded demo available. Toolkit qualification remains separate; S02/S03 stay unfinished.
 
 ## Ordered user issues
 
-APP-03–APP-05 are local planning labels, not external tickets. Start them in order.
+APP-06–APP-08 are local planning labels, not external tickets.
 
 | Order | Issue | User problem | Observable result | Status |
 | --- | --- | --- | --- | --- |
-| 1 | APP-03 — Prepare a fresh input and local runner | A saved recording cannot show a new calculation. | A new fictional CSV is read by the current support adapter and local analysis functions. | Done |
-| 2 | APP-04 — Produce the finding and evidence | A reviewer needs an answer and the records behind it. | A report names the queue to review, compares all queues, and lists supporting ticket identities and durations. | Done |
-| 3 | APP-05 — Check the answer independently | A plausible-looking report can still be wrong or fixed to one example. | An independent raw-file calculation agrees, and changed ticket durations change the selected queue. | Done |
+| 1 | APP-06 — Choose a ticket file | A reviewer should not need a terminal to supply tickets. | The app accepts a CSV or offers a clearly fictional example. Invalid files receive useful errors. | Done |
+| 2 | APP-07 — Get a fresh answer | A saved demo cannot answer from new records. | A local calculation shows every queue, its count and average, and every queue tied for attention. | Done |
+| 3 | APP-08 — Inspect and save the evidence | A reviewer needs records behind the answer and a report to keep. | Supporting ticket identities and durations are visible. A downloaded report includes the finding, evidence, input hash, and limits. | Done |
 
-## APP-03 — Prepare a fresh input and local runner
+## Required checks and done condition
 
-1. Create a small, explicitly fictional CSV in the existing support-ticket format. Retain it as a reproducible example.
-2. Reuse `runtime.analysis_data.support`, `runtime.analysis_agent.aggregate`, and `runtime.analysis_agent.validate_answer`.
-3. Use the existing local Python environment. Invoke no agent/provider request, model download, database provisioning, or credentials.
-4. Keep the closed-ticket observation and channel-queue definition explicit.
+1. Run the actual current app in a browser and select the fictional example. Email must be selected, with averages of 12, 3.5, and 2 hours for Email, Chat, and Phone.
+2. Upload an altered fictional file with every Chat duration set to 20 hours. Chat must become selected, and its supporting records and downloaded report must reflect that new input.
+3. Selecting a new file clears the previous report. Invalid input shows an error without retaining a stale result.
+4. The server rejects malformed input, oversized files, and requests from another website. No provider dispatch occurs.
+5. The existing workspace checks and current app build pass. Inspect the browser at desktop and narrow widths.
+6. Record observed results in the sprint review, update roadmap statuses, and commit locally. No push or deployment.
 
-**Done when:** the real support adapter reads the new records and the local analysis functions run successfully.
-
-## APP-04 — Produce the finding and evidence
-
-1. Copy the input into a new output folder so earlier results stay intact.
-2. Calculate count and average resolution time per channel. Select all highest-average queues.
-3. Validate the factual claims against the calculated table.
-4. Save the input snapshot, machine-readable result, and plain report with ticket evidence and input identity.
-
-**Done when:** a new report answers the stated question and exposes the records and rule used.
-
-## APP-05 — Check the answer independently
-
-1. Read the raw CSV with a separate calculation using decimal arithmetic; do not reuse the analysis adapter or aggregation function for this check.
-2. Compare queue counts, total hours, averages, selected queue, and cited ticket identities with the report.
-3. Change the sample so another queue becomes the slowest. Confirm the result changes and no provider dispatch occurs.
-4. Run the focused test, record commands and results, and close this sprint when the outcome is demonstrated.
-
-**Done when:** the independent calculation agrees and the changed-input check proves the answer comes from the new records.
-
-## Review boundary
-
-This sprint checks a fresh local statistical answer on fictional closed tickets. It does not establish prediction accuracy, live agent reasoning, scheduled processing, customer value, release readiness, or developer-toolkit qualification. Do not close S02/S03 from these results.
+**Done when:** a reviewer can complete file selection, fresh analysis, evidence inspection, and saving through the app; changed-input and rejection checks pass.
 
 ## References
 
-- [Completed Sprint 2 plan](sprint-2.md)
-- [Sprint 2 results](sprint-2-review.md)
+- [Completed Sprint 3 plan](sprint-3.md)
+- [Sprint 3 review](sprint-3-review.md)
 - [Ordered backlog](agile-backlog.md)
 - [Roadmap](README.md)
 
 ## Completed result
 
-The [saved report](../demo/sprint-3-support-result/report.md) selects Email from 24 fictional closed tickets: Email averages 12 hours, Chat 3.5, and Phone 2. The independent raw-file check agrees. Changing Chat durations to 20 hours selects Chat without provider dispatch. APP-03–APP-05 are Done; see the [review](sprint-3-review.md) for commands, evidence, and limits.
+APP-06–APP-08 are Done. The actual browser flow selects Email from the fictional example, then selects Chat when an uploaded fictional file changes Chat durations to 20 hours. Supporting records and both downloaded reports match the selected inputs. See the [review](sprint-4-review.md) for setup, checks, and limits.
