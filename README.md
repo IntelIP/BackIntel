@@ -72,15 +72,16 @@ BackIntel source is licensed under [MIT](LICENSE), copyright 2026 IntelIP. Prese
 
 ## Run a fresh support check locally
 
-The current web app can also calculate a fresh support-queue comparison from a CSV, show the supporting tickets, and download a checked report. This local mode uses observed resolution times. The included example is fictional.
+Supply a support-ticket CSV through the script to get the queue comparison, supporting tickets, and a saved report. The included example is fictional.
 
-With the existing repository Python and web dependencies, run from the checkout:
+With the existing repository Python dependencies, run from the checkout:
 
 ```sh
-npm run build --prefix apps/web
-.venv/bin/python -m scripts.support_workspace --port 2055
+.venv/bin/python -m scripts.support_analysis \
+  --input docs/demo/Sprint3SupportTickets.csv \
+  --output "$HOME/Library/Application Support/BackIntel/Reports/support-check"
 ```
 
-Open <http://127.0.0.1:2055/support>. Select a support-ticket CSV or choose **Use fictional example**, then **Run analysis**. Expand **Supporting tickets** and select **Save checked report**. Processing stays on this computer.
+Use a new output folder for each run. It contains `input.csv`, `report.md`, and `report.json`. For your own file, change `--input`; add `--fictional` for a custom fictional example. Processing stays on this computer and requires no browser or server.
 
-See the [Sprint 4 setup and review](docs/roadmap/sprint-4-review.md) for the required CSV columns, file limits, tested workflow, and result boundaries. This adds a local calculation; the recorded demonstration above remains available.
+See the [Sprint 4 setup and review](docs/roadmap/sprint-4-review.md) for the required CSV columns, file limits, checked workflow, and result boundaries. The recorded demonstration above remains available.

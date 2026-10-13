@@ -1,22 +1,63 @@
-"""Answer the bounded Sprint 3 queue question using local analysis functions.
+"""Find support queues with the longest average resolution time from a CSV.
 
-Inputs are synthetic closed support tickets in the existing support CSV format.
-This runs observed statistics, not the paid agent or a prediction model.
+Supply closed tickets. This calculates observed statistics locally, without
+provider calls or a prediction model.
 """
 from __future__ import annotations
 
 import argparse
+import csv
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 import re
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from runtime.analysis_agent import aggregate, validate_answer
 from runtime.analysis_data import digest, support
 
 
-def analyze(source: Path, *, fictional: bool = True) -> dict:
+MAX_BYTES = 1_048_576
+MAX_TICKETS = 10_000
+REQUIRED_COLUMNS = {'ticket_id', 'channel', 'resolution_time_hours'}
+FICTIONAL_SAMPLE_SHA256 = 'b19bc97f78f66e1d32ee519d0f743b783a9d7c3d16034381efda5e38471309f4'
+
+
+def validate_input(body: bytes) -> None:
+    if not 0 < len(body) <= MAX_BYTES:
+        raise ValueError('Provide a nonempty CSV no larger than 1 MB.')
+    try:
+        reader = csv.DictReader(io.StringIO(body.decode('utf-8-sig')), strict=True)
+        if not REQUIRED_COLUMNS.issubset(reader.fieldnames or []):
+            raise ValueError('The CSV needs ticket_id, channel, and resolution_time_hours columns.')
+        if len(reader.fieldnames) != len(set(reader.fieldnames)):
+            raise ValueError('Each CSV column must have a unique name.')
+        count = 0
+        for row in reader:
+            count += 1
+            if count > MAX_TICKETS:
+                raise ValueError('Provide a CSV with at most 10,000 tickets.')
+            if None in row:
+                raise ValueError('Every ticket row must match the CSV column count.')
+            if any(not (row.get(key) or '').strip() for key in REQUIRED_COLUMNS):
+                raise ValueError('Every ticket needs an identity, a queue, and resolution hours.')
+        if not count:
+            raise ValueError('The CSV contains no tickets.')
+    except UnicodeDecodeError as error:
+        raise ValueError('Provide a UTF-8 CSV, with or without a byte-order mark.') from error
+    except csv.Error as error:
+        raise ValueError(f'Invalid CSV: {error}') from error
+
+
+def analyze(source: Path, *, fictional: bool | None = None) -> dict:
+    with source.open('rb') as stream:
+        body = stream.read(MAX_BYTES + 1)
+    validate_input(body)
+    input_sha256 = hashlib.sha256(body).hexdigest()
+    if fictional is None:
+        fictional = input_sha256 == FICTIONAL_SAMPLE_SHA256
     rows = list(support([source]))
     if not rows or any(row['target'] is None or row['target'] < 0 for row in rows):
         raise ValueError('Provide closed tickets with nonnegative resolution_time_hours.')
@@ -28,7 +69,7 @@ def analyze(source: Path, *, fictional: bool = True) -> dict:
     table = aggregate(rows, group='channel', order='descending')
     selected = [row for row in table if row['mean'] == table[0]['mean']]
     proof = {
-        'input_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+        'input_sha256': input_sha256,
         'group_by': 'channel',
         'unit': 'hours',
         'records': [{'ticket_id': row['id'], 'queue': row['groups']['channel'],
@@ -70,14 +111,14 @@ def markdown_text(value: str) -> str:
     return re.sub(r'([\\`*_{}\[\]()#+!|>])', r'\\\1', value).replace('\n', ' ')
 
 
-def markdown(result: dict, *, include_file_links: bool = True) -> str:
+def markdown(result: dict) -> str:
     evidence = result['evidence']
     lines = [
         '# Fresh support queue analysis', '',
         '**Fictional sample.** No customer-performance claim.' if result.get('fictional', True) else
-        '**Uploaded closed-ticket records.** The supplied values are not independently verified.', '',
+        '**Supplied closed-ticket records.** The supplied values are not independently verified.', '',
         f"**Queue to review: {', '.join(markdown_text(queue) for queue in result['selected_queues'])}.**", '',
-        'Rule: review the channel queue with the highest average time to resolve closed tickets.', '',
+        'Rule: review all channel queues tied for the highest average time to resolve closed tickets.', '',
         '| Queue | Tickets | Average resolution time (hours) |',
         '| --- | --- | --- |',
     ]
@@ -91,29 +132,35 @@ def markdown(result: dict, *, include_file_links: bool = True) -> str:
     lines.extend(f"- {markdown_text(finding['claim'])}" for finding in result['answer']['findings'])
     lines.extend(['', '## Limits', ''])
     lines.extend(f'- {text}' for text in result['answer']['limitations'])
-    if include_file_links:
-        lines.extend(['', 'Source: [input.csv](input.csv). Details: [report.json](report.json).'])
+    lines.extend(['', 'Source: [input.csv](input.csv). Details: [report.json](report.json).'])
     lines.extend(['',
                   f"Input SHA-256: `{evidence['input_sha256']}`.",
                   f"Calculation evidence: `{evidence['evidence_id']}`.", ''])
     return '\n'.join(lines)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path,
                         help='A new folder; existing outputs are preserved.')
-    args = parser.parse_args()
+    parser.add_argument('--fictional', action='store_true',
+                        help='Label a custom input as fictional. The included sample is recognized automatically.')
+    args = parser.parse_args(argv)
     try:
-        body = args.input.read_bytes()
-        args.output.mkdir(parents=True, exist_ok=False)
-        source = args.output / 'input.csv'
-        source.write_bytes(body)
-        result = analyze(source)
+        with args.input.open('rb') as stream:
+            body = stream.read(MAX_BYTES + 1)
+        with TemporaryDirectory(prefix='backintel-support-') as directory:
+            source = Path(directory) / 'input.csv'
+            source.write_bytes(body)
+            result = analyze(source, fictional=True if args.fictional else None)
         result['created_at'] = datetime.now(timezone.utc).isoformat()
-        (args.output / 'report.json').write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')
-        (args.output / 'report.md').write_text(markdown(result))
+        report_json = json.dumps(result, indent=2, allow_nan=False) + '\n'
+        report_markdown = markdown(result)
+        args.output.mkdir(parents=True, exist_ok=False)
+        (args.output / 'input.csv').write_bytes(body)
+        (args.output / 'report.json').write_text(report_json, encoding='utf-8')
+        (args.output / 'report.md').write_text(report_markdown, encoding='utf-8')
     except (OSError, ValueError, KeyError) as error:
         parser.error(str(error))
     print(json.dumps({'selected_queues': result['selected_queues'],

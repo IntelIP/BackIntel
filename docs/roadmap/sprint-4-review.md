@@ -1,39 +1,46 @@
-# Sprint 4 review — Run fresh support analysis from the app
+# Sprint 4 review — Run fresh support analysis as a script
 
-Completed October 12, 2026. **Status: Done for the approved local app scope.**
+Completed October 12, 2026. **Status: Done for the local script scope.**
 
-A reviewer can choose a support-ticket CSV in the current BackIntel web app, run a fresh local calculation, inspect supporting tickets, and save a self-contained checked report. Changing the file changes the answer and saved evidence.
+A reviewer supplies a support-ticket CSV through a script and gets a fresh queue comparison with supporting records and a saved report. Changing the file changes the answer and saved evidence.
+
+The browser version was implemented and checked in commit `ced9f11`. Hudson then requested a script. The current delivery removes that support screen, its local HTTP server, and their tests. The existing authenticated workspace and recorded demo remain available.
 
 ## Closed user issues
 
 | Issue | Observed result | Status |
 | --- | --- | --- |
-| APP-06 — Choose a ticket file | Native file selection accepts the support CSV. The app also offers a clearly fictional example. Invalid input receives useful errors. | Done |
-| APP-07 — Get a fresh answer | The example selects Email: averages are Email 12, Chat 3.5, and Phone 2 hours. Uploading fictional tickets with Chat durations changed to 20 hours selects Chat. | Done |
-| APP-08 — Inspect and save evidence | Supporting ticket identities and durations are visible. Browser downloads contain the correct finding, records, source hash, and limits for each input. | Done |
+| APP-06 — Supply a ticket file | One command accepts the CSV and rejects invalid input before creating an output folder. The included fictional example is recognized automatically. | Done |
+| APP-07 — Get a fresh answer | The example selects Email: averages are Email 12, Chat 3.5, and Phone 2 hours. Setting Chat durations to 20 selects Chat; at 12, Chat and Email are both selected. | Done |
+| APP-08 — Inspect and save evidence | The output folder contains the exact input, a readable report, and structured findings with all supporting records and source hash. An existing folder cannot be overwritten. | Done |
 
-## Open the local app
+## Run the script
 
-From the repository root, using the existing repository dependencies:
+From the repository root, using the existing Python environment:
 
 ```sh
-npm run build --prefix apps/web
-.venv/bin/python -m scripts.support_workspace --port 2055
+.venv/bin/python -m scripts.support_analysis \
+  --input docs/demo/Sprint3SupportTickets.csv \
+  --output "$HOME/Library/Application Support/BackIntel/Reports/support-check"
 ```
 
-Open <http://127.0.0.1:2055/support>. Stop with Ctrl-C. Choose another port if 2055 is occupied.
+For your own records, replace the input path and choose a new output folder. Add `--fictional` when using a custom fictional file. The included sample is recognized by its known content hash; other inputs are labelled supplied records whose accuracy is not independently verified.
 
-Select **Use fictional example**, then **Run analysis**. Expand **Supporting tickets** and choose **Save checked report**. To use another file, select it through **Support-ticket file** and run again.
+The command prints the selected queues and the saved report path. The new folder contains:
 
-CSV requirements: UTF-8; unique column names; nonempty, unique `ticket_id`; a named `channel`; nonnegative, finite `resolution_time_hours`; 2–20 queues; at most 1 MB and 10,000 tickets. Supply closed tickets only. Open-ticket status is not inferred from the file.
+- `input.csv`: the exact source used for the calculation.
+- `report.md`: the finding, queue comparison, supporting tickets for every selected queue, and limits.
+- `report.json`: the structured answer, every ticket's identity and duration, comparisons, input hash, and calculation evidence.
 
-The calculation runs on this computer. Uploads use temporary files that are removed after calculation. Reports are saved through the browser's download control. The reviewer supplies the file; the app does not establish its real-world accuracy.
+CSV requirements: UTF-8 with or without a byte-order mark; unique column names; required columns `ticket_id`, `channel`, and `resolution_time_hours`; nonempty, unique ticket identities; named queues; nonnegative, finite resolution hours; 2–20 queues; at most 1 MB and 10,000 tickets. Rows must not contain extra cells. Supply closed tickets only. Open-ticket status is not inferred from the file.
+
+The calculation uses a temporary snapshot before creating any report folder. Invalid input leaves no new output folder. Existing folders are preserved. No server, browser, database, or provider request is needed. The archived Sprint 3 command continues to work.
 
 ## Checks and evidence
 
-The current app build and all 14 existing workspace checks passed. The existing Sprint 3 changed-input check also passed. The new HTTP integration check exercised actual local calculations while making provider dispatch fail if attempted. It checked changed input, tied queues, input hashes, supporting records, self-contained reports, escaped report values, and rejection of malformed, negative, oversized, wrong-format, cross-site, and wrong-host requests.
+The actual script command saved the example's source, correct finding, supporting tickets, and both reports. The script checks passed for changed input, tied queues, fictional and supplied labels, UTF-8 byte-order marks, escaped report values, and preserving existing reports. Invalid-input checks rejected empty, oversized, excessive-ticket, malformed, incorrectly encoded, missing-column, duplicate-column, incomplete-row, duplicate-identity, negative-duration, nonfinite-duration, and invalid-queue inputs without creating an output folder. Direct calculation checks make provider dispatch fail if attempted.
 
-The browser check used the real current web build and local HTTP handler. It selected the example, uploaded an altered fictional CSV, inspected all eight supporting tickets for each selected queue, and downloaded both reports. A new selection cleared the previous answer and download link. Invalid input displayed an error with no stale answer. Desktop and 390-pixel layouts were inspected; narrow tables scroll within their own containers. No browser page errors occurred.
+The existing workspace checks and rebuilt web app passed after the support screen was removed. The required dead-code check, updated repository relationship index, documentation links, and `git diff --check` passed. Removed support-screen and server names have no remaining source registrations.
 
 Commands used:
 
@@ -41,25 +48,19 @@ Commands used:
 python3 /Users/hudson/.codex/skills/token-efficient-code-tools/scripts/code_context.py run -- \
   .venv/bin/python -m unittest discover -s tests -p test_sprint3_support_analysis.py -v
 python3 /Users/hudson/.codex/skills/token-efficient-code-tools/scripts/code_context.py run -- \
-  .venv/bin/python -m unittest discover -s tests -p test_support_workspace.py -v
-python3 /Users/hudson/.codex/skills/token-efficient-code-tools/scripts/code_context.py run -- \
   npm test --prefix apps/web
 python3 /Users/hudson/.codex/skills/token-efficient-code-tools/scripts/code_context.py run -- \
   npm run build --prefix apps/web
-python3 /Users/hudson/.codex/skills/token-efficient-code-tools/scripts/code_context.py run -- \
-  node apps/web/tests/support-browser.mjs
+bash scripts/check-dead-code.sh
+graphify update .
 ```
 
-Each browser run writes a receipt, the altered fictional input, both downloaded reports, and desktop/narrow screenshots under `~/Library/Application Support/BackIntel/Validation/Sprint4/`. The receipt identifies the source revision and whether the working tree was clean. The final local commit is checked using the same commands.
-
-The repository relationship index was updated with `graphify update .`. The web entry point, new upload handler, shared calculation, and callers were checked against current source. Documentation links and `git diff --check` passed.
+The earlier browser receipts and screenshots under `~/Library/Application Support/BackIntel/Validation/Sprint4/` describe the historical browser delivery. They are not the validation of the script replacement.
 
 ## Scope and limits
 
-This is the current web app's local support-check mode. It reuses the Sprint 3 support adapter, aggregation, and answer validator. The existing authenticated workspace and the separately packaged recorded demo remain available.
+This reuses the Sprint 3 support adapter, aggregation, and answer validator. It selects every channel tied for the longest average observed resolution time among supplied closed tickets. It does not explain delays, count open workload, or account for ticket difficulty. AI reasoning, prediction, and autonomous work were not run. Customer benefit, release readiness, and independent installation remain unverified.
 
-The review rule selects every channel tied for the longest average observed resolution time among closed tickets. It does not explain delays, count open workload, or account for ticket difficulty. No AI reasoning, prediction, or paid provider call is involved. Customer benefit, release readiness, and independent installation remain unverified.
-
-Toolkit recovery and qualification are still separate. S02/S03 remain unfinished.
+The changes are committed locally. Toolkit recovery and qualification remain separate; S02/S03 are unfinished.
 
 See the [completed Sprint 4 plan](current-sprint.md), [Sprint 3 review](sprint-3-review.md), [ordered backlog](agile-backlog.md), and [roadmap](README.md).

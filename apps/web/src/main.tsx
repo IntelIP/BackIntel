@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import SupportAnalysis from './SupportAnalysis';
 import './style.css';
 
 type Principal = {id: string; role: string; domains: string[]; budget: {suite_usd: number}};
@@ -14,10 +13,6 @@ type Review = {id: number; actor: string; body: {text: string; kind: string}};
 const format = (n: number|null|undefined) => n == null ? 'Unavailable' : Intl.NumberFormat(undefined,{maximumFractionDigits:3}).format(n);
 
 export default function App() {
-  return location.pathname === '/support' ? <SupportAnalysis/> : <WorkspaceAccess/>;
-}
-
-function WorkspaceAccess() {
   const [token,setToken] = useState(() => new URLSearchParams(location.hash.slice(1)).get('access') || sessionStorage.getItem('backintel-access') || '');
   const [accessError,setAccessError] = useState('');
   function changeAccess(value: string, reason = '') {

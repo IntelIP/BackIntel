@@ -1,35 +1,35 @@
-# Sprint 4 — Run fresh support analysis from the app
+# Sprint 4 — Run fresh support analysis as a script
 
-Selected October 12, 2026. **Status: Done for the approved local app scope.** See the [sprint review](sprint-4-review.md). Hudson approved executing the proposed plan.
+Selected October 12, 2026. **Status: Done for the local script scope.** Hudson requested a script after the browser version was delivered. See the [sprint review](sprint-4-review.md).
 
 ## User outcome
 
-A reviewer chooses a support-ticket CSV, gets the queue comparison in the current app, inspects the supporting tickets, and saves a self-contained checked report. Changing the file must produce the correct new answer.
+A reviewer supplies a support-ticket CSV through one command, gets the queue comparison, and keeps the finding, supporting tickets, and report. Changing the file must produce the correct new answer.
 
-The rule reviews all channel queues tied for the longest average observed resolution time among closed tickets. This is a local statistical calculation, not AI reasoning or a prediction.
+The rule reviews all channel queues tied for the longest average observed resolution time among closed tickets. It calculates directly from the supplied records.
 
-**Owner:** Codex. **Timebox:** one focused working session. **Boundary:** local execution and fictional validation inputs, no paid calls, no model download, no database provisioning, no publication. Reuse the current web app and Sprint 3 calculation. Keep the existing authenticated workspace and recorded demo available. Toolkit qualification remains separate; S02/S03 stay unfinished.
+**Owner:** Codex. **Timebox:** one focused working session. **Boundary:** local execution, fictional validation inputs, no paid calls, no model download, no database provisioning, no publication. Reuse the Sprint 3 calculation. Keep the existing authenticated workspace and recorded demo available. Toolkit qualification remains separate; S02/S03 stay unfinished.
 
 ## Ordered user issues
 
-APP-06–APP-08 are local planning labels, not external tickets.
+APP-06–APP-08 are local planning labels, not external tickets. Their delivery method now follows Hudson's script preference.
 
 | Order | Issue | User problem | Observable result | Status |
 | --- | --- | --- | --- | --- |
-| 1 | APP-06 — Choose a ticket file | A reviewer should not need a terminal to supply tickets. | The app accepts a CSV or offers a clearly fictional example. Invalid files receive useful errors. | Done |
-| 2 | APP-07 — Get a fresh answer | A saved demo cannot answer from new records. | A local calculation shows every queue, its count and average, and every queue tied for attention. | Done |
-| 3 | APP-08 — Inspect and save the evidence | A reviewer needs records behind the answer and a report to keep. | Supporting ticket identities and durations are visible. A downloaded report includes the finding, evidence, input hash, and limits. | Done |
+| 1 | APP-06 — Supply a ticket file | A reviewer wants to run analysis through a script. | One command accepts a CSV. Invalid files receive useful errors without leaving an unfinished report. | Done |
+| 2 | APP-07 — Get a fresh answer | A saved demo cannot answer from new records. | The calculation saves every queue's count and average, and selects all queues tied for attention. | Done |
+| 3 | APP-08 — Inspect and save the evidence | A reviewer needs records behind the answer and a report to keep. | A new folder contains the source CSV, a readable report, and structured findings with supporting records, input hash, and limits. Existing reports are preserved. | Done |
 
 ## Required checks and done condition
 
-1. Run the actual current app in a browser and select the fictional example. Email must be selected, with averages of 12, 3.5, and 2 hours for Email, Chat, and Phone.
-2. Upload an altered fictional file with every Chat duration set to 20 hours. Chat must become selected, and its supporting records and downloaded report must reflect that new input.
-3. Selecting a new file clears the previous report. Invalid input shows an error without retaining a stale result.
-4. The server rejects malformed input, oversized files, and requests from another website. No provider dispatch occurs.
-5. The existing workspace checks and current app build pass. Inspect the browser at desktop and narrow widths.
-6. Record observed results in the sprint review, update roadmap statuses, and commit locally. No push or deployment.
+1. Run the actual script with the fictional example. Email must be selected, with averages of 12, 3.5, and 2 hours for Email, Chat, and Phone.
+2. Change every Chat duration to 20 hours. Chat must become selected with eight supporting tickets. At 12 hours, Chat and Email must both be selected.
+3. Reject invalid input without creating an output folder. Preserve size, ticket-count, encoding, column, identity, duration, and queue checks.
+4. Preserve existing output folders. Recognize the included fictional example, label other records as supplied, and allow custom fictional inputs to be marked explicitly. No provider dispatch occurs.
+5. The existing workspace checks and web build pass after removing the support screen. Run the required dead-code check and update the repository relationship index.
+6. Record results in the sprint review, update roadmap statuses, and commit locally. No push or deployment.
 
-**Done when:** a reviewer can complete file selection, fresh analysis, evidence inspection, and saving through the app; changed-input and rejection checks pass.
+**Done when:** a reviewer can supply a file, run a fresh calculation, and inspect the saved finding and records through the script; changed-input, rejection, and report-preservation checks pass.
 
 ## References
 
@@ -40,4 +40,4 @@ APP-06–APP-08 are local planning labels, not external tickets.
 
 ## Completed result
 
-APP-06–APP-08 are Done. The actual browser flow selects Email from the fictional example, then selects Chat when an uploaded fictional file changes Chat durations to 20 hours. Supporting records and both downloaded reports match the selected inputs. See the [review](sprint-4-review.md) for setup, checks, and limits.
+APP-06–APP-08 are Done for the script delivery. The support screen and its local server were removed. The earlier browser delivery remains in commit `ced9f11`. See the [review](sprint-4-review.md) for the command, saved files, checks, and limits.
