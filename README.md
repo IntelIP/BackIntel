@@ -1,10 +1,10 @@
 # BackIntel — Demo Proof of Concept
 
-BackIntel helps a reviewer inspect an operational finding, check its evidence, and record a decision. This repository contains a runnable recorded demo and the developing analysis system behind it.
+BackIntel is being built to turn a business objective and permitted system connections into a checked, continuously maintained data and analysis pipeline. This repository currently contains a recorded demonstration, a local support-analysis script, and reusable analysis foundations.
 
-**Status: demonstration proof of concept.** The recorded demo uses synthetic business data and saved results. The current analysis workspace uses known dataset formats. Autonomous collection and preparation of unfamiliar data remain future work.
+**Status: demonstration proof of concept.** The recorded demo uses synthetic business data and saved results. The current workspace uses known dataset formats and bounded analytical tools. Autonomous Databricks pipelines, new method development, coordinated agents, and operation at scale remain planned work.
 
-[Try the recorded demo](#try-the-recorded-demo) · [Current capabilities](docs/demo/PoCStatus.txt) · [Architecture](docs/architecture/current-system.md) · [Roadmap](docs/roadmap/README.md) · [Future product concept](docs/research/autonomous-workflow-concept.txt)
+[Try the recorded demo](#try-the-recorded-demo) · [Current capabilities](docs/demo/PoCStatus.txt) · [System design](docs/SYSTEM_DESIGN.md) · [Roadmap](docs/ROADMAP.md) · [Backlog.md](docs/roadmap/agile-backlog.md) · [Original product concept](docs/research/autonomous-workflow-concept.txt)
 
 ## Try the recorded demo
 
@@ -31,6 +31,7 @@ The archive is a historical recording, with its original source identity and lim
 | Purpose | Entry point | Execution boundary |
 | --- | --- | --- |
 | Show findings, evidence, and a human decision | Recorded ZIP above | Saved results; no new model calls. |
+| Calculate a fresh support-queue comparison from a CSV | [`python3 -m scripts.support_analysis`](docs/roadmap/sprint-4-review.md#run-the-script) | Local observed statistics and saved reports; no server, database, or provider call. |
 | Exercise the workflow without external services | `python3 -m scripts.simulate` | Synthetic data and simulated model responses. |
 | Develop the current analysis workspace | [`apps/web` runbook](docs/architecture/analysis-workspace-runbook.md) | Local database and workers; hosted analysis requires separate setup and spending authority. |
 | Develop the earlier decision-review interface | [`frontend` guide](frontend/README.md) | Local review API; includes an optional Reflex interface. |
@@ -60,9 +61,9 @@ Demo merges use `tabellio.demo.validation.json`: recorded-package installation, 
 
 ## Product direction
 
-The intended product accepts an objective and permitted information, acquires and prepares unfamiliar data in its own workspace, completes the task, and saves a reusable workflow. That broader capability is not implemented by the current demo.
+The intended product discovers and collects permitted business data, cleans, transforms, classifies, and checks it, develops analysis and prediction methods, explains business measures and target progress, and maintains the workflow continuously. Users provide the objective and limits rather than writing each importer, transformation, or analysis script. Coordinated agents, communication between systems, and complete workloads at an agreed scale are core outcomes.
 
-Clean up and clarify this proof of concept first. Then reconcile and qualify the existing agent toolkit alpha before expanding into autonomous preparation of unfamiliar data. The [consolidated roadmap](docs/roadmap/README.md) records milestone scope, completion checks, and delivery status. The [saved concept and research](docs/research/autonomous-workflow-concept.txt) retains the broader direction and remaining gaps.
+The [roadmap](docs/ROADMAP.md) delivers that scope in separate stages, using Databricks as the reference source. The next small planning result is one bounded business question and operating contract. Preserve completed demonstrations and recover the reported toolkit when its source becomes available; that missing bundle does not block independent work on the current source. The [system design](docs/SYSTEM_DESIGN.md) maps reusable foundations to missing capabilities. The [original concept](docs/research/autonomous-workflow-concept.txt) retains earlier research and its superseded priority.
 
 ## License
 

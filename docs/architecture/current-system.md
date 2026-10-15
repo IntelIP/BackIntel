@@ -1,6 +1,14 @@
 # Current BackIntel System Architecture
 
-Checked October 6, 2026 against the consolidated local source. This describes implemented boundaries, not production or complete live acceptance. Historical October 1 architecture remains in the preserved Git branches.
+The analysis-workspace architecture was checked October 6, 2026 against the consolidated source. Documentation was updated October 14 to include the support-script entry point present at `3cd9991`; workspace validation was not rerun for that update. Start with [system design](../SYSTEM_DESIGN.md) for existing and proposed paths. Historical architecture and checks retain their original source identities and do not establish production or complete live acceptance.
+
+## Local support script
+
+`python3 -m scripts.support_analysis` reuses `scripts.sprint3_support_analysis` to accept a closed-ticket CSV, calculate per-queue counts and average resolution times, and save the original input, supporting records, and readable and structured reports. It selects every queue tied for the longest average. The [Sprint 4 review](../roadmap/sprint-4-review.md) records the command, input contract, checks, and limits.
+
+This path needs no browser, local server, database, or provider request. The earlier support screen was removed. The analysis workspace below and the recorded demonstration remain separate entry points.
+
+## Analysis workspace
 
 BackIntel lets an analyst save a question about one permitted dataset, inspect evidence-linked findings, ask follow-ups, and refresh the answer after source changes. Each goal belongs to one domain. Cross-domain joins and arbitrary generated investigations are not implemented by this workspace.
 
@@ -33,6 +41,12 @@ flowchart TD
 
 The current Compose profile runs one worker, two CPU threads and a 5 GiB worker limit. These limits do not establish concurrent-user capacity. Paid request reservations, measured-charge settlement, and uncertain-charge blocking remain separate from unmeasured local compute cost. Human approval is required to promote a predictor.
 
+## Gap to the intended autonomous product
+
+The October 14 [product scope](../ROADMAP.md) goes beyond this known-dataset workspace. It requires source discovery, unfamiliar-data preparation, autonomous method development, coordinated agents, continuous adaptation, and communication between permitted systems. Databricks is a reference scenario; this architecture does not establish its integration.
+
+Current tool selection is bounded to six approved analytical operations. `interpret_text` selects at most 20 messages by stable record ordering; repeated calls on unchanged input revisit that cohort. Prediction also uses a bounded cohort. These paths do not establish complete-workload processing, autonomous pipeline creation, or scale. The [target design](../SYSTEM_DESIGN.md) records the proposed progression while retaining these existing components.
+
 ## Other retained surfaces
 
 `frontend` and `reflex_demo` are earlier decision-review demonstrations. The recorded business demo opens preserved results without new inference. They do not replace `apps/web`.
@@ -47,6 +61,6 @@ The [benchmark campaign](../roadmap/BenchmarkCampaign.txt) freezes the consolida
 
 ## Local operation and development
 
-Use the [runbook](analysis-workspace-runbook.md). Canonical source is `/Users/hudson/Documents/GitHub/BackIntel` on `codex/backintel-consolidated`. Datasets remain outside Git under `~/Library/Application Support/BackIntel/Datasets`; existing weights and model evidence remain under ignored `artifacts/Models`. The existing local Docker project is `backintel-local-resume`; its name preserves the existing volumes and does not identify the canonical source folder.
+Use the [runbook](analysis-workspace-runbook.md). The canonical checkout is `/Users/hudson/Documents/GitHub/BackIntel`; select the task's branch and record its source revision when starting work. The October 6 consolidation branch is historical context, not a standing instruction to switch branches. Datasets remain outside Git under `~/Library/Application Support/BackIntel/Datasets`; existing weights and model evidence remain under ignored `artifacts/Models`. The existing local Docker project is `backintel-local-resume`; its name preserves the existing volumes and does not identify the canonical source folder.
 
 Local development credentials and loopback services are not production identity or deployment. External notifications, live bank connectors and automated lending decisions remain outside this implementation.

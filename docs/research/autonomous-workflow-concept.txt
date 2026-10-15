@@ -4,7 +4,17 @@ Recorded: October 7, 2026
 Basis: Hudson's product clarification and the repository/primary-source research in this chat.
 Status: Saved product intent and research. Broader implementation has not started.
 
-PRIORITY AND SEQUENCE
+CURRENT PRIORITY UPDATE — October 14, 2026
+
+Hudson made this autonomous workflow the central product objective: connect
+permitted business systems, build and check data and analysis pipelines,
+develop methods autonomously, keep answers current, and coordinate agents
+across complete workloads at an agreed scale. Databricks is the reference
+example. The cleanup-first/deferred sequence below is a dated historical
+record, superseded by docs/ROADMAP.md and docs/roadmap/README.md. Preserve the
+original concept and earlier work. This update implements no product behavior.
+
+PRIORITY AND SEQUENCE — historical October 7 decision
 
 First, clean up and clarify the existing proof of concept and its capabilities.
 Then assess other areas and work toward the broader autonomous system described
