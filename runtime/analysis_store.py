@@ -40,10 +40,10 @@ def principal(token):
     return p
 
 
-def authorize(p, domain=None, roles=('manager', 'analyst', 'viewer'), *, connection=None):
+def authorize(p, domain=None, roles=('manager', 'analyst', 'viewer'), *, connection=None, shared=False):
     sql = 'SELECT id,role,domains FROM backintel.analysis_principals WHERE id=%s AND enabled AND (expires_at IS NULL OR expires_at>clock_timestamp())'
     if connection is not None:
-        sql += ' FOR UPDATE'
+        sql += ' FOR SHARE' if shared else ' FOR UPDATE'
     current = query(sql, (p['id'],), one=True, connection=connection)
     if not current or current['role'] not in roles or (domain and domain not in current['domains']):
         raise PermissionError('Role or source access is denied')
@@ -117,14 +117,24 @@ def check_run(identity, *, connection=None):
             raise InterruptedError('Import cancelled')
         return r, {'domain': run_domain(r)}
     g = goal(r['goal_id'])
-    authorize({'id': r['owner']}, g['domain'], ('manager', 'analyst'))
-    if not source(g['domain'], connection=connection)['body'].get('terms_acknowledged'):
+    planning = r['body']['operation'] in ('planning', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh')
+    authorize({'id': r['owner']}, g['domain'], ('manager',) if planning else ('manager', 'analyst'), connection=connection)
+    if planning and (not g['body'].get('objective') or r['snapshot_id'] is not None):
+        raise PermissionError('Planning requires an objective and cannot use an imported snapshot')
+    if r['body']['operation'] in ('discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh'):
+        from contextlib import nullcontext
+        from runtime.source_access import require_source_access
+        with (nullcontext(connection) if connection is not None else connect()) as control, control.transaction():
+            require_source_access(g['id'], {'id': r['owner']}, connection=control, expected_version=r['goal_version'])
+        if r['snapshot_id'] is not None:
+            raise PermissionError('Connection discovery cannot use a registered-dataset snapshot')
+    elif not planning and not source(g['domain'], connection=connection)['body'].get('terms_acknowledged'):
         raise PermissionError('Source terms are not acknowledged')
     if r['body']['operation']=='analysis' and r['body'].get('model_id'):
         model=query('SELECT body FROM backintel.analysis_models WHERE id=%s',(r['body']['model_id'],),one=True)
         if not model or model['body'].get('invalidated_by'):
             raise PermissionError('Pinned predictor was invalidated by a source correction')
-    if not g['confirmed'] or g['paused'] or g['version'] != r['goal_version']:
+    if (not planning and not g['confirmed']) or g['paused'] or g['version'] != r['goal_version']:
         raise PermissionError('Goal is unconfirmed, paused or this run was superseded')
     if query('SELECT cancel_requested FROM backintel.capability_jobs WHERE job_id=%s', (r['job_id'],), one=True)['cancel_requested']:
         raise InterruptedError('Run cancelled')
@@ -196,13 +206,13 @@ def reserve(identity, call_id, amount):
         if cur.fetchone()['count'] >= CONFIG['budget']['max_attempts']:
             raise RuntimeError('Campaign provider attempt limit reached')
         cur.execute('SELECT count(*) FROM backintel.analysis_requests WHERE run_id=%s', (identity,))
-        if cur.fetchone()['count'] >= CONFIG['analyst']['max_calls']:
+        if cur.fetchone()['count'] >= min(CONFIG['analyst']['max_calls'], r['body'].get('study_policy', {}).get('max_model_calls', CONFIG['analyst']['max_calls'])):
             raise RuntimeError('Investigation provider call limit reached')
         for scope, cap in (('suite', 'suite_usd'), ('domain', 'domain_usd'), ('run', 'run_usd')):
             clause, args = ('', ()) if scope == 'suite' else (' WHERE domain=%s', (domain,)) if scope == 'domain' else (' WHERE run_id=%s', (identity,))
             cur.execute('SELECT COALESCE(sum(COALESCE(charge,reserved)),0) AS spent FROM backintel.analysis_requests'+clause, args)
             limit=CONFIG['budget'][cap]
-            if scope=='run':limit=min(limit,current_goal['body'].get('budget_usd',limit))
+            if scope=='run':limit=min(limit,current_goal['body'].get('budget_usd',limit),r['body'].get('study_policy',{}).get('max_spend_usd',limit))
             if cur.fetchone()['spent'] + amount > Decimal(str(limit)):
                 raise RuntimeError(f'{scope} inference budget exhausted')
         cur.execute('INSERT INTO backintel.analysis_requests(id,run_id,domain,reserved,status) VALUES(%s,%s,%s,%s,\'reserved\')', (call_id, identity, domain, amount))

@@ -1,0 +1,38 @@
+{
+  "dataset": {
+    "kaggle": "carrie1/ecommerce-data",
+    "original_source": "https://archive.ics.uci.edu/dataset/352/online+retail",
+    "citation": "Chen, D. (2015). Online Retail. UCI Machine Learning Repository. https://doi.org/10.24432/C5BW33",
+    "original_license": "CC BY 4.0",
+    "kaggle_license_field": "Unknown",
+    "historical_data": true
+  },
+  "request": {
+    "domain": "commerce",
+    "question": "Which products and countries contributed most to net invoice value over the complete recorded period, and how much did cancellations reduce it?",
+    "objective": {
+      "source_ref": "online-retail-postgres",
+      "expected_source_sha256": "d07aec9960083af2339975a3f9d3b26313b342dcd9f86cce0b919b1cde639a44",
+      "allowed_schemas": ["retail_raw"],
+      "allowed_actions": ["read"],
+      "metric": "Sum Quantity multiplied by UnitPrice in GBP, grouped separately by StockCode and Country. Retain source decimal precision; round only displayed currency. Report C-prefixed invoice cancellation value separately. This is invoice-line value, not audited revenue or profit.",
+      "population": "Every original row in the pinned historical source snapshot. Preserve missing customer/product descriptions and duplicate-looking lines; flag unusual prices and quantities without silent exclusions.",
+      "period": "2010-12-01 through 2011-12-09 inclusive, using the source wall-clock dates. The final month is partial and the source timezone is unknown.",
+      "target": null,
+      "expected_checks": [
+        "Reconcile processed, excluded, failed and pending rows with the complete source row count.",
+        "Reconcile overall, product and country totals using exact decimal arithmetic.",
+        "Compare the accepted result with an independent calculation over the unchanged CSV.",
+        "Preserve cancellation signs, missing identifiers, unusual prices and tied rankings. Explain any alternative treatment."
+      ],
+      "freshness": "Pinned historical snapshot. Identify the source period and fingerprint; do not present it as current business activity.",
+      "output_destination": "local",
+      "limits": {"max_source_bytes": 104857600, "timeout_seconds": 900},
+      "open_questions": [
+        "No business growth target or alert threshold is supplied; produce a descriptive baseline.",
+        "The source timezone is unknown; preserve source wall-clock dates.",
+        "Negative prices and negative quantities without cancellation identifiers require explicit interpretation, not silent removal."
+      ]
+    }
+  }
+}

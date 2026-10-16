@@ -659,7 +659,7 @@ class AdapterChecks(unittest.TestCase):
         client=MagicMock();client.__enter__.return_value=client
         client.get.return_value.json.return_value={'data':[{'id':agent.CONFIG['analyst']['model'],'pricing':{'prompt':'0.000001','completion':'0.000001'}}]}
         client.post.return_value.json.return_value={'id':'fixture-response','model':'unapproved/model','usage':{'cost':.001},'output':[]}
-        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith(('UPDATE', 'SELECT r.id AS dispatch_run')) else {'reserved':.01} if sql.startswith('SELECT reserved') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'):
+        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith(('UPDATE', 'SELECT r.id AS dispatch_run')) else {'reserved':.01} if sql.startswith('SELECT reserved') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'), patch.object(agent.db,'connect',return_value=MagicMock()):
             with self.assertRaisesRegex(ValueError,'unapproved'):agent.request('fixture-run',0,[])
         payload=client.post.call_args.kwargs['json']
         self.assertEqual(payload['provider']['order'],['OpenAI'])

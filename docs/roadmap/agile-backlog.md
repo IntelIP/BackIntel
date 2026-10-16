@@ -4,7 +4,7 @@ Updated October 14, 2026. All 36 roadmap stories now live in [Backlog.md task fi
 
 The original S01–S36 labels map to native S-01–S-36 IDs. Historical sprint reports keep their original labels. P0/P1/P2 priorities map to high/medium/low; original priority and work type remain recorded in each task's migration context.
 
-Repository-maintenance stories are tracked alongside these 36 product stories and listed separately below.
+Delivery goals group the existing product stories without duplicating their implementation. Repository-maintenance stories are tracked alongside these 36 product stories and listed separately below.
 
 ## Using the backlog
 
@@ -26,6 +26,38 @@ Use the native task labels to select the work:
 
 The [delivery split and execution sequence](README.md#toolkit-and-platform-delivery) explains the two outcomes, task allocation, and handoffs. Labels preserve existing task status, dependencies, acceptance, and optional/refinement conditions. The detailed task records remain authoritative.
 
+
+## First delivery goal
+
+[S-38 — deliver one checked business-data answer through the toolkit and platform](<../../backlog/tasks/s-38 - Deliver-one-checked-Databricks-answer-through-the-toolkit-and-platform.md>) groups 15 stories under one runnable goal:
+
+1. Define the result and establish safe access: S-12, S-04, S-05, S-06, S-22.
+2. Build and save the shared workflow: S-13, S-23, S-14, S-15, S-16, S-29, S-17, S-18.
+3. Demonstrate the toolkit and platform result: S-19, S-39.
+
+Use the `goal-reference-workflow` label to retrieve the goal and its members. Story IDs, dependencies, acceptance criteria, and delivery labels remain authoritative. The goal's native dependency on S-39 includes the full member dependency chain, with S-01 as the common baseline. The [reference report](../retail-reference-workflow.md) records the local PostgreSQL demonstration over Kaggle's UCI Online Retail data. S-26 retains the later Databricks integration; the local demonstration cannot close that story.
+
+## Next delivery stories
+
+Use the `post-reference` label to retrieve this set. Existing stories retain their IDs, original acceptance, dependencies, milestones, and toolkit/platform scope. Their task files add the user need, bounded result, decisions before selection, and acceptance for the next stages. This index provides navigation and intended order; task records own live status. Select one implementation story at a time.
+
+| Stage | User story | Observable result |
+| --- | --- | --- |
+| Delivery preparation | [S-40 — Review and commit the completed reference workflow](<../../backlog/tasks/s-40 - Review-and-commit-the-completed-reference-workflow.md>) | A reviewable candidate and verified, explicitly approved commit preserve the completed work. |
+| Develop methods | [S-32 — Develop and check analysis methods](<../../backlog/tasks/s-32 - Develop-and-check-analysis-methods.md>) | A new method answers the selected question, is compared fairly with a baseline, and is retained or rejected with reasons; toolkit and platform reuse it. |
+| Keep answers current | [S-20 — Invoke from an event or schedule](<../../backlog/tasks/s-20 - Invoke-from-an-event-or-schedule.md>) | A permitted event or due schedule starts the saved workflow within its limits, without duplicate accepted work. |
+| Keep answers current | [S-21 — Handle changes without losing the last useful answer](<../../backlog/tasks/s-21 - Handle-changes-without-losing-the-last-useful-answer.md>) | Source or method changes are repaired or escalated while the last checked answer and its freshness remain visible. |
+| Keep answers current | [S-24 — Collect incremental changes and refresh the result](<../../backlog/tasks/s-24 - Collect-incremental-changes-and-refresh-the-result.md>) | Additions, corrections, and agreed deletion cases produce the correct updated answer without loss, duplication, or manual batches. |
+| Coordinate agents and systems | [S-33 — Coordinate specialist agents around one objective](<../../backlog/tasks/s-33 - Coordinate-specialist-agents-around-one-objective.md>) | Actual specialists hand off work, resolve or expose conflicting evidence, and recover a combined checked result. |
+| Coordinate agents and systems | [S-34 — Connect findings across business systems](<../../backlog/tasks/s-34 - Connect-findings-across-business-systems.md>) | At least two permitted systems contribute to one reconciled answer, delivered once to an authorized destination. |
+| Establish operating scale | [S-30 — Support multiple users without crossing boundaries](<../../backlog/tasks/s-30 - Support-multiple-users-without-crossing-boundaries.md>) | The agreed concurrent users finish work with separate data, permissions, and spending. |
+| Establish operating scale | [S-36 — Meet sustained workload and freshness targets](<../../backlog/tasks/s-36 - Meet-sustained-workload-and-freshness-targets.md>) | The actual selected environment meets declared correctness, freshness, time, resource, and cost targets under sustained load. |
+| Prove independent use | [S-35 — Operate the autonomous workflow independently](<../../backlog/tasks/s-35 - Operate-the-autonomous-workflow-independently.md>) | Another user installs and operates the declared workflow from documented materials without private setup. |
+| Measure usefulness | [S-31 — Measure usefulness in an agreed pilot](<../../backlog/tasks/s-31 - Measure-usefulness-in-an-agreed-pilot.md>) | A real pilot compares quality, human effort, elapsed time, and known cost with the agreed alternative. |
+
+Hudson selected S-32 for the bounded historical four-week net invoice value study. Its agreed policy, live generated candidates, retained baseline, and toolkit/platform invocation evidence are recorded in the [reference report](../retail-reference-workflow.md#forecast-method-study); the task remains authoritative for acceptance and status. Other questions require their own objective and evaluation policy. The existing saved workflow also supports the continuous-update stage without making every new analytical method a prerequisite.
+
+Existing prerequisites remain binding, including S-26 for the later stories that depend on Databricks. A different source path requires an explicit scope decision. The historical toolkit recovery and installation path remains separate. This set records future work; it starts no implementation, paid calls, recurring schedules, commit, publication, or deployment.
 
 ## Established baseline
 
@@ -98,6 +130,10 @@ The [delivery split and execution sequence](README.md#toolkit-and-platform-deliv
 ### Complete the Databricks reference workflow
 
 [S-26 — task details, acceptance, and status](<../../backlog/tasks/s-26 - Complete-the-Databricks-reference-workflow.md>) (original S26).
+
+### Complete the first PostgreSQL commerce reference workflow
+
+[S-39 — task details, acceptance, and status](<../../backlog/tasks/s-39 - Complete-the-PostgreSQL-commerce-reference-workflow.md>) implements the selected open-source demonstration for S-38. It reuses the shared stories above; it does not duplicate their implementation or establish Databricks compatibility.
 
 ## Stage 3 — Develop and compare methods
 
@@ -196,6 +232,10 @@ The [delivery split and execution sequence](README.md#toolkit-and-platform-deliv
 ### Preserve BackIntel work and clean up Git
 
 [S-37 — story, acceptance criteria, and goal prompt](<../../backlog/tasks/s-37 - Preserve-BackIntel-work-and-clean-up-Git.md>)
+
+### Review and commit the completed reference workflow
+
+[S-40 — user story, acceptance criteria, and authorization boundary](<../../backlog/tasks/s-40 - Review-and-commit-the-completed-reference-workflow.md>)
 
 ## Shared delivery contract
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import selectors
@@ -17,6 +18,9 @@ LIMITS = {"seconds": 5, "memory_bytes": 268435456, "cpus": 1,
           "processes": 32, "output_bytes": 32768, "input_bytes": 131072,
           "source_bytes": 32768, "temporary_bytes": 16777216}
 
+PREPARATION_LIMITS = {**LIMITS, "seconds": 300, "memory_bytes": 1073741824,
+                      "input_bytes": 104857600, "output_bytes": 314572800}
+
 
 def resolve_image(image: str) -> str:
     resolved = subprocess.run(["docker", "image", "inspect", image, "--format", "{{.Id}}"],
@@ -26,17 +30,26 @@ def resolve_image(image: str) -> str:
     return resolved
 
 
-def run_candidate(source: str, snapshot: dict, image: str) -> dict:
+def run_candidate(source: str, snapshot: dict, image: str, *, purpose="artifact", timeout_seconds=None) -> dict:
     """Return an untrusted JSON candidate and a review receipt. Never publish it."""
-    if not isinstance(snapshot, dict) or len(encoded(snapshot)) > LIMITS["input_bytes"]:
+    if purpose not in ("artifact", "preparation"):
+        raise ValueError("Unknown sandbox purpose")
+    limits = dict(PREPARATION_LIMITS if purpose == "preparation" else LIMITS)
+    if timeout_seconds is not None:
+        if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or timeout_seconds < 1:
+            raise ValueError("Sandbox timeout must be a positive whole number")
+        limits["seconds"] = min(limits["seconds"], timeout_seconds)
+    payload = (json.dumps(snapshot, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
+               if purpose == "preparation" else encoded(snapshot))
+    if not isinstance(snapshot, dict) or len(payload) > limits["input_bytes"]:
         raise ValueError("Approved input snapshot exceeds sandbox contract")
-    if not isinstance(source, str) or len(source.encode()) > LIMITS["source_bytes"]:
+    if not isinstance(source, str) or len(source.encode()) > limits["source_bytes"]:
         raise ValueError("Generated source exceeds sandbox contract")
     resolved = resolve_image(image)
     name = "backintel-sandbox-" + uuid.uuid4().hex
     started = time.monotonic()
-    receipt = {"schema": "backintel-sandbox-run/v1", "image": resolved, "limits": LIMITS,
-               "source": source, "source_sha256": digest(source), "input_sha256": digest(snapshot),
+    receipt = {"schema": "backintel-sandbox-run/v1", "image": resolved, "limits": limits,
+               "source": source, "source_sha256": digest(source), "input_sha256": hashlib.sha256(payload).hexdigest(),
                "status": "rejected", "review": "not_reviewed", "network": "none",
                "host_mounts": "generated source and approved snapshot only", "result": None}
     with tempfile.TemporaryDirectory(prefix="BackIntelSandbox") as temporary:
@@ -47,13 +60,13 @@ def run_candidate(source: str, snapshot: dict, image: str) -> dict:
         script = root / "source/code.py"
         inputs = root / "input/snapshot.json"
         script.write_text(source)
-        inputs.write_bytes(encoded(snapshot))
+        inputs.write_bytes(payload)
         script.chmod(0o444)
         inputs.chmod(0o444)
         command = ["docker", "run", "--pull=never", "--name", name, "--rm",
                    "--network=none", "--read-only", "--user=65534:65534",
                    "--cap-drop=ALL", "--security-opt=no-new-privileges",
-                   "--memory=256m", "--memory-swap=256m", "--cpus=1", "--pids-limit=32",
+                   f"--memory={limits['memory_bytes']}", f"--memory-swap={limits['memory_bytes']}", "--cpus=1", "--pids-limit=32",
                    "--ulimit=nofile=64:64", "--ulimit=fsize=1048576:1048576",
                    "--tmpfs=/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777",
                    "--tmpfs=/app:ro,nosuid,nodev,noexec,size=1m",
@@ -69,7 +82,7 @@ def run_candidate(source: str, snapshot: dict, image: str) -> dict:
                 for label, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
                     os.set_blocking(stream.fileno(), False)
                     selector.register(stream, selectors.EVENT_READ, label)
-                deadline = time.monotonic() + LIMITS["seconds"]
+                deadline = time.monotonic() + limits["seconds"]
                 while selector.get_map():
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
@@ -80,7 +93,7 @@ def run_candidate(source: str, snapshot: dict, image: str) -> dict:
                         if not chunk:
                             selector.unregister(key.fileobj)
                             continue
-                        capacity = LIMITS["output_bytes"] - sum(len(v) for v in streams.values())
+                        capacity = limits["output_bytes"] - sum(len(v) for v in streams.values())
                         streams[key.data].extend(chunk[:capacity])
                         if len(chunk) > capacity:
                             reason = "output_limit"

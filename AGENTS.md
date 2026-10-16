@@ -39,7 +39,7 @@ Here, `backlog` command examples mean that installed executable. For another mac
 
 ## Preserve the product scope
 
-- The user supplies a business objective, measures/targets, permitted connections, and operating limits. BackIntel discovers data, creates and checks preparation and analysis, develops methods, coordinates agents, and keeps answers current. Databricks is the reference source; no live connection is assumed.
+- The user supplies a business objective, measures/targets, permitted connections, and operating limits. BackIntel discovers data, creates and checks preparation and analysis, develops methods, coordinates agents, and keeps answers current. Databricks remains a planned integration. S-38 uses the user-selected local PostgreSQL reference source over historical Kaggle retail data; do not assume an existing live connection.
 - Whole-workload processing, continuous operation, cross-system communication, coordinated agents, and agreed scale are core outcomes. Deliver them in bounded stages; do not reduce the product to manual CSV steps or a fixed analytical toolkit.
 - Reuse current adapters, analytical tools, evidence, permissions, budgets, and recovery where suitable. Record generated pipelines, autonomous methods, and capacity as proposed until their actual completion checks pass. Internal batching is allowed; requiring users to repeatedly split workloads is not the target experience.
 

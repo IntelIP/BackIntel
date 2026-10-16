@@ -334,14 +334,24 @@ def provider_dispatch(identity, call_id):
             JOIN backintel.analysis_sources s ON s.id=g.domain
             JOIN backintel.analysis_principals p ON p.id=r.owner
             WHERE r.id=%s AND NOT j.cancel_requested AND j.state IN ('queued','running','retry')
-              AND g.confirmed AND NOT g.paused AND g.version=r.goal_version
+              AND NOT g.paused AND g.version=r.goal_version
+              AND ((r.body->>'operation'='planning' AND p.role='manager'
+                    AND g.body ? 'objective' AND r.snapshot_id IS NULL)
+                     OR (r.body->>'operation' IN ('interpretation','answer','method') AND p.role='manager'
+                       AND g.confirmed AND g.body ? 'objective' AND r.snapshot_id IS NULL)
+                     OR (r.body->>'operation' NOT IN ('planning','interpretation','answer','method') AND g.confirmed
               AND s.latest_snapshot=r.snapshot_id AND g.active_model IS NOT DISTINCT FROM r.body->>'model_id'
-              AND s.body->'terms_acknowledged'='true'::jsonb
+              AND s.body->'terms_acknowledged'='true'::jsonb))
               AND p.enabled AND (p.expires_at IS NULL OR p.expires_at>clock_timestamp())
               AND p.role IN ('manager','analyst') AND g.domain=ANY(p.domains)
             FOR UPDATE OF j,g,s,p""", (identity,), one=True, connection=connection)
         if not eligible:
             raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
+        current = db.run(identity, connection=connection)
+        if current['body']['operation'] in ('interpretation','answer','method'):
+            from runtime.source_access import require_source_access
+            require_source_access(current['goal_id'], {'id': current['owner']}, connection=connection,
+                                  expected_version=current['goal_version'])
         with db.connect() as sent_connection, sent_connection.transaction():
             sent = db.query("UPDATE backintel.analysis_requests SET status='sent' WHERE id=%s AND run_id=%s AND status='reserved' RETURNING id",
                             (call_id, identity), one=True, connection=sent_connection)
@@ -351,12 +361,12 @@ def provider_dispatch(identity, call_id):
         yield
 
 
-def request(identity, index, inputs):
+def request(identity, index, inputs, *, tool_specs=TOOLS, answer_schema=ANSWER_SCHEMA):
     _, g = db.check_run(identity)
     config = CONFIG['analyst']
-    payload = {'model': config['model'], 'input': inputs, 'tools': TOOLS, 'max_output_tokens': config['max_output_tokens'],
+    payload = {'model': config['model'], 'input': inputs, 'tools': tool_specs, 'max_output_tokens': config['max_output_tokens'],
                'reasoning': {'effort': 'medium'}, 'provider': {'order': [config['provider']], 'allow_fallbacks': False, 'require_parameters': True},
-               'text': {'format': {'type': 'json_schema', 'name': 'analysis_answer', 'strict': True, 'schema': ANSWER_SCHEMA}}}
+               'text': {'format': {'type': 'json_schema', 'name': 'analysis_answer', 'strict': True, 'schema': answer_schema}}}
     size = len(json.dumps(payload).encode())
     if size > config['input_bytes']:
         raise RuntimeError('Analyst input context limit exceeded')

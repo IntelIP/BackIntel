@@ -1,11 +1,11 @@
 ---
 id: S-37
 title: Preserve BackIntel work and clean up Git
-status: In Progress
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-10-15 00:31'
-updated_date: '2026-10-15 00:45'
+updated_date: '2026-10-15 01:03'
 labels:
   - development-workflow
   - git-hygiene
@@ -54,13 +54,13 @@ Complete this BackIntel Git preservation and cleanup story in /Users/hudson/Docu
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 An execution-time inventory identifies the current branch and revision, live remote comparison, staged/unstaged/untracked work, stashes, branch/worktree ownership or active use, and relevant PR states. It distinguishes the starting snapshot above from current facts.
-- [ ] #2 All intended planning, guidance, and Backlog changes are preserved in explicitly approved commits, distinguishable from the existing sprint commits. No existing work or history is discarded, and excluded local data, secrets, or ignored assets are not inadvertently committed.
-- [ ] #3 The approved current-work branch is published with the intended upstream, and its remote tip is verified against the local commit containing the preserved work. An unapproved or failed push does not satisfy this criterion.
-- [ ] #4 A review handoff describes the entire branch difference from current main, including earlier sprint code and tests plus new planning changes. PR #1 has an explicit retain/review disposition; changing or closing it is not required for this story.
-- [ ] #5 Each cleanup candidate is either retired within the authorized scope after proving its work/history is preserved, or retained with a specific reason. Worktree removal accounts for ignored assets and active use. Unrelated benchmark and recovery work remains recoverable.
-- [ ] #6 Final Git checks show no unresolved conflicts, unintended deletions, or unexplained working-tree changes. Any deliberately excluded files or final Backlog bookkeeping changes are named; no extra commit loop is required solely to record verification.
-- [ ] #7 The task records the retained local and remote commits, review handoff, branch/worktree changes, retained-item reasons, and any remaining user action. Required preservation failures or missing approvals remain explicit and prevent Done.
+- [x] #1 An execution-time inventory identifies the current branch and revision, live remote comparison, staged/unstaged/untracked work, stashes, branch/worktree ownership or active use, and relevant PR states. It distinguishes the starting snapshot above from current facts.
+- [x] #2 All intended planning, guidance, and Backlog changes are preserved in explicitly approved commits, distinguishable from the existing sprint commits. No existing work or history is discarded, and excluded local data, secrets, or ignored assets are not inadvertently committed.
+- [x] #3 The approved current-work branch is published with the intended upstream, and its remote tip is verified against the local commit containing the preserved work. An unapproved or failed push does not satisfy this criterion.
+- [x] #4 A review handoff describes the entire branch difference from current main, including earlier sprint code and tests plus new planning changes. PR #1 has an explicit retain/review disposition; changing or closing it is not required for this story.
+- [x] #5 Each cleanup candidate is either retired within the authorized scope after proving its work/history is preserved, or retained with a specific reason. Worktree removal accounts for ignored assets and active use. Unrelated benchmark and recovery work remains recoverable.
+- [x] #6 Final Git checks show no unresolved conflicts, unintended deletions, or unexplained working-tree changes. Any deliberately excluded files or final Backlog bookkeeping changes are named; no extra commit loop is required solely to record verification.
+- [x] #7 The task records the retained local and remote commits, review handoff, branch/worktree changes, retained-item reasons, and any remaining user action. Required preservation failures or missing approvals remain explicit and prevent Done.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -125,4 +125,24 @@ Prepared 56 explicit files (54 Markdown, one YAML, one text file), totaling appr
 Staged content matched the working copies. Local Markdown links and fence balance passed. Git staged whitespace checks passed. A scoped credential-pattern check found no candidate private keys, provider tokens, GitHub tokens, or AWS access keys in staged text; ignored credential/data/model/build paths were excluded. Backlog doctor reported no duplicate IDs, self-dependencies, or dependency cycles. No unstaged paths or conflicts were present at that check. Application tests were not rerun because this goal changed planning/task records only and does not claim fresh application qualification.
 
 Required next action: request explicit confirmation to commit the prepared files with message "Align BackIntel roadmap and add Backlog task tracking" and push codex/backintel-roadmap-sprint-4 to origin with upstream tracking. After verified remote preservation, retire the two redundant local branch names, retain all other recorded histories/worktrees, and perform final direct checks. No commit, push, merge, PR change, branch deletion, or worktree removal has occurred in this goal yet.
+
+## Completed preservation and cleanup
+
+The user explicitly approved the prepared commit and push. Commit dfdf3d7abab483d2a3ea8f3f4549331ae2b8db1f ("Align BackIntel roadmap and add Backlog task tracking") preserves the 56 reviewed planning, guidance, and Backlog files. The six earlier sprint commits remain intact, making seven commits ahead of main c6de6ae44a57917bb1e16e60eb63f283ad260227.
+
+Published codex/backintel-roadmap-sprint-4 to origin at https://github.com/IntelIP/BackIntel.git without force. The live remote tip, local HEAD, and configured upstream origin/codex/backintel-roadmap-sprint-4 all matched dfdf3d7abab483d2a3ea8f3f4549331ae2b8db1f.
+
+After confirming both candidate tips were ancestors of the published branch, safely removed only the local branch names codex/backintel-roadmap-sprint-2 (592ef45c96476c4aee4535f76d90b71f11d567bd) and recovery/design-preservation (e060018db72ef6376df5ac05f0bebc8ba0b81c56). Their commits remain reachable from the published branch. Thirteen local branches and all four worktrees remain. Every other retain/review decision above still applies, including the consolidated pre-squash history, PR #1, benchmark/recovery histories, and ignored worktree assets.
+
+The earlier full-branch review handoff remains applicable: 82 changed files against main, including the two support-analysis scripts and test from the six earlier sprint commits. This preservation commit itself changes no application code. Application checks were not rerun, and preservation does not claim application qualification, merge readiness, or deployment.
+
+Final checks before this bookkeeping update found a clean working tree, no conflicts, no stashes, no whitespace errors, and no file deletions in the branch comparison. The final status, acceptance checks, and completion notes in backlog/tasks/s-37 - Preserve-BackIntel-work-and-clean-up-Git.md are deliberately left as the sole local bookkeeping change, as acceptance criterion 6 permits. No remote branches or worktrees were removed, and no PR was created, closed, or merged.
+
+No required preservation action remains. A later product task or full-branch review can be selected separately; PR #1 remains open for its separate review.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Preserved the approved 56-file planning and Backlog change in dfdf3d7abab483d2a3ea8f3f4549331ae2b8db1f and published it with the six existing sprint commits to origin/codex/backintel-roadmap-sprint-4. Verified local, upstream, and live remote tips match. Retired two redundant local branch names after ancestry checks; retained 13 branches, four worktrees, active PR work, and historical/ignored assets with documented reasons. The full-branch review handoff is recorded. Only this task's final bookkeeping remains uncommitted. No required user action remains for S-37.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -16,6 +16,7 @@ from psycopg.rows import dict_row
 from runtime import analysis_store as db
 from runtime.analysis_data import CONFIG, adapt, adapter_identity, digest, fingerprint, source_files
 from runtime.analysis_errors import safe_error
+from runtime.analysis_objectives import normalize_objective, objective_definitions
 from runtime.evidence import Evidence
 from runtime.jobs import enqueue, execute, runnable
 from scripts.analysis_setup import validate_source_receipt
@@ -75,16 +76,21 @@ def import_source(domain, actor, *, connection=None, run_id=None):
     return result
 
 
-def create_goal(actor, domain, question):
+def create_goal(actor, domain, question, *, objective=None):
     db.authorize(actor, domain, ('manager',))
     db.source(domain)
     if not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000:
         raise ValueError('Question must contain 1–2000 characters')
+    objective = normalize_objective(objective)
     identity = str(uuid.uuid4())
     spec = CONFIG['sources'][domain]
     body = {'question': question, 'definitions': {'target': spec['target'], 'kind': spec['kind'], 'group': spec['group'],
             'population': 'registered source snapshot', 'caveat': spec['caveat']},
             'notification_delta': .05 if spec['kind'] == 'classification' else 5., 'refresh_seconds': 3600, 'budget_usd': 1.}
+    if objective is not None:
+        body['objective'] = objective
+        body['definitions'] = objective_definitions(objective)
+        body['budget_usd'] = 0.
     with db.connect() as c, c.transaction():
         db.authorize(actor, domain, ('manager',), connection=c)
         c.execute('INSERT INTO backintel.analysis_goals(id,owner,domain,version,body) VALUES(%s,%s,%s,1,%s)', (identity, actor['id'], domain, Jsonb(body)))
@@ -92,14 +98,17 @@ def create_goal(actor, domain, question):
     return db.goal(identity)
 
 
-def revise_goal(identity, actor, question=None, paused=None, confirmed=None, threshold=None, budget_usd=None):
+def revise_goal(identity, actor, question=None, paused=None, confirmed=None, threshold=None, budget_usd=None, objective=None):
     g = db.goal(identity)
     db.authorize(actor, g['domain'], ('manager',))
     body = dict(g['body'])
     if budget_usd is not None:
-        if isinstance(budget_usd,bool) or not isinstance(budget_usd,(int,float)) or not 0 < budget_usd <= CONFIG['budget']['run_usd']:
-            raise ValueError('Goal budget must be positive and within the approved run cap')
+        if isinstance(budget_usd,bool) or not isinstance(budget_usd,(int,float)) or not 0 <= budget_usd <= CONFIG['budget']['run_usd']:
+            raise ValueError('Goal budget must be nonnegative and within the approved run cap')
         body['budget_usd']=budget_usd
+    if objective is not None:
+        body['objective'] = normalize_objective(objective)
+        body['definitions'] = objective_definitions(body['objective'])
     if question is not None:
         if not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000:
             raise ValueError('Invalid question')
@@ -108,6 +117,8 @@ def revise_goal(identity, actor, question=None, paused=None, confirmed=None, thr
         if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 100000:
             raise ValueError('Invalid notification threshold')
         body['notification_delta'] = threshold
+    if body != g['body']:
+        body.pop('plan', None)
     version = g['version'] + int(body != g['body'])
     with db.connect() as c, c.transaction():
         manager = c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s
@@ -124,10 +135,10 @@ def revise_goal(identity, actor, question=None, paused=None, confirmed=None, thr
     return db.goal(identity)
 
 
-def submit(identity, actor, question=None, operation='analysis', *, connection=None):
+def submit(identity, actor, question=None, operation='analysis', *, connection=None, workflow_version=None, input_ref=None, method_policy=None, refresh_key=None):
     g = db.goal(identity)
     with (nullcontext(connection) if connection is not None else db.connect()) as c, c.transaction():
-        run_id = _admit_run(c, g, actor, question, operation)
+        run_id = _admit_run(c, g, actor, question, operation, workflow_version=workflow_version, input_ref=input_ref, method_policy=method_policy, refresh_key=refresh_key)
         return db.run(run_id, connection=c)
 
 
@@ -137,29 +148,70 @@ def analysis_identity():
     return digest({'implementation':{str(path.relative_to(root)):fingerprint(path)['sha256'] for path in files}, 'config':CONFIG})
 
 
-def _admit_run(c, g, actor, question=None, operation='analysis'):
+def _admit_run(c, g, actor, question=None, operation='analysis', *, workflow_version=None, input_ref=None, method_policy=None, refresh_key=None):
+    if operation not in ('analysis', 'training', 'planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh'):
+        raise ValueError('Unsupported operation')
+    binding = None
+    if method_policy is not None and operation != 'method':
+        raise ValueError('Method policy requires a method study')
+    if refresh_key is not None and operation != 'refresh':
+        raise ValueError('A refresh identity requires a source refresh')
+    if operation in ('workflow', 'refresh'):
+        from runtime.source_workflows import bind
+        if operation == 'refresh' and (input_ref is not None or not isinstance(refresh_key, str) or not 1 <= len(refresh_key) <= 240):
+            raise ValueError('A source refresh requires a bounded request identity and reads the current source')
+        binding = bind(workflow_version,input_ref,actor)
+        if operation == 'refresh':
+            binding.update(refresh_key=refresh_key, refresh_owner=actor['id'])
+    elif operation == 'method':
+        from runtime.source_methods import bind
+        if workflow_version is not None:
+            raise ValueError('Method studies require a checked source answer')
+        binding = bind(input_ref, method_policy, actor)
+        question = binding['study_policy']['question']
+    elif workflow_version is not None or input_ref is not None:
+        raise ValueError('Workflow bindings require a workflow invocation')
+    planning = operation in ('planning', 'interpretation', 'answer')
+    pre_ingestion = operation in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh')
     identity = g['id']
     c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
     source = db.source(g['domain'], connection=c)
-    if not source['body'].get('terms_acknowledged'):
+    if not pre_ingestion and not source['body'].get('terms_acknowledged'):
         raise PermissionError('Source terms are not acknowledged')
     with c.cursor(row_factory=dict_row) as cursor:
         cursor.execute('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (identity,))
         g = cursor.fetchone()
     if g is None:
         raise ValueError('Unknown goal')
-    db.authorize(actor, g['domain'], ('manager',) if operation == 'training' else ('manager', 'analyst'))
-    if not g['confirmed'] or g['paused']:
+    db.authorize(actor, g['domain'], ('manager',) if operation in ('training', 'planning', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh') else ('manager', 'analyst'), connection=c)
+    if binding and (binding['goal_id']!=g['id'] or binding['goal_version']!=g['version']):
+        raise ValueError('Workflow belongs to a different or superseded objective version')
+    if planning and not g['body'].get('objective'):
+        raise ValueError('Save a connected-source objective before requesting a plan')
+    if planning and g['body'].get('budget_usd', 0) <= 0:
+        raise PermissionError('Approve a positive planning budget before requesting a model call')
+    if operation in ('discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh'):
+        from runtime.source_access import require_source_access
+        require_source_access(identity, actor, connection=c, expected_version=g['version'])
+    if not pre_ingestion and g['body'].get('objective'):
+        raise ValueError('This business objective requires its connected workflow; the registered-dataset analyst cannot run it')
+    if (not planning and not g['confirmed']) or g['paused']:
         raise ValueError('Confirm the goal definitions and enable the goal first')
-    snapshot = source['latest_snapshot']
-    if not snapshot:
+    snapshot = None if pre_ingestion else source['latest_snapshot']
+    if not pre_ingestion and not snapshot:
         raise ValueError('Import the selected source first')
     if question is not None and (not isinstance(question, str) or not 1 <= len(question.strip()) <= 2000):
         raise ValueError('Invalid follow-up question')
     question = question or g['body']['question']
     implementation = analysis_identity()
-    prior_snapshot = source['body'].get('previous_snapshot')
-    run_id = digest([identity, g['version'], snapshot, prior_snapshot, operation, question, g['active_model'], implementation])
+    prior_snapshot = None if pre_ingestion else source['body'].get('previous_snapshot')
+    context = [identity, g['version'], snapshot, prior_snapshot, operation, question, g['active_model'], implementation]
+    run_id = digest(context + [binding] if binding else context)
+    if operation == 'method':
+        prior = c.execute("SELECT id FROM backintel.analysis_runs WHERE body->>'operation'='method' AND body->>'evaluation_key'=%s AND id<>%s LIMIT 1",
+                          (binding['evaluation_key'], run_id)).fetchone()
+        if prior:
+            raise ValueError('These evaluation data already belong to a frozen method study; reuse that study or collect new evaluation data')
     existing = c.execute('SELECT r.status,j.state FROM backintel.analysis_runs r JOIN backintel.capability_jobs j ON j.job_id=r.job_id WHERE r.id=%s', (run_id,)).fetchone()
     # An active worker owns the job lock and needs the source/goal locks to finish.
     # Replays must return without waiting for that worker while holding these locks.
@@ -177,7 +229,7 @@ def _admit_run(c, g, actor, question=None, operation='analysis'):
         raise RuntimeError('Source analysis queue has reached its 20 pending-run limit')
     payload = {'run_id': run_id, 'operation': operation}
     c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
-              (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model'], 'analysis_identity': implementation, 'prior_snapshot': prior_snapshot})))
+              (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model'], 'analysis_identity': implementation, 'prior_snapshot': prior_snapshot, **(binding or {})})))
     store = Evidence(c, 'analysis-job-'+run_id)
     job_id = enqueue(store, payload, run_id)
     c.execute('UPDATE backintel.analysis_runs SET job_id=%s WHERE id=%s', (job_id, run_id))
@@ -281,6 +333,7 @@ def threshold_crossed(previous, current, threshold):
 
 def handle(store, payload):
     from runtime.analysis_agent import analyze
+    from runtime.analysis_planning import propose
     identity = payload['run_id']
     r = db.run(identity)
     if r['status'] == 'succeeded':
@@ -298,7 +351,34 @@ def handle(store, payload):
                     db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s', (result['snapshot'],identity), connection=store.connection)
                     result['goals'] = schedule_snapshot(r['body']['domain'], result, connection=store.connection)
             else:
-                result = model_job(identity, connection=store.connection) if payload['operation'] == 'training' else analyze(identity)
+                if payload['operation'] == 'planning':
+                    result = propose(identity)
+                elif payload['operation'] == 'discovery':
+                    from runtime.source_access import discover
+                    result = discover(identity)
+                elif payload['operation'] in ('collection', 'refresh'):
+                    from runtime.source_collection import collect
+                    result = collect(identity)
+                elif payload['operation'] == 'interpretation':
+                    from runtime.source_semantics import interpret
+                    result = interpret(identity)
+                elif payload['operation'] == 'preparation':
+                    from runtime.source_preparation import prepare
+                    result = prepare(identity)
+                elif payload['operation'] == 'validation':
+                    from runtime.source_validation import check
+                    result = check(identity)
+                elif payload['operation'] == 'answer':
+                    from runtime.source_answer import answer
+                    result = answer(identity)
+                elif payload['operation'] == 'workflow':
+                    from runtime.source_workflows import execute as execute_workflow
+                    result = execute_workflow(identity)
+                elif payload['operation'] == 'method':
+                    from runtime.source_methods import study
+                    result = study(identity)
+                else:
+                    result = model_job(identity, connection=store.connection) if payload['operation'] == 'training' else analyze(identity)
             db.check_run(identity, connection=store.connection)
             # Publish success in the job's transaction so interruption rolls back the
             # run, saved finding, notifications and accepted evidence together.
@@ -308,22 +388,30 @@ def handle(store, payload):
                     domain = db.run_domain(r)
                     connection.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
                     source = db.source(domain, connection=connection)
-                    if not source['body'].get('terms_acknowledged'):
+                    if payload['operation'] not in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh') and not source['body'].get('terms_acknowledged'):
                         raise PermissionError('Source terms are not acknowledged')
                     eligible = db.query('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (r['goal_id'],), one=True, connection=connection)
-                    if not eligible['confirmed'] or eligible['paused'] or eligible['version'] != r['goal_version']:
+                    if payload['operation'] != 'planning' and eligible['body'].get('objective'):
+                        from runtime.source_access import require_source_access
+                        require_source_access(r['goal_id'], {'id': r['owner']}, connection=connection)
+                    if (payload['operation'] != 'planning' and not eligible['confirmed']) or eligible['paused'] or eligible['version'] != r['goal_version']:
                         raise PermissionError('Goal became ineligible before publication')
-                    if source['latest_snapshot'] != r['snapshot_id'] or eligible['active_model'] != r['body'].get('model_id'):
+                    if payload['operation'] not in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh') and (source['latest_snapshot'] != r['snapshot_id'] or eligible['active_model'] != r['body'].get('model_id')):
                         raise PermissionError('Source snapshot or approved model changed before publication')
                 owner = db.query("""SELECT id FROM backintel.analysis_principals
                     WHERE id=%s AND enabled AND (expires_at IS NULL OR expires_at>clock_timestamp())
                     AND role=ANY(%s) AND %s=ANY(domains) FOR UPDATE""",
-                    (r['owner'], ['manager','analyst'] if payload['operation']=='analysis' else ['manager'], db.run_domain(r)),
+                    (r['owner'], ['manager','analyst'] if payload['operation'] in ('analysis','discovery','collection') else ['manager'], db.run_domain(r)),
                     one=True, connection=connection)
                 if not owner:
                     raise PermissionError('Run owner lost access before publication')
+                if payload['operation'] == 'workflow':
+                    from runtime import workflow_updates
+                    workflow_updates.guard_publication(r, eligible, connection)
                 connection.execute("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
-                if payload['operation'] == 'analysis':
+                if payload['operation'] == 'workflow':
+                    workflow_updates.save_version(identity, result, connection)
+                if payload['operation'] in ('analysis','answer','workflow'):
                     g = db.goal(r['goal_id'])
                     previous = db.run(g['last_success']) if g['last_success'] else None
                     standing = r['body']['question'] == g['body']['question'] and r['goal_version'] == g['version']
@@ -346,6 +434,17 @@ def handle(store, payload):
                      (Jsonb({'last_refresh_error':reason, 'last_checked_at':time.time()}), r['body']['domain'],
                       refresh_before['latest_snapshot'], Jsonb(refresh_before['body'].get('last_checked_at'))))
         result = {'status': status, 'summary': 'This run did not complete.', 'limitations': [reason], 'usage': db.usage(identity)}
+        if payload['operation'] in ('collection', 'refresh'):
+            from runtime.source_collection import coverage
+            result['coverage'] = coverage(identity)
+        if payload['operation'] == 'workflow':
+            from runtime import workflow_updates
+            result['update'] = workflow_updates.failed(identity, reason, status)
+        if payload['operation'] in ('validation','workflow'):
+            result['validation'] = db.step(identity, 'validation-report')
+        if payload['operation'] in ('preparation','workflow'):
+            from runtime.source_preparation import coverage
+            result['coverage'] = coverage(identity)
         db.write('UPDATE backintel.analysis_runs SET status=%s,result=%s,error=%s,updated_at=now() WHERE id=%s', (status, Jsonb(result), reason, identity))
         db.event(identity, 'completed', {'status': status, 'reason': reason})
     attempt=db.query('SELECT attempts FROM backintel.capability_jobs WHERE job_id=%s',(r['job_id'],),one=True)['attempts']
@@ -374,7 +473,21 @@ def dispatch(run_id=None):
                 AND r.status IN ('queued','running') FOR UPDATE OF j,r""").fetchall()
             for job_id, reason, job_state in stranded:
                 _finish_run_failure(c, job_id, job_state, reason)
+        continued = set()
         while True:
+            from runtime.source_workflows import continue_refresh
+            pending_refreshes = db.query("""SELECT r.id FROM backintel.analysis_runs r
+                WHERE r.body->>'operation'='refresh' AND r.status='succeeded'
+                AND NOT EXISTS (SELECT 1 FROM backintel.analysis_steps s WHERE s.run_id=r.id AND s.id='refresh-workflow')
+                ORDER BY r.created_at LIMIT 20""")
+            for refresh in pending_refreshes:
+                if refresh['id'] in continued:
+                    continue
+                continued.add(refresh['id'])
+                try:
+                    continue_refresh(refresh['id'])
+                except (ValueError, PermissionError, RuntimeError, OSError) as error:
+                    db.save_step(refresh['id'], 'refresh-workflow-error', 'refresh_error', {'decision': safe_error(error)})
             task_ids = [r['task_id'] for r in db.query("SELECT DISTINCT task_id FROM backintel.capability_jobs WHERE task_id LIKE 'analysis-job-%' AND state IN ('queued','retry','running')")]
             with c.transaction():
                 failed = c.execute("UPDATE backintel.capability_jobs SET state=CASE WHEN cancel_requested THEN 'cancelled' ELSE 'failed' END,error=CASE WHEN cancel_requested THEN 'Cancelled after worker interruption' ELSE 'Worker lease expired at attempt limit' END,lease_until=NULL WHERE task_id=ANY(%s) AND state='running' AND lease_until<now() AND (cancel_requested OR attempts>=max_attempts) RETURNING job_id,error,state", (task_ids,)).fetchall()
@@ -401,7 +514,10 @@ def dispatch(run_id=None):
             for job_id in available:
                 r = db.query('SELECT id,body FROM backintel.analysis_runs WHERE job_id=%s', (job_id,), one=True)
                 if r:
-                    result = execute(job_id, handle, max_wall_seconds=1800 if r['body']['operation']=='training' else 600,
+                    duration = 1800 if r['body']['operation']=='training' else 600
+                    if r['body']['operation'] in ('workflow', 'refresh'):
+                        duration = max(25,min(1800,db.goal(db.run(r['id'])['goal_id'])['body']['objective']['limits']['timeout_seconds']))
+                    result = execute(job_id, handle, max_wall_seconds=duration,
                                      usage_reader=lambda identity=r['id']: db.usage(identity))
                     results.append(result)
                     if result['state'] in ('failed', 'cancelled'):

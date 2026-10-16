@@ -20,7 +20,7 @@ class RunState(TypedDict, total=False):
 async def resolve(state: GoalState):
     g = db.goal(state['goal_id'])
     db.authorize({'id':g['owner']}, g['domain'], ('manager',))
-    return {'result': {'goal':g['id'],'definitions':g['body']['definitions'],'needs_confirmation':not g['confirmed']}}
+    return {'result': {'goal':g['id'],'definitions':g['body']['definitions'],'needs_confirmation':not g['confirmed'], 'objective':g['body'].get('objective'), 'planning_required':bool(g['body'].get('objective'))}}
 
 
 async def analysis(state: RunState):
@@ -29,6 +29,16 @@ async def analysis(state: RunState):
 
 async def refresh_sources(state: RunState):
     return {'result': await asyncio.to_thread(service.refresh)}
+
+
+class TriggerState(TypedDict, total=False):
+    trigger_id: str
+    result: dict
+
+
+async def run_trigger(state: TriggerState):
+    from runtime.workflow_triggers import dispatch
+    return {'result': await asyncio.to_thread(dispatch, state['trigger_id'])}
 
 
 def workflow(state, name, function):
@@ -42,3 +52,4 @@ def workflow(state, name, function):
 goal_graph = workflow(GoalState, 'resolve_and_propose', resolve)
 analysis_graph = workflow(RunState, 'bounded_analysis', analysis)
 refresh_graph = workflow(RunState, 'refresh_and_dispatch', refresh_sources)
+trigger_graph = workflow(TriggerState, 'invoke_saved_workflow', run_trigger)

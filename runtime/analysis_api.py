@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Depends, Request, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from psycopg.types.json import Jsonb
@@ -19,6 +19,9 @@ from runtime import analysis_service as service
 from runtime.analysis_data import CONFIG, digest, feature_groups
 from runtime.jobs import cancel
 from runtime.analysis_errors import safe_error
+from runtime.analysis_objectives import ObjectiveContract
+from runtime.source_access import require_source_access
+from runtime.workflow_triggers import TriggerInput, EventInput
 
 app = FastAPI(title='BackIntel analysis workspace')
 
@@ -30,6 +33,7 @@ class Input(BaseModel):
 class GoalInput(Input):
     domain: str
     question: str = Field(min_length=1,max_length=2000)
+    objective: ObjectiveContract | None = None
 
 
 class GoalUpdate(Input):
@@ -37,7 +41,8 @@ class GoalUpdate(Input):
     paused: bool | None = None
     confirmed: bool | None = None
     threshold: float | None = Field(default=None,ge=0,le=100000)
-    budget_usd: float | None = Field(default=None,gt=0,le=1)
+    budget_usd: float | None = Field(default=None,ge=0,le=1)
+    objective: ObjectiveContract | None = None
 
 
 class RunInput(Input):
@@ -148,16 +153,61 @@ def goals(p=Depends(access)):
     p=db.authorize(p)
     result=db.query('SELECT * FROM backintel.analysis_goals WHERE domain=ANY(%s) ORDER BY created_at DESC',([domain for domain in p['domains'] if domain in CONFIG['sources']],))
     for g in result:
+        proposal = db.query("SELECT id,result FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND body->>'operation'='planning' AND status='succeeded' ORDER BY created_at DESC LIMIT 1", (g['id'], g['version']), one=True) if g['body'].get('objective') else None
+        g['plan'] = proposal['result'] if proposal else None
+        g['plan_run_id'] = proposal['id'] if proposal else None
+        g['source_access'] = False
+        g['workflows'] = []
+        if g['body'].get('objective'):
+            try:
+                with db.connect() as control, control.transaction():
+                    require_source_access(g['id'], p, connection=control, expected_version=g['version'])
+                g['source_access'] = True
+            except PermissionError:
+                pass
+        if g['source_access']:
+            from runtime.source_workflows import history
+            g['workflows'] = history(g['id'],p)
+        discovery = db.query("SELECT result FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND body->>'operation'='discovery' AND status='succeeded' ORDER BY created_at DESC LIMIT 1", (g['id'], g['version']), one=True) if g['source_access'] else None
+        g['discovery'] = discovery['result'] if discovery else None
+        collection = db.query("SELECT result FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND body->>'operation' IN ('collection','refresh') AND status='succeeded' ORDER BY created_at DESC LIMIT 1", (g['id'], g['version']), one=True) if g['source_access'] else None
+        g['collection'] = collection['result'] if collection else None
+        interpretation = db.query("SELECT result FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND body->>'operation'='interpretation' AND status='succeeded' ORDER BY created_at DESC LIMIT 1", (g['id'], g['version']), one=True) if g['source_access'] else None
+        g['interpretation'] = interpretation['result'] if interpretation else None
+        preparation = db.query("SELECT result FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND body->>'operation'='preparation' AND status='succeeded' ORDER BY created_at DESC LIMIT 1", (g['id'], g['version']), one=True) if g['source_access'] else None
+        g['preparation'] = preparation['result'] if preparation else None
+        validation = db.query("SELECT result FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND body->>'operation'='validation' ORDER BY created_at DESC LIMIT 1", (g['id'], g['version']), one=True) if g['source_access'] else None
+        g['validation'] = (validation['result'].get('validation') or validation['result']) if validation and validation['result'] else None
         source=db.source(g['domain'])
         previous=db.run(g['last_success']) if g['last_success'] else None
         g['freshness']='refresh_failed' if source['body'].get('last_refresh_error') else 'current' if previous and previous['snapshot_id']==source['latest_snapshot'] and previous['goal_version']==g['version'] and previous['body'].get('model_id')==g['active_model'] and previous['body'].get('analysis_identity')==service.analysis_identity() else 'stale' if previous else 'unanswered'
+        if previous and g['body'].get('objective'):
+            g['freshness'] = 'checked snapshot'
+        if g['source_access']:
+            from runtime.workflow_updates import status
+            g['update_status'] = status(g)
+            if g['update_status']['question'] == g['body']['question']:
+                g['freshness'] = g['update_status']['state'].replace('_', ' ')
     return result
+
+
+@app.get('/api/v1/goals/{identity}/update-status')
+def workflow_update_status(identity: str, p=Depends(access)):
+    from runtime.source_workflows import update_status
+    return update_status(identity, p)
+
+
+@app.get('/api/v1/reference-scenarios/online-retail')
+def retail_scenario(p=Depends(access)):
+    db.authorize(p, 'commerce', ('manager',))
+    scenario = json.loads((Path(__file__).resolve().parents[1] / 'config/reference_scenarios/online_retail.json').read_text())
+    return GoalInput.model_validate(scenario['request']).model_dump(mode='json')
 
 
 @app.post('/api/v1/goals',status_code=201)
 async def create(body:GoalInput,p=Depends(access)):
     from runtime.analysis_graphs import goal_graph
-    g=await asyncio.to_thread(service.create_goal,p,body.domain,body.question)
+    g=await asyncio.to_thread(service.create_goal,p,body.domain,body.question,objective=body.objective.model_dump() if body.objective else None)
     proposal=await goal_graph.ainvoke({'goal_id':g['id']})
     return {**g,'proposal':proposal['result']}
 
@@ -169,7 +219,7 @@ def update(identity:str,body:GoalUpdate,p=Depends(access)):
 
 @app.post('/api/v1/goals/{identity}/runs',status_code=202)
 def start(identity:str,body:RunInput,p=Depends(access)):
-    if body.operation not in ('analysis','training'):
+    if body.operation not in ('analysis', 'training', 'planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer'):
         raise ValueError('Unsupported operation')
     r=service.submit(identity,p,body.question,body.operation)
     try:
@@ -182,7 +232,13 @@ def start(identity:str,body:RunInput,p=Depends(access)):
 @app.get('/api/v1/runs')
 def runs(goal_id:str,p=Depends(access)):
     actor=db.authorize(p,db.goal(goal_id)['domain'])
-    return [run_response(r,actor) for r in db.query('SELECT * FROM backintel.analysis_runs WHERE goal_id=%s ORDER BY created_at DESC LIMIT 50',(goal_id,))]
+    result = []
+    for r in db.query('SELECT * FROM backintel.analysis_runs WHERE goal_id=%s ORDER BY created_at DESC LIMIT 50',(goal_id,)):
+        try:
+            result.append(run_response(r,actor))
+        except PermissionError:
+            continue
+    return result
 
 
 @app.get('/api/v1/runs/{identity}')
@@ -207,6 +263,137 @@ def cancel_run(identity:str,p=Depends(access)):
     return {'status':state}
 
 
+@app.get('/api/v1/runs/{identity}/prepared/{page_key}')
+def prepared(identity:str,page_key:str,p=Depends(access)):
+    from runtime.source_preparation import prepared_page
+    return prepared_page(identity,page_key,p)
+
+
+@app.post('/api/v1/runs/{identity}/workflow',status_code=201)
+def save_workflow(identity:str,p=Depends(access)):
+    from runtime.source_workflows import save
+    return save(identity,p)
+
+
+class WorkflowRunInput(Input):
+    input_ref: str | None = Field(default=None,pattern='^[a-f0-9]{64}$')
+
+
+class WorkflowRefreshInput(Input):
+    request_id: str = Field(min_length=1, max_length=240)
+
+
+@app.get('/api/v1/runs/{identity}/source-changes')
+def source_change_history(identity:str,offset:int=0,limit:int=100,p=Depends(access)):
+    from runtime.source_collection import change_history
+    return change_history(identity,p,offset=offset,limit=limit)
+
+
+@app.post('/api/v1/workflows/{version}/refresh',status_code=202)
+def refresh_workflow(version:str,body:WorkflowRefreshInput,p=Depends(access)):
+    from runtime.source_workflows import refresh
+    r=refresh(version,p,body.request_id)
+    try:
+        service.wake(r['id'])
+    except (OSError,httpx.HTTPError):
+        db.event(r['id'],'dispatch_pending',{'message':'Queued durably; the next dispatcher will resume it.'})
+    return r
+
+
+from runtime.source_methods import MethodPolicy
+
+
+@app.post('/api/v1/runs/{identity}/method-studies',status_code=202)
+def start_method_study(identity:str,body:MethodPolicy,p=Depends(access)):
+    from runtime.source_methods import invoke
+    r=invoke(identity,body.model_dump(),p)
+    try:
+        service.wake(r['id'])
+    except (OSError,httpx.HTTPError):
+        db.event(r['id'],'dispatch_pending',{'message':'Queued durably; next dispatcher will resume it.'})
+    return r
+
+
+@app.post('/api/v1/workflows/{version}/runs',status_code=202)
+def run_workflow(version:str,body:WorkflowRunInput,p=Depends(access)):
+    from runtime.source_workflows import invoke
+    r=invoke(version,p,body.input_ref)
+    try:
+        service.wake(r['id'])
+    except (OSError,httpx.HTTPError):
+        db.event(r['id'],'dispatch_pending',{'message':'Queued durably; the next dispatcher will resume it.'})
+    return r
+
+
+@app.get('/api/v1/goals/{identity}/workflows')
+def workflows(identity:str,p=Depends(access)):
+    from runtime.source_workflows import history
+    return history(identity,p)
+
+
+@app.post('/api/v1/workflows/{version}/triggers',status_code=201)
+def create_workflow_trigger(version:str,body:TriggerInput,p=Depends(access)):
+    from runtime import workflow_triggers as triggers
+    result=triggers.configure(version,p,body)
+    try:
+        triggers.sync_timer(result['id'],p)
+    except (OSError,ValueError,KeyError,TypeError,httpx.HTTPError) as error:
+        return triggers.timer_failed(result['id'],p,error)
+    return triggers.inspect(result['id'],p)
+
+
+@app.get('/api/v1/goals/{identity}/triggers')
+def workflow_trigger_history(identity:str,p=Depends(access)):
+    from runtime.workflow_triggers import history
+    return history(identity,p)
+
+
+@app.get('/api/v1/triggers/{identity}')
+def workflow_trigger(identity:str,p=Depends(access)):
+    from runtime.workflow_triggers import inspect
+    return inspect(identity,p)
+
+
+class TriggerState(Input):
+    state: str = Field(pattern='^(active|paused|removed)$')
+
+
+@app.patch('/api/v1/triggers/{identity}')
+def change_workflow_trigger(identity:str,body:TriggerState,p=Depends(access)):
+    from runtime import workflow_triggers as triggers
+    result=triggers.set_state(identity,p,body.state)
+    try:
+        triggers.sync_timer(identity,p)
+    except (OSError,ValueError,KeyError,TypeError,httpx.HTTPError) as error:
+        return triggers.timer_failed(identity,p,error)
+    return triggers.inspect(identity,p)
+
+
+@app.post('/api/v1/triggers/{identity}/events',status_code=202)
+def workflow_event(identity:str,body:EventInput,p=Depends(access)):
+    from runtime.workflow_triggers import event
+    result=event(identity,p,body)
+    if result.get('run_id'):
+        try:
+            service.wake(result['run_id'])
+        except (OSError,httpx.HTTPError):
+            db.event(result['run_id'],'dispatch_pending',{'message':'Event accepted durably; the dispatcher can resume it.'})
+    return result
+
+
+@app.get('/api/v1/workflows/{version}')
+def workflow(version:str,p=Depends(access)):
+    from runtime.source_workflows import load, read
+    return load(read(version,p),p)
+
+
+@app.get('/api/v1/workflows/{version}/export')
+def export_workflow(version:str,p=Depends(access)):
+    from runtime.source_workflows import read
+    return JSONResponse(read(version,p),headers={'Cache-Control':'no-store',
+                         'Content-Disposition':f'attachment; filename="workflow-{version}.json"'})
+
+
 @app.post('/api/v1/requests/{identity}/reconcile')
 def reconcile(identity:str,p=Depends(access)):
     from runtime.analysis_agent import reconcile_charge
@@ -223,10 +410,12 @@ def requests(identity:str,p=Depends(access)):
 def events(identity:str,after:int=0,p=Depends(access)):
     r=db.run(identity)
     db.authorize(p,db.run_domain(r))
+    require_connection_result_access(r,p)
     async def stream():
         cursor=after
         for _ in range(60):
             db.authorize(p,db.run_domain(r))
+            require_connection_result_access(r,p)
             rows=db.query('SELECT * FROM backintel.analysis_events WHERE run_id=%s AND sequence>%s ORDER BY sequence',(identity,cursor))
             for row in rows:
                 cursor=row['sequence']
@@ -251,6 +440,10 @@ def evidence(identity:str,p=Depends(access)):
         raise ValueError('Unknown application evidence')
     g=db.goal(r['task_id'].removeprefix('analysis-goal-'))
     actor=db.authorize(p,g['domain'])
+    if r['kind'] in ('source_discovery','source_collection','source_interpretation','source_preparation','source_validation','connected_calculation','workflow_package'):
+        with db.connect() as control, control.transaction():
+            body = r['body']['body'] if r['kind']=='workflow_package' else r['body']
+            require_source_access(g['id'], actor, connection=control, expected_version=body['goal_version'])
     if actor['role']=='viewer' and (r['kind']=='model_comparison' or r['kind']=='calculation' and r['body'].get('tool')=='interpret_text'):
         raise PermissionError('Raw interpretation and model evidence requires analyst access')
     if r['kind']=='model_comparison':
@@ -263,12 +456,37 @@ def model_summary(body,promoted=False):
     return {'methods':[{key:method[key] for key in keys if key in method}
                        for method in body.get('methods',[])]}
 
+
+@app.get('/api/v1/inputs/{identity}')
+def source_input(identity:str,p=Depends(access)):
+    from runtime.source_inputs import retained_input
+    original = retained_input(identity, p)
+    return {key: value for key, value in original.items() if key != 'payload'}
+
+
+@app.get('/api/v1/inputs/{identity}/original')
+def source_original(identity:str,p=Depends(access)):
+    from runtime.source_inputs import retained_input
+    original = retained_input(identity, p)
+    return Response(original['payload'], media_type='application/json',
+                    headers={'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="source-response.json"'})
+
 def comparison_response(body,goal_id,actor):
     approved=db.query("SELECT id FROM backintel.analysis_models WHERE goal_id=%s AND body->>'id'=%s AND promoted LIMIT 1",
                       (goal_id,body.get('id')),one=True)
     return body if approved and actor['role']!='viewer' else model_summary(body,bool(approved))
 
+def require_connection_result_access(r,actor):
+    if r['body']['operation'] in ('discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh'):
+        with db.connect() as control, control.transaction():
+            require_source_access(r['goal_id'], actor, connection=control, expected_version=r['goal_version'])
+
+
 def run_response(r,actor):
+    require_connection_result_access(r,actor)
+    if r['body']['operation'] in ('preparation','workflow'):
+        from runtime.source_preparation import coverage
+        r = {**r,'coverage':r['result']['coverage'] if r['status']=='succeeded' else coverage(r['id'])}
     if r.get('result') and 'comparison' in r['result']:
         return {**r,'result':{**r['result'],'comparison':comparison_response(r['result']['comparison'],r['goal_id'],actor)}}
     return r

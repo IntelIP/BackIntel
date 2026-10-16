@@ -55,6 +55,12 @@ beforeEach(() => {
       if (failRun) return Response.json({detail: 'Provider charge unresolved; standing answer preserved.'}, {status: 409});
       value = runs[0];
     } else if (path === '/api/v1/evidence/calculation-1') value = {snapshot: 'snapshot-1', count: 4, mean: 0.5};
+    else if (path === '/api/v1/runs/run-1/workflow' && method === 'POST') {
+      goal.workflows = [{version:'workflow-fixture-1',created_at:1,mode:'fixture',goal_version:1,question:standingQuestion}];
+      value = {format:'backintel.workflow/v1',version:'workflow-fixture-1',body:{question:standingQuestion}};
+    } else if (path === '/api/v1/workflows/workflow-fixture-1') value = {status:'ready',issues:[],package:{version:'workflow-fixture-1'}};
+    else if (path === '/api/v1/workflows/workflow-fixture-1/export') value = {version:'workflow-fixture-1',body:{connection:{secret_ref:'SOURCE_DSN'}}};
+    else if (path === '/api/v1/workflows/workflow-fixture-1/runs' && method === 'POST') value = runs[0];
     else throw new Error('Unexpected component fixture request: ' + method + ' ' + path);
     return Response.json(value);
   }));
@@ -73,6 +79,52 @@ async function openWorkspace() {
 }
 
 describe('analysis workspace user controls', () => {
+  it('keeps a connected objective at zero spend and shows its saved proposal as a proposal', async () => {
+    goal.body.budget_usd = 0;
+    goal.body.objective = {source_ref: 'online-retail-postgres', expected_source_sha256: null,
+      allowed_schemas: ['retail_raw'], allowed_actions: ['read'], metric: 'Signed invoice value in GBP',
+      population: 'All invoice lines', period: 'Recorded historical period', target: null,
+      expected_checks: ['Preserve cancellations'], freshness: 'Historical snapshot', output_destination: 'local',
+      limits: {max_source_bytes: 104857600, timeout_seconds: 900}, open_questions: ['Timezone unknown']};
+    goal.source_access = true;
+    goal.interpretation = {summary:'Inspect proposed meanings.',mode:'fixture',interpretation:{tables:[{schema_name:'retail_raw',table_name:'invoices',grain:'One invoice line.',fields:[{name:'InvoiceNo',meaning:'Invoice identifier.',confidence:'proposed',unit:null,limitations:[]}]}],unresolved:['Currency needs confirmation.']}};
+    goal.collection = {summary:'All five source rows retained.',coverage:{expected_rows:5,collected_rows:5,pending_rows:0},limitations:['Preparation and analysis have not run.']};
+    goal.preparation = {summary:'Prepared five retained rows.',mode:'fixture',coverage:{processed_rows:5,expected_rows:5,pending_rows:0},unresolved_rows:1,repaired:true,limitations:['Meaning checks are still required.']};
+    goal.validation = {status:'failed',summary:'An inconsistent currency was refused.',source_rows:5,candidate_rows:5,failure_groups:[{reason:'Mixed or changed units are not accepted'}]};
+    goal.discovery = {summary:'Connected to one permitted table.', observed_at:'2026-10-14T00:00:00Z',
+      fields:[{schema:'retail_raw',table:'invoices',column:'InvoiceNo',type:'text'}], limitations:['Full-data collection has not run.']};
+    goal.plan = {summary: 'Inspect invoices before calculating values.', mode: 'fixture', plan: {
+      data_needs: ['Invoice lines'], steps: [{action: 'check', purpose: 'Check cancellations', expected_result: 'Signed values retained'}],
+      assumptions: [], open_questions: []}};
+    const user = await openWorkspace();
+    await user.click(screen.getByRole('button', {name: 'Goals'}));
+    expect(screen.getByLabelText('Maximum frontier cost per run (USD)')).toHaveValue(0);
+    expect(screen.getByRole('button', {name: 'Generate agent plan'})).toBeDisabled();
+    expect(screen.getByRole('button', {name: 'Interpret source fields'})).toBeDisabled();
+    expect(screen.getByText('Simulated interpretation. Live field interpretation has not been verified.')).toBeInTheDocument();
+    expect(screen.getByText('Currency needs confirmation.')).toBeInTheDocument();
+    expect(screen.getByText('Inspect invoices before calculating values.')).toBeInTheDocument();
+    expect(screen.getByText('Simulated provider response. This does not prove live agent planning.')).toBeInTheDocument();
+    expect(screen.getByText('Timezone unknown', {selector: 'li'})).toBeInTheDocument();
+    expect(screen.getByRole('table', {name:'Permitted source fields'})).toHaveTextContent('InvoiceNo');
+    expect(screen.getByText('Full-data collection has not run.')).toBeInTheDocument();
+    expect(screen.getByText('Collected 5 of 5 rows. Pending: 0.')).toBeInTheDocument();
+    expect(screen.getByText('Preparation and analysis have not run.')).toBeInTheDocument();
+    expect(screen.getByText('Prepared 5 of 5 rows. Pending: 0.')).toBeInTheDocument();
+    expect(screen.getByText('Rows with unresolved conversions: 1.')).toBeInTheDocument();
+    expect(screen.getByText('Meaning checks are still required.')).toBeInTheDocument();
+    expect(screen.getByText('Meaning check: failed.')).toBeInTheDocument();
+    expect(screen.getByText('Mixed or changed units are not accepted')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', {name:'Check prepared data'}));
+    await waitFor(()=>expect(requests.some(r=>r.body?.operation==='validation')).toBe(true));
+    await user.click(screen.getByRole('button', {name:'Prepare source data'}));
+    await waitFor(()=>expect(requests.some(r=>r.body?.operation==='preparation')).toBe(true));
+    await user.click(screen.getByRole('button', {name:'Collect complete source'}));
+    await waitFor(()=>expect(requests.some(r=>r.body?.operation==='collection')).toBe(true));
+    await user.click(screen.getByRole('button', {name:'Discover connected data'}));
+    await waitFor(()=>expect(requests.some(r=>r.path==='/api/v1/goals/goal-1/runs'&&r.body?.operation==='discovery')).toBe(true));
+  });
+
   it('keeps a newly proposed goal selected when an older refresh finishes later', async () => {
     const original = fetch;
     let created = false;
@@ -180,6 +232,55 @@ describe('analysis workspace user controls', () => {
     expect(screen.getByLabelText('Access credential')).toBeVisible();
     expect(screen.queryByText(answer)).not.toBeInTheDocument();
     expect(sessionStorage.getItem('backintel-access')).toBeNull();
+  });
+
+  it('shows the complete connected answer and saves, inspects and downloads its workflow', async () => {
+    goal.source_access = true;
+    goal.body.objective = {source_ref:'retail-connection',allowed_schemas:['retail_raw'],freshness:'Historical snapshot'};
+    savedFinding.body.operation = 'answer';
+    savedFinding.result.mode = 'fixture';
+    savedFinding.result.calculation = {currency:'GBP',period_start:'2020-12-01T00:00:00',period_end:'2020-12-05T00:00:00',
+      coverage:{processed_rows:5,expected_rows:5},totals:{net_invoice_value:'6.5',signed_cancellation_value:'-3.25',cancellation_reduction:'3.25'},
+      dimensions:[{label:'product',field:'product_code',groups:[{value:'A',row_count:2,net_value:'3.25',signed_cancellation_value:'-3.25'},
+        {value:'B',row_count:1,net_value:'3.25',signed_cancellation_value:'0'}]}]};
+    const user = await openWorkspace();
+    expect(screen.getByText('Processed 5 of 5 rows.')).toBeInTheDocument();
+    expect(screen.getByRole('table',{name:'Net invoice value by product_code'})).toHaveTextContent('3.25');
+    expect(screen.getByText('Simulated analysis method. Live agent method generation has not been verified.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button',{name:'Save checked workflow'}));
+    expect(await screen.findByText('This version contains a simulated method.')).toBeInTheDocument();
+    expect(requests.some(item=>item.path==='/api/v1/runs/run-1/workflow'&&item.method==='POST')).toBe(true);
+    savedFinding.body.operation = 'workflow';
+    await user.click(screen.getByRole('button',{name:/Run saved workflow/}));
+    expect(requests.some(item=>item.path==='/api/v1/workflows/workflow-fixture-1/runs'&&item.method==='POST')).toBe(true);
+    expect(screen.getByRole('button',{name:/Run saved workflow/})).toBeEnabled();
+    expect(screen.queryByRole('button',{name:'Save checked workflow'})).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button',{name:/Inspect saved workflow/}));
+    expect(await screen.findByText(/"status": "ready"/)).toBeInTheDocument();
+    const createURL=vi.fn(()=> 'blob:workflow-fixture');
+    const revokeURL=vi.fn();
+    vi.stubGlobal('URL',Object.assign(URL,{createObjectURL:createURL,revokeObjectURL:revokeURL}));
+    const click=vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(()=>{});
+    await user.click(screen.getByRole('button',{name:/Download workflow/}));
+    await waitFor(()=>expect(click).toHaveBeenCalledOnce());
+    expect(createURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(revokeURL).toHaveBeenCalledWith('blob:workflow-fixture');
+    click.mockRestore();
+    await user.click(screen.getByRole('button',{name:'Sources',exact:true}));
+    expect(screen.getByRole('heading',{name:'Connected data analysis'})).toBeInTheDocument();
+    expect(screen.getByRole('heading',{name:'Source connection'})).toBeInTheDocument();
+    expect(screen.getByText('retail-connection')).toBeInTheDocument();
+    expect(screen.queryByRole('link',{name:'Review original source terms'})).not.toBeInTheDocument();
+  });
+
+  it('shows incomplete retained preparation without presenting it as completion', async () => {
+    runs = [{...runs[0],id:'prepared-partial',snapshot_id:null,status:'partial',coverage:{processed_rows:2,expected_rows:5,pending_rows:3},
+      body:{operation:'preparation',question:'Prepare the full source.'},
+      result:{summary:'Preparation reached its time limit.',usage:{provider_usd:0,charge_status:'measured'},limitations:[]}}];
+    const user = await openWorkspace();
+    await user.click(screen.getByRole('button',{name:'History',exact:true}));
+    expect(screen.getByText('Prepared 2 of 5 rows. Pending: 3.')).toBeInTheDocument();
+    expect(screen.getByText('Preparation reached its time limit.')).toBeInTheDocument();
   });
 
   it('keeps the saved answer when fifty newer runs fill the history', async () => {

@@ -2,9 +2,29 @@
   "graphs": {
     "analysis_goals": "./runtime/analysis_graphs.py:goal_graph",
     "analysis_run": "./runtime/analysis_graphs.py:analysis_graph",
-    "analysis_refresh": "./runtime/analysis_graphs.py:refresh_graph"
+    "analysis_refresh": "./runtime/analysis_graphs.py:refresh_graph",
+    "workflow_triggers": "./runtime/analysis_graphs.py:trigger_graph"
   },
-  "http": {"app": "./runtime/analysis_api.py:app", "enable_custom_route_auth": true,
-    "cors": {"allow_origins": ["http://127.0.0.1:2028", "http://localhost:2028"], "allow_methods": ["GET", "POST", "PATCH"], "allow_headers": ["Authorization", "Content-Type"]}},
-  "auth": {"path": "./runtime/analysis_auth.py:auth"}
+  "http": {
+    "app": "./runtime/analysis_api.py:app",
+    "enable_custom_route_auth": true,
+    "cors": {
+      "allow_origins": [
+        "http://127.0.0.1:2028",
+        "http://localhost:2028"
+      ],
+      "allow_methods": [
+        "GET",
+        "POST",
+        "PATCH"
+      ],
+      "allow_headers": [
+        "Authorization",
+        "Content-Type"
+      ]
+    }
+  },
+  "auth": {
+    "path": "./runtime/analysis_auth.py:auth"
+  }
 }

@@ -1048,6 +1048,26 @@ class CampaignChecks(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Campaign provider attempt'):
             db.reserve(self.run['id'], 'attempt-201', .01)
 
+    def test_zero_budget_blocks_reservations_and_local_cost_stays_unknown(self):
+        service.revise_goal(self.goal, self.actor, budget_usd=0)
+        service.revise_goal(self.goal, self.actor, confirmed=True)
+        run = service.submit(self.goal, self.actor)
+        with self.assertRaisesRegex(RuntimeError, 'run inference budget'):
+            db.reserve(run['id'], 'zero-budget', .001)
+        usage = db.usage(run['id'])
+        self.assertEqual(usage['provider_calls'], 0)
+        self.assertEqual(usage['reserved_usd'], 0)
+        self.assertIsNone(usage['local_compute_usd'])
+
+    def test_request_domain_and_suite_caps_deny_before_reserving(self):
+        with self.assertRaisesRegex(RuntimeError, 'request reservation limit'):
+            db.reserve(self.run['id'], 'request-cap', Decimal('.250001'))
+        for cap, scope in (('domain_usd', 'domain'), ('suite_usd', 'suite')):
+            with self.subTest(scope=scope), patch.dict(CONFIG['budget'], {cap: .05}), \
+                 self.assertRaisesRegex(RuntimeError, scope + ' inference budget'):
+                db.reserve(self.run['id'], scope + '-cap', Decimal('.06'))
+        self.assertEqual(db.usage(self.run['id'])['provider_calls'], 0)
+
     def test_settlement_replay_and_uncertain_charge(self):
         db.reserve(self.run['id'], 'settled', .20)
         response = {'mode': 'fixture', 'id': 'original-provider-identity'}
