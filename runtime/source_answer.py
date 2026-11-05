@@ -209,8 +209,12 @@ def calculate(identity,method,prepared,checked,interpretation,*,mode,started=Non
     calculation = execute_method(method,pages(),checked['result']['source_rows'])
     if time.monotonic()-started>goal['body']['objective']['limits']['timeout_seconds']:
         raise ValueError('Analysis time limit reached; no partial answer was accepted')
+    from runtime import source_documents
+    documentary = source_documents.accepted_evidence(goal, interpretation, {'id': run['owner']})
     calculation.update(contract,goal_version=run['goal_version'],source_ref=goal['body']['objective']['source_ref'],
                        source_fingerprint=digest(checked['result']['bindings']))
+    if documentary:
+        calculation['document_evidence_sha256'] = digest(documentary)
     db.check_run(identity)
     evidence = db.evidence(identity,'connected_calculation',digest(calculation),calculation)
     totals = calculation['totals']
@@ -221,6 +225,7 @@ def calculate(identity,method,prepared,checked,interpretation,*,mode,started=Non
         labels = ', '.join('missing value' if item['value'] is None else repr(item['value']) for item in leaders[:5])
         findings.append({'kind':'fact','claim':f"Highest {dimension['field']} contribution: {labels}, at {method['currency']} {leaders[0]['net_value']}. There are {len(leaders)} tied leaders; every tied group is retained.",'evidence_ids':[evidence]})
     return {'status':'succeeded','mode':mode,
+            'document_evidence': documentary,
             'summary':f"Checked net invoice-line value: {method['currency']} {totals['net_invoice_value']}.",
             'findings':findings,'calculation':calculation,'evidence_id':evidence,'goal_version':run['goal_version'],
             'source_ref':goal['body']['objective']['source_ref'],'usage':db.usage(identity),'elapsed_seconds':round(time.monotonic()-started,3),

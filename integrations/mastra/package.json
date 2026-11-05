@@ -1,0 +1,9 @@
+{
+  "name": "backintel-mastra-trial",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": { "test": "node --test workflow.test.mjs" },
+  "dependencies": { "@mastra/core": "1.78.0", "zod": "4.6.7" }
+}

@@ -18,6 +18,18 @@ def csv_file(directory,name,rows):
 
 
 class AdapterChecks(unittest.TestCase):
+    def test_native_loader_resolves_request_models(self):
+        import importlib.util
+        from pathlib import Path
+        # The native host loads this file without registering its temporary module.
+        spec = importlib.util.spec_from_file_location('custom_app_module', Path(__file__).resolve().parents[1] / 'runtime/analysis_api.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        schema = module.app.openapi()
+        self.assertIn('/api/v1/goals/{identity}', schema['paths'])
+        self.assertIn('GoalAccessInput', schema['components']['schemas'])
+        self.assertTrue({'paused', 'confirmed', 'objective'} <= schema['components']['schemas']['GoalUpdate']['properties'].keys())
+
     def test_real_stage_requests_send_the_current_operator_token(self):
         from unittest.mock import patch
         from scripts import capability_demo, real_capabilities
@@ -659,7 +671,7 @@ class AdapterChecks(unittest.TestCase):
         client=MagicMock();client.__enter__.return_value=client
         client.get.return_value.json.return_value={'data':[{'id':agent.CONFIG['analyst']['model'],'pricing':{'prompt':'0.000001','completion':'0.000001'}}]}
         client.post.return_value.json.return_value={'id':'fixture-response','model':'unapproved/model','usage':{'cost':.001},'output':[]}
-        with patch.object(agent.db,'check_run',return_value=({},{})), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith(('UPDATE', 'SELECT r.id AS dispatch_run')) else {'reserved':.01} if sql.startswith('SELECT reserved') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'), patch.object(agent.db,'connect',return_value=MagicMock()):
+        with patch.object(agent.db,'check_run',return_value=({},{})),patch.object(agent.db,'run',return_value={'owner':'fixture-owner','goal_id':'fixture-goal','body':{'operation':'analysis'}}),patch.object(agent.db,'authorize_run',return_value={}), patch.object(agent.db,'query',side_effect=lambda sql, *args, **kwargs: {'id':'fixture'} if sql.startswith(('UPDATE', 'SELECT r.id AS dispatch_run')) else {'reserved':.01} if sql.startswith('SELECT reserved') else None), patch.object(agent,'credential',return_value='fixture'), patch.object(agent.httpx,'Client',return_value=client), patch.object(agent.db,'reserve',return_value=None), patch.object(agent.db,'write'), patch.object(agent.db,'connect',return_value=MagicMock()):
             with self.assertRaisesRegex(ValueError,'unapproved'):agent.request('fixture-run',0,[])
         payload=client.post.call_args.kwargs['json']
         self.assertEqual(payload['provider']['order'],['OpenAI'])
@@ -783,14 +795,18 @@ class ApplicationChecks(unittest.TestCase):
         initialize();db.catalog()
         db.write("UPDATE backintel.analysis_sources SET body=body || '{\"terms_acknowledged\":true}'::jsonb")
         for role in ('manager','analyst','viewer'):
-            db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
-                     (role,hashlib.sha256(('fixture-'+role).encode()).hexdigest(),role,['commerce']))
+            db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains,administrator,budget_usd) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO UPDATE SET token_hash=excluded.token_hash,role=excluded.role,domains=excluded.domains,administrator=excluded.administrator,budget_usd=excluded.budget_usd,enabled=true,expires_at=NULL',
+                     (role,hashlib.sha256(('fixture-'+role).encode()).hexdigest(),role,['commerce'],role=='manager',20))
         from fastapi.testclient import TestClient
         from runtime.analysis_api import app
         cls.client=TestClient(app)
 
     def headers(self,role='manager'):
         return {'Authorization':'Bearer fixture-'+role}
+
+    def setUp(self):
+        from runtime import analysis_store as db
+        db.write("UPDATE backintel.capability_jobs SET state='cancelled' WHERE state IN ('queued','retry','running') AND task_id LIKE 'analysis-job-%'")
 
     def goal(self):
         response=self.client.post('/api/v1/goals',headers=self.headers(),json={'domain':'commerce','question':'What is the observed recommendation rate?'})

@@ -13,7 +13,7 @@ from runtime.source_access import require_source_access
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPONENTS = ('preparation_worker.py', 'source_preparation.py', 'source_validation.py', 'source_collection.py', 'source_changes.py',
-              'source_answer.py', 'source_inputs.py', 'source_semantics.py', 'analysis_data.py',
+              'source_answer.py', 'source_inputs.py', 'source_semantics.py', 'source_documents.py', 'analysis_data.py',
               'source_workflows.py', 'source_methods.py', 'workflow_updates.py', 'jobs.py', 'analysis_service.py', 'analysis_store.py', 'source_access.py')
 FORMAT = 'backintel.workflow/v1'
 
@@ -63,7 +63,7 @@ def dependency_issues(dependencies, *, root=ROOT):
 
 
 def _authorize(body, actor, connection):
-    goal, policy, _ = require_source_access(body['goal_id'], actor, connection=connection)
+    goal, policy, _ = require_source_access(body['goal_id'], actor, connection=connection, read_only=True)
     objective = goal['body']['objective']
     if (body['connection']['source_ref'] != objective['source_ref']
             or body['connection']['secret_ref'] != policy['secret_ref']
@@ -73,6 +73,7 @@ def _authorize(body, actor, connection):
 
 
 def save(answer_id, actor):
+    from runtime import source_documents
     if db.run(answer_id)['body']['operation'] == 'method':
         from runtime.source_methods import save as save_method
         return save_method(answer_id, actor)
@@ -99,7 +100,11 @@ def save(answer_id, actor):
                 or digest(checked['result']) != calculation['validation_sha256']):
             raise ValueError('The answer no longer matches its accepted meaning check')
         objective = goal['body']['objective']
+        documentary = source_documents.accepted_evidence(goal, interpreted['result'], actor)
+        if documentary != result.get('document_evidence', []):
+            raise ValueError('The answer no longer matches its accepted document evidence')
         body = {'goal_id': goal['id'], 'goal_version': answer['goal_version'], 'mode': result['mode'],
+                'document_refs': goal['body'].get('document_refs', []), 'document_evidence': documentary,
                 'question': answer['body']['question'], 'objective': objective,
                 'connection': {'source_ref': objective['source_ref'], 'secret_ref': policy['secret_ref']},
                 'input_contract': {'allowed_schemas': objective['allowed_schemas'],
@@ -141,7 +146,7 @@ def save(answer_id, actor):
 
 def history(goal_id, actor):
     with db.connect() as connection, connection.transaction():
-        require_source_access(goal_id, actor, connection=connection)
+        require_source_access(goal_id, actor, connection=connection, read_only=True)
         rows = Evidence(connection, 'analysis-goal-' + goal_id).list('workflow_package')
         result = []
         for row in rows:
@@ -174,6 +179,17 @@ def load(package, actor):
         raise ValueError('The supplied package differs from the saved workflow version')
     body = package['body']
     issues = dependency_issues(body['dependencies'])
+    from runtime import source_documents
+    try:
+        source_documents.validate_references(body['goal_id'], body.get('document_refs', []), actor)
+        if body.get('document_refs'):
+            interpreted = db.run(body['accepted']['interpretation']['run_id'])['result']
+            documentary = source_documents.accepted_evidence(
+                {'id': body['goal_id'], 'body': {'document_refs': body['document_refs']}}, interpreted, actor)
+            if documentary != body.get('document_evidence', []):
+                raise ValueError('The saved document evidence differs from the retained interpretation')
+    except ValueError as error:
+        issues.append(str(error))
     for name, reference in body['accepted'].items():
         run = db.query('SELECT status,result FROM backintel.analysis_runs WHERE id=%s', (reference['run_id'],), one=True)
         if not run or run['status'] != 'succeeded' or digest(run['result']) != reference['result_sha256']:
@@ -221,7 +237,7 @@ def invoke(version, actor, input_ref=None):
 def update_status(goal_id, actor):
     from runtime.workflow_updates import status
     with db.connect() as connection, connection.transaction():
-        goal, _, _ = require_source_access(goal_id, actor, connection=connection)
+        goal, _, _ = require_source_access(goal_id, actor, connection=connection, read_only=True)
     return status(goal)
 
 
@@ -286,6 +302,8 @@ def execute(identity):
     if body.get('kind') == 'forecast':
         from runtime.source_methods import forecast
         result = stage('forecast', lambda: forecast(identity, body, prepared, checked))
+        from runtime import source_documents
+        result['document_evidence'] = source_documents.accepted_evidence(goal, interpretation, actor)
         result.update(workflow_version=binding['workflow_version'], input_ref=binding['input_ref'])
         return workflow_updates.finish(identity, update, result, prepared, checked)
     result = stage('answer', lambda: source_answer.calculate(identity, body['method'], {'id': identity, 'result': prepared},

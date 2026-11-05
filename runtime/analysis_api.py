@@ -1,5 +1,4 @@
 """Thin authenticated application routes mounted by Aegra."""
-from __future__ import annotations
 
 import asyncio
 import json
@@ -37,6 +36,8 @@ class GoalInput(Input):
 
 
 class GoalUpdate(Input):
+    document_refs: list[str] | None = Field(default=None, max_length=4)
+    expected_version: int | None = Field(default=None, ge=1)
     question: str | None = Field(default=None,min_length=1,max_length=2000)
     paused: bool | None = None
     confirmed: bool | None = None
@@ -48,6 +49,13 @@ class GoalUpdate(Input):
 class RunInput(Input):
     question: str | None = Field(default=None,min_length=1,max_length=2000)
     operation: str = 'analysis'
+
+
+class DocumentInput(Input):
+    title: str = Field(min_length=1, max_length=200)
+    source_url: str | None = Field(default=None, max_length=2000)
+    media_type: str
+    content_base64: str = Field(min_length=1, max_length=2_666_668)
 
 
 class TermsInput(Input):
@@ -76,6 +84,11 @@ class GrantInput(Input):
     domains: list[str]
     enabled: bool = True
     expires_at: datetime | None = None
+    budget_usd: float | None = None
+
+
+class GoalAccessInput(Input):
+    permission: str | None = None
 
 
 WRITE_ORIGINS = frozenset(('http://127.0.0.1:2028', 'http://localhost:2028'))
@@ -109,10 +122,39 @@ def me(p=Depends(access)):
     return {**p, 'budget': CONFIG['budget']}
 
 
+@app.get('/api/v1/queue')
+def queue(p=Depends(access)):
+    actor = db.authorize(p)
+    visible = db.visible_goal_ids(actor)
+    jobs = db.query('''SELECT r.id,r.goal_id,r.owner,r.status,j.state,j.created_at,j.updated_at,j.wall_ms,
+        EXTRACT(EPOCH FROM COALESCE((SELECT min(e.created_at) FROM backintel.analysis_events e
+            WHERE e.run_id=r.id AND e.kind='started'),
+            CASE WHEN j.state IN ('completed','failed','cancelled') THEN j.updated_at ELSE clock_timestamp() END)-j.created_at) AS waiting_seconds
+        FROM backintel.analysis_runs r JOIN backintel.capability_jobs j ON j.job_id=r.job_id
+        WHERE r.goal_id=ANY(%s) OR (r.goal_id IS NULL AND r.owner=%s)
+        ORDER BY j.created_at DESC LIMIT 50''', (visible, actor['id']))
+    counts = db.query('''SELECT count(*) FILTER (WHERE j.state='running') AS active,
+        count(*) FILTER (WHERE j.state IN ('queued','retry')) AS waiting
+        FROM backintel.capability_jobs j JOIN backintel.analysis_runs r ON r.job_id=j.job_id''', one=True)
+    usage = db.query('''SELECT count(*) AS provider_calls,COALESCE(sum(q.charge),0) AS provider_usd,
+        COALESCE(sum(q.reserved) FILTER (WHERE q.charge IS NULL),0) AS reserved_usd,
+        count(*) FILTER (WHERE q.charge IS NULL) AS unresolved_charges
+        FROM backintel.analysis_requests q JOIN backintel.analysis_runs r ON r.id=q.run_id WHERE r.owner=%s''', (actor['id'],), one=True)
+    return {'jobs': jobs, 'shared_capacity': {**counts, 'active_limit': service.execution_limit(),
+                                           'waiting_limit': service.waiting_limit(),
+                                           'outstanding_limit': service.waiting_limit()},
+            'your_usage': {**usage, 'budget_usd': actor['budget_usd'], 'local_compute_usd': None}}
+
+
+@app.put('/api/v1/goals/{identity}/access/{principal_id}')
+def goal_access(identity: str, principal_id: str, body: GoalAccessInput, p=Depends(access)):
+    return db.share_goal(identity, principal_id, body.permission, p)
+
+
 @app.get('/api/v1/notifications')
 def notifications(p=Depends(access)):
     p=db.authorize(p)
-    return db.query("SELECT e.sequence AS id,e.run_id,e.body,e.created_at,g.id AS goal_id,g.domain FROM backintel.analysis_events e JOIN backintel.analysis_runs r ON r.id=e.run_id JOIN backintel.analysis_goals g ON g.id=r.goal_id WHERE e.kind='material_change' AND g.domain=ANY(%s) ORDER BY e.sequence DESC LIMIT 30",(p['domains'],))
+    return db.query("SELECT e.sequence AS id,e.run_id,e.body,e.created_at,g.id AS goal_id,g.domain FROM backintel.analysis_events e JOIN backintel.analysis_runs r ON r.id=e.run_id JOIN backintel.analysis_goals g ON g.id=r.goal_id WHERE e.kind='material_change' AND g.id=ANY(%s) ORDER BY e.sequence DESC LIMIT 30",(db.visible_goal_ids(p),))
 
 
 @app.get('/api/v1/sources')
@@ -123,12 +165,13 @@ def sources(p=Depends(access)):
 
 @app.post('/api/v1/sources/{domain}/terms')
 def terms(domain:str,body:TermsInput,p=Depends(access)):
-    db.authorize(p,domain,('manager',))
+    db.authorize(p,domain,('manager',),administrator=True)
     with db.connect() as c, c.transaction():
+        db.authorize(p,domain,('manager',),connection=c,administrator=True)
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
         manager=c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s AND enabled
             AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND role='manager'
-            AND %s=ANY(domains) FOR UPDATE""", (p['id'],domain)).fetchone()
+            AND %s=ANY(domains) FOR SHARE""", (p['id'],domain)).fetchone()
         if not manager: raise PermissionError('Current manager authority is required to change source terms')
         source=db.source(domain, connection=c)
         if body.acknowledged and body.source_spec_sha256 != source['body']['source_spec_sha256']:
@@ -151,8 +194,14 @@ async def refresh_source(domain:str,p=Depends(access)):
 @app.get('/api/v1/goals')
 def goals(p=Depends(access)):
     p=db.authorize(p)
-    result=db.query('SELECT * FROM backintel.analysis_goals WHERE domain=ANY(%s) ORDER BY created_at DESC',([domain for domain in p['domains'] if domain in CONFIG['sources']],))
+    result=db.query('SELECT * FROM backintel.analysis_goals WHERE id=ANY(%s) ORDER BY created_at DESC',(db.visible_goal_ids(p),))
     for g in result:
+        from runtime import source_documents
+        g['documents'] = source_documents.listing(g, p)
+        grant = db.query('SELECT permission FROM backintel.analysis_goal_access WHERE goal_id=%s AND principal_id=%s', (g['id'], p['id']), one=True)
+        permission = 'manage' if g['owner'] == p['id'] or p['administrator'] else (grant or {}).get('permission')
+        g['can_manage'] = p['role'] == 'manager' and permission == 'manage'
+        g['can_run'] = p['role'] in ('manager', 'analyst') and permission in ('run', 'manage')
         proposal = db.query("SELECT id,result FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND body->>'operation'='planning' AND status='succeeded' ORDER BY created_at DESC LIMIT 1", (g['id'], g['version']), one=True) if g['body'].get('objective') else None
         g['plan'] = proposal['result'] if proposal else None
         g['plan_run_id'] = proposal['id'] if proposal else None
@@ -161,10 +210,11 @@ def goals(p=Depends(access)):
         if g['body'].get('objective'):
             try:
                 with db.connect() as control, control.transaction():
-                    require_source_access(g['id'], p, connection=control, expected_version=g['version'])
+                    require_source_access(g['id'], p, connection=control, expected_version=g['version'], read_only=True)
                 g['source_access'] = True
             except PermissionError:
-                pass
+                g['plan'] = None
+                g['plan_run_id'] = None
         if g['source_access']:
             from runtime.source_workflows import history
             g['workflows'] = history(g['id'],p)
@@ -217,6 +267,43 @@ def update(identity:str,body:GoalUpdate,p=Depends(access)):
     return service.revise_goal(identity,p,**body.model_dump())
 
 
+@app.get('/api/v1/goals/{identity}/documents')
+def goal_documents(identity: str, p=Depends(access)):
+    from runtime import source_documents
+    db.authorize_goal(p, identity)
+    return source_documents.listing(db.goal(identity), p)
+
+
+@app.post('/api/v1/goals/{identity}/documents', status_code=201)
+def retain_document(identity: str, body: DocumentInput, p=Depends(access)):
+    import base64
+    import binascii
+    from runtime import source_documents
+    db.authorize_goal(p, identity, ('manager',), permission='manage')
+    try:
+        payload = base64.b64decode(body.content_base64, validate=True)
+    except (ValueError, binascii.Error):
+        raise ValueError('Document content must be valid base64-encoded original bytes') from None
+    return source_documents.admit(identity, p, title=body.title, source_url=body.source_url,
+                                  media_type=body.media_type, payload=payload)
+
+
+@app.get('/api/v1/documents/{identity}')
+def document_details(identity: str, p=Depends(access)):
+    from runtime import source_documents
+    row = source_documents.read(identity, p)
+    return {'id': row['id'], **row['body']}
+
+
+@app.get('/api/v1/documents/{identity}/original')
+def document_original(identity: str, p=Depends(access)):
+    from runtime import source_documents
+    row = source_documents.read(identity, p)
+    return Response(row['payload'], media_type='application/octet-stream', headers={
+        'Content-Disposition': 'attachment; filename="document-' + row['id'] + '.txt"',
+        'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store'})
+
+
 @app.post('/api/v1/goals/{identity}/runs',status_code=202)
 def start(identity:str,body:RunInput,p=Depends(access)):
     if body.operation not in ('analysis', 'training', 'planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer'):
@@ -231,7 +318,7 @@ def start(identity:str,body:RunInput,p=Depends(access)):
 
 @app.get('/api/v1/runs')
 def runs(goal_id:str,p=Depends(access)):
-    actor=db.authorize(p,db.goal(goal_id)['domain'])
+    actor=db.authorize_goal(p,goal_id)
     result = []
     for r in db.query('SELECT * FROM backintel.analysis_runs WHERE goal_id=%s ORDER BY created_at DESC LIMIT 50',(goal_id,)):
         try:
@@ -244,19 +331,20 @@ def runs(goal_id:str,p=Depends(access)):
 @app.get('/api/v1/runs/{identity}')
 def run(identity:str,p=Depends(access)):
     r=db.run(identity)
-    actor=db.authorize(p,db.run_domain(r))
+    actor=db.authorize_run(p,r)
     return run_response(r,actor)
 
 
 @app.post('/api/v1/runs/{identity}/cancel')
 def cancel_run(identity:str,p=Depends(access)):
     r=db.run(identity)
-    db.authorize(p,db.run_domain(r),('manager',))
+    db.authorize_run(p,r,('manager',),permission='manage')
     with db.connect() as c, c.transaction():
+        db.authorize_run(p,r,('manager',),permission='manage',connection=c)
         c.execute('SELECT id FROM backintel.analysis_runs WHERE id=%s FOR UPDATE', (identity,))
         manager=c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s AND enabled
             AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND role='manager'
-            AND %s=ANY(domains) FOR UPDATE""", (p['id'],db.run_domain(r))).fetchone()
+            AND %s=ANY(domains) FOR SHARE""", (p['id'],db.run_domain(r))).fetchone()
         if not manager: raise PermissionError('Current manager authority is required to cancel a run')
         state=cancel(c,r['job_id'])
         db.write("UPDATE backintel.analysis_runs SET status='cancelled',updated_at=now() WHERE id=%s AND status='queued'",(identity,),connection=c)
@@ -281,6 +369,47 @@ class WorkflowRunInput(Input):
 
 class WorkflowRefreshInput(Input):
     request_id: str = Field(min_length=1, max_length=240)
+
+
+from runtime.cross_systems import CrossSystemInput, DeliveryInput
+
+
+@app.post('/api/v1/runs/{identity}/cross-system', status_code=201)
+def cross_system_finding(identity: str, body: CrossSystemInput, p=Depends(access)):
+    from runtime.cross_systems import assess
+    return assess(identity, p, body.model_dump())
+
+
+@app.get('/api/v1/cross-system/{identity}')
+def read_cross_system_finding(identity: str, p=Depends(access)):
+    from runtime.cross_systems import read
+    return read(identity, p)
+
+
+@app.post('/api/v1/cross-system/{identity}/deliveries')
+def deliver_cross_system_finding(identity: str, body: DeliveryInput, p=Depends(access)):
+    from runtime.cross_systems import deliver
+    return deliver(identity, p, body.destination_ref)
+
+
+from runtime.source_coordination import CoordinationPolicy
+
+
+@app.post('/api/v1/goals/{identity}/coordination', status_code=202)
+def coordinate_objective(identity: str, body: CoordinationPolicy, p=Depends(access)):
+    from runtime.source_coordination import invoke
+    result = invoke(identity, p, body.model_dump())
+    try:
+        service.wake(result['id'])
+    except (OSError, httpx.HTTPError):
+        db.event(result['id'], 'dispatch_pending', {'message': 'Specialists are queued durably.'})
+    return result
+
+
+@app.get('/api/v1/runs/{identity}/coordination')
+def coordination_progress(identity: str, p=Depends(access)):
+    from runtime.source_coordination import inspect
+    return inspect(identity, p)
 
 
 @app.get('/api/v1/runs/{identity}/source-changes')
@@ -402,19 +531,19 @@ def reconcile(identity:str,p=Depends(access)):
 
 @app.get('/api/v1/runs/{identity}/requests')
 def requests(identity:str,p=Depends(access)):
-    db.authorize(p,db.run_domain(db.run(identity)),('manager',))
+    db.authorize_run(p,db.run(identity),('manager',))
     return db.query('SELECT id,status,reserved,charge,created_at FROM backintel.analysis_requests WHERE run_id=%s ORDER BY created_at',(identity,))
 
 
 @app.get('/api/v1/runs/{identity}/events')
 def events(identity:str,after:int=0,p=Depends(access)):
     r=db.run(identity)
-    db.authorize(p,db.run_domain(r))
+    db.authorize_run(p,r)
     require_connection_result_access(r,p)
     async def stream():
         cursor=after
         for _ in range(60):
-            db.authorize(p,db.run_domain(r))
+            db.authorize_run(p,r)
             require_connection_result_access(r,p)
             rows=db.query('SELECT * FROM backintel.analysis_events WHERE run_id=%s AND sequence>%s ORDER BY sequence',(identity,cursor))
             for row in rows:
@@ -429,7 +558,7 @@ def events(identity:str,after:int=0,p=Depends(access)):
 @app.get('/api/v1/goals/{identity}/findings')
 def findings(identity:str,p=Depends(access)):
     g=db.goal(identity)
-    actor=db.authorize(p,g['domain'])
+    actor=db.authorize_goal(p,identity)
     return run_response(db.run(g['last_success']),actor) if g['last_success'] else None
 
 
@@ -439,11 +568,11 @@ def evidence(identity:str,p=Depends(access)):
     if not r or not r['task_id'].startswith('analysis-goal-'):
         raise ValueError('Unknown application evidence')
     g=db.goal(r['task_id'].removeprefix('analysis-goal-'))
-    actor=db.authorize(p,g['domain'])
+    actor=db.authorize_goal(p,g['id'])
     if r['kind'] in ('source_discovery','source_collection','source_interpretation','source_preparation','source_validation','connected_calculation','workflow_package'):
         with db.connect() as control, control.transaction():
             body = r['body']['body'] if r['kind']=='workflow_package' else r['body']
-            require_source_access(g['id'], actor, connection=control, expected_version=body['goal_version'])
+            require_source_access(g['id'], actor, connection=control, expected_version=body['goal_version'], read_only=True)
     if actor['role']=='viewer' and (r['kind']=='model_comparison' or r['kind']=='calculation' and r['body'].get('tool')=='interpret_text'):
         raise PermissionError('Raw interpretation and model evidence requires analyst access')
     if r['kind']=='model_comparison':
@@ -477,13 +606,17 @@ def comparison_response(body,goal_id,actor):
     return body if approved and actor['role']!='viewer' else model_summary(body,bool(approved))
 
 def require_connection_result_access(r,actor):
-    if r['body']['operation'] in ('discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh'):
+    db.authorize_run(actor,r)
+    if r['body']['operation'] in ('discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh', 'coordination'):
         with db.connect() as control, control.transaction():
-            require_source_access(r['goal_id'], actor, connection=control, expected_version=r['goal_version'])
+            require_source_access(r['goal_id'], actor, connection=control, expected_version=r['goal_version'], read_only=True)
 
 
 def run_response(r,actor):
     require_connection_result_access(r,actor)
+    if r['body']['operation'] == 'coordination':
+        from runtime.source_coordination import inspect
+        r = {**r, 'coordination': inspect(r['id'], actor)}
     if r['body']['operation'] in ('preparation','workflow'):
         from runtime.source_preparation import coverage
         r = {**r,'coverage':r['result']['coverage'] if r['status']=='succeeded' else coverage(r['id'])}
@@ -493,7 +626,7 @@ def run_response(r,actor):
 
 @app.get('/api/v1/goals/{identity}/models')
 def models(identity:str,p=Depends(access)):
-    actor=db.authorize(p,db.goal(identity)['domain'])
+    actor=db.authorize_goal(p,identity)
     candidates=db.query('SELECT * FROM backintel.analysis_models WHERE goal_id=%s ORDER BY created_at DESC',(identity,))
     if actor['role']=='viewer':
         return [{**{key:m[key] for key in ('id','goal_id','snapshot_id','promoted','created_at')},
@@ -512,29 +645,30 @@ def promote(identity:str,body:PromotionInput,p=Depends(access)):
 
 @app.get('/api/v1/goals/{identity}/reviews')
 def reviews(identity:str,p=Depends(access)):
-    db.authorize(p,db.goal(identity)['domain'])
+    db.authorize_goal(p,identity)
     return db.query('SELECT * FROM backintel.analysis_reviews WHERE goal_id=%s ORDER BY id DESC',(identity,))
 
 
 @app.post('/api/v1/goals/{identity}/reviews',status_code=201)
 def review(identity:str,body:ReviewInput,p=Depends(access)):
-    db.authorize(p,db.goal(identity)['domain'],('manager','analyst'))
+    db.authorize_goal(p,identity,('manager','analyst'),permission='run')
     if body.kind not in ('comment','correction') or (body.run_id and db.run(body.run_id)['goal_id']!=identity):
         raise ValueError('Invalid review context')
     with db.connect() as c, c.transaction():
-        db.authorize(p, db.goal(identity)['domain'], ('manager','analyst'), connection=c)
+        db.authorize_goal(p, identity, ('manager','analyst'), permission='run', connection=c)
         db.write('INSERT INTO backintel.analysis_reviews(goal_id,run_id,actor,body) VALUES(%s,%s,%s,%s)',(identity,body.run_id,p['id'],Jsonb(body.model_dump())),connection=c)
     return {'saved':True}
 
 
 @app.post('/api/v1/sources/{domain}/corrections',status_code=201)
 def correction(domain:str,body:CorrectionInput,p=Depends(access)):
-    db.authorize(p,domain,('manager',))
+    db.authorize(p,domain,('manager',),administrator=True)
     with db.connect() as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
+        db.authorize(p,domain,('manager',),connection=c,administrator=True)
         manager=c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s AND enabled
             AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND role='manager'
-            AND %s=ANY(domains) FOR UPDATE""", (p['id'],domain)).fetchone()
+            AND %s=ANY(domains) FOR SHARE""", (p['id'],domain)).fetchone()
         if not manager: raise PermissionError('Current manager authority is required to correct a source')
         source=db.source(domain, connection=c)
         if not source['body'].get('terms_acknowledged'):
@@ -581,12 +715,16 @@ def correction(domain:str,body:CorrectionInput,p=Depends(access)):
 
 @app.patch('/api/v1/principals/{identity}')
 def grants(identity:str,body:GrantInput,p=Depends(access)):
+    db.authorize(p,roles=('manager',),administrator=True)
+    if body.budget_usd is not None and not 0 <= body.budget_usd <= CONFIG['budget']['suite_usd']:
+        raise ValueError('User budget must be nonnegative and within the shared spending cap')
     if set(body.domains)-set(CONFIG['sources']) or identity=='worker': raise ValueError('Invalid application grant')
     if body.expires_at is not None and body.expires_at.tzinfo is None: raise ValueError('Credential expiry requires a timezone')
     with db.connect() as connection, connection.transaction():
         principals = db.query('SELECT id,domains,expires_at FROM backintel.analysis_principals WHERE id=ANY(%s) ORDER BY id FOR UPDATE',
                               (sorted({identity, p['id']}),), connection=connection)
         target = next((row for row in principals if row['id']==identity), None)
+        db.authorize(p,roles=('manager',),connection=connection,administrator=True)
         if target is None: raise ValueError('Unknown application grant')
         if (identity == p['id'] and target['expires_at'] is not None and 'expires_at' in body.model_fields_set
                 and (body.expires_at is None or body.expires_at > target['expires_at'])):
@@ -597,6 +735,9 @@ def grants(identity:str,body:GrantInput,p=Depends(access)):
         if 'expires_at' in body.model_fields_set:
             assignments += ',expires_at=%s'
             values.append(body.expires_at)
+        if body.budget_usd is not None:
+            assignments += ',budget_usd=%s'
+            values.append(body.budget_usd)
         saved = db.query(f"""UPDATE backintel.analysis_principals SET {assignments} WHERE id=%s AND EXISTS (
             SELECT 1 FROM backintel.analysis_principals actor WHERE actor.id=%s AND actor.enabled
               AND (actor.expires_at IS NULL OR actor.expires_at>clock_timestamp())

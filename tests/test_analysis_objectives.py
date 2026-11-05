@@ -41,10 +41,10 @@ class ObjectiveChecks(unittest.TestCase):
     def test_planning_check_keeps_access_revision_and_cancellation_controls(self):
         from runtime import analysis_store as db
         objective = normalize_objective(REQUEST['objective'])
-        goal = {'domain': 'commerce', 'confirmed': False, 'paused': False, 'version': 3, 'body': {'objective': objective}}
+        goal = {'id': 'goal', 'domain': 'commerce', 'confirmed': False, 'paused': False, 'version': 3, 'body': {'objective': objective}}
         run = {'goal_id': 'goal', 'owner': 'manager', 'goal_version': 3, 'snapshot_id': None, 'job_id': 'job', 'body': {'operation': 'planning'}}
         with patch.object(db, 'run', return_value=run), patch.object(db, 'goal', return_value=goal), \
-             patch.object(db, 'authorize') as authorize, patch.object(db, 'source') as source, \
+             patch.object(db, 'authorize_goal') as authorize, patch.object(db, 'source') as source, \
              patch.object(db, 'query', return_value={'cancel_requested': False}) as query:
             self.assertEqual(db.check_run('run'), (run, goal))
             self.assertEqual(authorize.call_args.args[2], ('manager',))
@@ -100,7 +100,7 @@ class ObjectiveChecks(unittest.TestCase):
         with patch.object(service.db, 'goal', return_value=goal), patch.object(service.db, 'authorize'), \
              patch.object(service.db, 'connect', return_value=connection):
             service.revise_goal('goal', {'id': 'manager'}, objective=revised)
-        update = connection.execute.call_args_list[1].args[1]
+        update = next(call.args[1] for call in connection.execute.call_args_list if call.args[0].startswith('UPDATE backintel.analysis_goals'))
         self.assertEqual(update[0].obj['objective']['period'], revised['period'])
         self.assertNotIn('plan', update[0].obj)
         self.assertEqual(update[1], 3)
@@ -111,7 +111,7 @@ class ObjectiveChecks(unittest.TestCase):
         connection = MagicMock()
         connection.cursor.return_value.__enter__.return_value.fetchone.return_value = goal
         with patch.object(service.db, 'source', return_value={'body': {'terms_acknowledged': True}}), \
-             patch.object(service.db, 'authorize') as authorize, \
+             patch.object(service.db, 'authorize_goal') as authorize, \
              self.assertRaisesRegex(ValueError, 'connected workflow'):
             service._admit_run(connection, goal, {'id': 'manager'})
         authorize.assert_called_once()

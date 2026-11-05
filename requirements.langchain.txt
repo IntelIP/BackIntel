@@ -1,0 +1,5 @@
+# Optional external-agent trial; install alongside requirements.testing.txt.
+langchain==1.4.6
+langchain-core==1.6.11
+langgraph==1.2.12
+httpx==0.28.1

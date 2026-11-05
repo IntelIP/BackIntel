@@ -33,7 +33,7 @@ Cover the current development branch, its intended planning and Backlog.md chang
 
 ## Starting context — October 14 inspection, before this story was created
 
-The checkout is /Users/hudson/Documents/GitHub/BackIntel, on codex/backintel-roadmap-sprint-4 at 3cd9991. It was six commits ahead of GitHub main, with no remote counterpart or upstream. Those commits include Sprint 1 planning and Sprint 2–4 installation, support implementation, and tests; a review from this branch is not documentation-only.
+The checkout is /Users/hudson/Documents/GitHub/Products/BackIntel, on codex/backintel-roadmap-sprint-4 at 3cd9991. It was six commits ahead of GitHub main, with no remote counterpart or upstream. Those commits include Sprint 1 planning and Sprint 2–4 installation, support implementation, and tests; a review from this branch is not documentation-only.
 
 The working tree had seven modified planning/guidance files and 48 new files: Backlog configuration, nine milestones, 36 tasks, docs/ROADMAP.md, and docs/SYSTEM_DESIGN.md. There were 15 local branches, four worktrees, no stashes, and no conflicts. The three extra worktrees had no ordinary Git changes; ignored files and local assets were not qualified for removal.
 

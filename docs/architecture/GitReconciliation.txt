@@ -1,6 +1,6 @@
 BackIntel Git reconciliation — October 6, 2026
 
-Canonical development: /Users/hudson/Documents/GitHub/BackIntel
+Canonical development: /Users/hudson/Documents/GitHub/Products/BackIntel
 Integration branch: codex/backintel-consolidated
 Starting recovered baseline: f5e2b693476541ce9fb7598d5d759a28b74af2b3
 Local recovery repairs: 53ffa85

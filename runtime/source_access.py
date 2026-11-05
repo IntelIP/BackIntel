@@ -23,7 +23,7 @@ def _not_expired(*expirations):
         raise PermissionError('Source or user access has expired')
 
 
-def require_source_access(goal_id, actor, *, connection, schema=None, expected_version=None):
+def require_source_access(goal_id, actor, *, connection, schema=None, expected_version=None, read_only=False):
     """Lock authority through a read or acceptance transaction; recheck expiry."""
     goal = db.query('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR SHARE',
                     (goal_id,), one=True, connection=connection)
@@ -33,7 +33,8 @@ def require_source_access(goal_id, actor, *, connection, schema=None, expected_v
         raise PermissionError('The objective changed before source access')
     db.query('SELECT id FROM backintel.analysis_principals WHERE id=%s FOR SHARE',
              (actor['id'],), one=True, connection=connection)
-    principal = db.authorize(actor, goal['domain'], ('manager', 'analyst'), connection=connection, shared=True)
+    principal = db.authorize_goal(actor, goal_id, ('manager', 'analyst', 'viewer') if read_only else ('manager', 'analyst'),
+                                  permission='read' if read_only else 'run', connection=connection, shared=True)
     objective = normalize_objective(goal['body'].get('objective'))
     if objective is None or goal['paused'] or not goal['confirmed']:
         raise PermissionError('Confirm and enable the business objective before accessing its source')
@@ -77,9 +78,12 @@ def source_session(goal_id, actor, *, schema=None, expected_version=None):
     with db.connect() as control, control.transaction():
         goal, policy, principal_expiry = require_source_access(goal_id, actor, connection=control, schema=schema, expected_version=expected_version)
         settings = _local_credentials(policy['secret_ref'])
+        # Checking retained originals between source reads is useful work, not an
+        # abandoned transaction. Keep it within the objective's overall deadline.
+        idle_ms = int(goal['body']['objective']['limits']['timeout_seconds'] * 1000)
         try:
             with psycopg.connect(**settings, row_factory=dict_row, connect_timeout=5,
-                                 options='-c default_transaction_read_only=on -c statement_timeout=30000 -c idle_in_transaction_session_timeout=30000') as source:
+                                 options=f'-c default_transaction_read_only=on -c statement_timeout=30000 -c idle_in_transaction_session_timeout={idle_ms}') as source:
                 source.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
                 role = source.execute('SELECT rolsuper,rolbypassrls,rolcreaterole,rolcreatedb,rolreplication FROM pg_catalog.pg_roles WHERE rolname=current_user').fetchone()
                 if not role or any(role.values()):
@@ -103,7 +107,9 @@ def source_session(goal_id, actor, *, schema=None, expected_version=None):
         except psycopg.Error as error:
             if error.sqlstate in ('42501', '28000', '28P01'):
                 raise PermissionError('PostgreSQL denied the requested source access') from None
-            raise RuntimeError('The permitted PostgreSQL source could not complete the read') from None
+            # Report a safe failure class without exposing queries, records, or credentials.
+            raise RuntimeError('The permitted PostgreSQL source could not complete the read ('
+                               + type(error).__name__ + ', SQLSTATE ' + str(error.sqlstate) + ')') from None
 
 
 def inspect_source(goal_id, actor, *, expected_version=None):
@@ -132,7 +138,7 @@ def preview_source(goal_id, actor, schema, table, *, limit=10):
 def discover(identity):
     """Automatically inspect the granted catalog; collection and meaning follow later."""
     run, goal = db.check_run(identity)
-    if run['body']['operation'] != 'discovery':
+    if run['body']['operation'] not in ('discovery', 'coordination'):
         raise ValueError('Source discovery requires a discovery job')
     started = time.monotonic()
     fields = inspect_source(goal['id'], {'id': run['owner']}, expected_version=run['goal_version'])

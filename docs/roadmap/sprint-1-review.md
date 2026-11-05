@@ -72,7 +72,7 @@ The sprint's demo server is stopped. The normal extraction and its separate loca
 To repeat the retained demonstration from the trusted checkout:
 
 ```sh
-cd /Users/hudson/Documents/GitHub/BackIntel
+cd /Users/hudson/Documents/GitHub/Products/BackIntel
 python3 -m scripts.package_business_demo --package-root /tmp/backintel-sprint-1-demo.vpegTH/BackIntelDemo --port 2053
 ```
 

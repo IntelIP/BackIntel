@@ -53,8 +53,15 @@ class PlanProposal(BaseModel):
     open_questions: list[Text] = Field(max_length=20)
 
 
-class FieldMeaning(BaseModel):
+class DocumentCitation(BaseModel):
     model_config = ConfigDict(extra='forbid')
+    document_id: str = Field(pattern=r'^[a-f0-9]{64}$')
+    passage_id: str = Field(pattern=r'^[a-f0-9]{64}$')
+    quote: str = Field(min_length=1, max_length=1600)
+
+
+class FieldMeaning(BaseModel):
+    model_config = ConfigDict(extra='forbid', json_schema_serialization_defaults_required=True)
     name: Text
     meaning: Text
     role: Literal['identifier', 'quantity', 'unit_price', 'measure', 'date', 'category', 'text', 'unknown']
@@ -63,6 +70,7 @@ class FieldMeaning(BaseModel):
     basis: Literal['objective', 'observed_format', 'inferred_name', 'unresolved']
     confidence: Literal['supported', 'proposed', 'ambiguous']
     limitations: list[Text] = Field(max_length=10)
+    citations: list[DocumentCitation] = Field(default_factory=list, max_length=4)
 
 
 class TableMeaning(BaseModel):

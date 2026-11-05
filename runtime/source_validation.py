@@ -103,7 +103,7 @@ def compare_page(page, original, meanings, declared_units, seen):
 def check(identity, *, prepared=None, interpretation=None, collection=None):
     started = time.monotonic()
     run, goal = db.check_run(identity)
-    if run['body']['operation'] not in ('validation','workflow') or (run['body']['operation']=='workflow' and any(item is None for item in (prepared,interpretation,collection))):
+    if run['body']['operation'] not in ('validation','workflow','coordination') or (run['body']['operation'] in ('workflow','coordination') and any(item is None for item in (prepared,interpretation,collection))):
         raise ValueError('Meaning checks require a validation job')
     prepared = prepared or db.query("SELECT * FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND status='succeeded' AND body->>'operation'='preparation' ORDER BY created_at DESC LIMIT 1",
                                     (goal['id'],run['goal_version']),one=True)

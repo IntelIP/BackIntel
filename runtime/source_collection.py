@@ -73,7 +73,7 @@ def change_history(identity, actor, *, offset=0, limit=100):
 def collect(identity, *, page_rows=2000):
     from runtime.source_changes import pages as changed_pages
     run, goal = db.check_run(identity)
-    if run['body']['operation'] not in ('collection', 'refresh'):
+    if run['body']['operation'] not in ('collection', 'refresh', 'coordination'):
         raise ValueError('Collection requires a collection or refresh job')
     if isinstance(page_rows, bool) or not isinstance(page_rows, int) or not 1 <= page_rows <= 5000:
         raise ValueError('Invalid internal collection page size')

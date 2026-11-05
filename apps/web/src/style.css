@@ -2,3 +2,5 @@
 
 .workspace > main, .sidebar { min-width: 0; }
 .sidebar button, h1, h2, h3 { overflow-wrap: anywhere; }
+
+.coordination code{white-space:normal;overflow-wrap:anywhere}

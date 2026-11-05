@@ -69,7 +69,7 @@ def validate_page(page, original):
 
 def prepared_page(identity, page_key, actor):
     run = db.run(identity)
-    if run['body']['operation'] not in ('preparation','workflow'):
+    if run['body']['operation'] not in ('preparation','workflow','coordination'):
         raise ValueError('Prepared pages belong to preparation runs')
     with db.connect() as control, control.transaction():
         require_source_access(run['goal_id'], actor, connection=control, expected_version=run['goal_version'])
@@ -110,18 +110,20 @@ def coverage(identity):
             'pending_rows':max(0,expected-int(counts['rows'])) if expected is not None else None}
 
 
-def prepare(identity, *, workflow=None, collection_id=None):
+def prepare(identity, *, workflow=None, collection_id=None, interpretation=None, collected=None):
     started = time.monotonic()
     run, goal = db.check_run(identity)
-    if run['body']['operation'] not in ('preparation','workflow') or (run['body']['operation']=='workflow') != (workflow is not None):
+    if run['body']['operation'] not in ('preparation','workflow','coordination') or (run['body']['operation']=='workflow') != (workflow is not None):
         raise ValueError('Preparation requires a preparation job')
     actor = {'id': run['owner']}
-    interpretation = (db.run(workflow['accepted']['interpretation']['run_id']) if workflow else
+    if run['body']['operation'] == 'coordination' and (interpretation is None or collected is None):
+        raise ValueError('Coordination must pin its interpretation and collection')
+    interpretation = interpretation or (db.run(workflow['accepted']['interpretation']['run_id']) if workflow else
                       db.query("SELECT id,result FROM backintel.analysis_runs WHERE goal_id=%s AND goal_version=%s AND status='succeeded' AND body->>'operation'='interpretation' ORDER BY created_at DESC LIMIT 1",
                                (goal['id'], run['goal_version']), one=True))
     if not interpretation:
         raise ValueError('Interpret the collected source before preparing it')
-    collected = db.run(collection_id or interpretation['result']['profile']['collection_run_id'])
+    collected = collected or db.run(collection_id or interpretation['result']['profile']['collection_run_id'])
     if collected['status'] != 'succeeded':
         raise ValueError('Preparation requires a complete source collection')
     recipe = workflow['preparation'] if workflow else preparation_recipe(interpretation['result'], goal['body']['objective'])

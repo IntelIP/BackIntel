@@ -22,7 +22,10 @@ def access_path():
     return Path(os.getenv('BACKINTEL_ACCESS_CREDENTIAL_FILE', '/run/backintel-credentials/access.json'))
 
 
-def seed(*, grant_manager_sources=False):
+def seed(*, grant_manager_sources=False, administrator=False, budget_usd=None):
+    from decimal import Decimal
+    if budget_usd is not None and (not Decimal(str(budget_usd)).is_finite() or Decimal(str(budget_usd)) < 0):
+        raise ValueError('The manager budget must be finite and nonnegative')
     from runtime.analysis_data import CONFIG
     from runtime import analysis_store as db
     db.catalog()
@@ -39,6 +42,10 @@ def seed(*, grant_manager_sources=False):
                     THEN ARRAY(SELECT DISTINCT unnest(backintel.analysis_principals.domains || excluded.domains))
                     ELSE backintel.analysis_principals.domains END""",
                  (role,hashlib.sha256(token.encode()).hexdigest(),role,list(CONFIG['sources']),grant_manager_sources and role=='manager'))
+    if administrator:
+        db.write("UPDATE backintel.analysis_principals SET administrator=true WHERE id='manager' AND role='manager'")
+    if budget_usd is not None:
+        db.write("UPDATE backintel.analysis_principals SET budget_usd=%s WHERE id='manager' AND role='manager'", (budget_usd,))
     path.write_text(json.dumps(values));path.chmod(0o600)
     print('Local access grants ready; credential values are hidden.')
 
@@ -147,9 +154,11 @@ def main():
     a=sub.add_parser('open');a.add_argument('--role',choices=('manager','analyst','viewer'),default='manager')
     sub.choices['seed'].add_argument('--grant-manager-sources', action='store_true',
         help='Explicitly grant the seeded manager every configured source; preserve other grants.')
+    sub.choices['seed'].add_argument('--administrator', action='store_true', help='Explicitly allow the seeded manager to administer shared sources and user grants.')
+    sub.choices['seed'].add_argument('--budget-usd', type=str, help='Explicitly set the seeded manager cumulative model-spending cap.')
     args=parser.parse_args()
     if args.command=='seed':
-        seed(grant_manager_sources=args.grant_manager_sources)
+        seed(grant_manager_sources=args.grant_manager_sources, administrator=args.administrator, budget_usd=args.budget_usd)
     elif args.command=='acquire':
         acquire(args.domain,args.acknowledge_terms)
     elif args.command=='open':

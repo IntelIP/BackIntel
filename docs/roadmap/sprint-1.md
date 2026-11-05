@@ -70,7 +70,7 @@ This advances the toolkit-first roadmap without committing installation of an un
 
 ## First execution commands
 
-Run from `/Users/hudson/Documents/GitHub/BackIntel`. Use a fresh folder; do not overwrite a previous extraction or review.
+Run from `/Users/hudson/Documents/GitHub/Products/BackIntel`. Use a fresh folder; do not overwrite a previous extraction or review.
 
 ```sh
 backintel_sprint_demo_dir="$(mktemp -d /tmp/backintel-sprint-1-demo.XXXXXX)"

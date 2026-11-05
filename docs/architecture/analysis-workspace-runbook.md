@@ -37,12 +37,12 @@ python3 -m scripts.analysis_demo open --role manager
 
 ## Consolidated local checkout
 
-The canonical development folder is `/Users/hudson/Documents/GitHub/BackIntel` on `codex/backintel-consolidated`. It incorporates the October 4 recovery (`f5e2b69`) and the local recovery fixes (`53ffa85`). The original unsaved source is preserved on `codex/recovery-original-20261006` (`23dd937`); the resume folder is retained as a clean recovery reference. See [Git reconciliation](GitReconciliation.txt). The later agent toolkit candidate is not present.
+The canonical development folder is `/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel` on `codex/backintel-consolidated`. It incorporates the October 4 recovery (`f5e2b69`) and the local recovery fixes (`53ffa85`). The original unsaved source is preserved on `codex/recovery-original-20261006` (`23dd937`); the resume folder is retained as a clean recovery reference. See [Git reconciliation](GitReconciliation.txt). The later agent toolkit candidate is not present.
 
 The ignored `.env` selects the separate `backintel-local-resume` Docker project and reuses existing dataset files and model weights. Start it and open manager access without changing stored Keychain grants:
 
 ```sh
-cd /Users/hudson/Documents/GitHub/BackIntel
+cd /Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel
 OPENROUTER_API_KEY= docker compose -f compose.analysis.yml up -d --wait
 python3 -m scripts.analysis_demo open --role manager
 ```

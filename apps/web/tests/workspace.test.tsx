@@ -40,7 +40,8 @@ beforeEach(() => {
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     requests.push({path, method, body});
     let value: unknown;
-    if (path === '/api/v1/me') value = {id: role, role, domains: ['commerce'], budget: {suite_usd: 10}};
+    if (path === '/api/v1/me') value = {id: role, role, administrator: role === 'manager', domains: ['commerce'], budget: {suite_usd: 10}};
+    else if (path === '/api/v1/queue') value = {jobs: [], shared_capacity: {active: 0, waiting: 0, active_limit: 2}, your_usage: {provider_usd: 0, reserved_usd: 0, budget_usd: 1, unresolved_charges: 0}};
     else if (path === '/api/v1/sources') value = [source];
     else if (path === '/api/v1/goals' && method === 'GET') value = [goal];
     else if (path === '/api/v1/notifications' || path.endsWith('/models') || path.endsWith('/reviews')) value = [];

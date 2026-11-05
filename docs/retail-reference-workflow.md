@@ -59,7 +59,7 @@ A source owner still exposes the source and grants access. An operator supplies 
 
 Original invoice/customer/product identity semantics, quantity units, cancellation-to-original linkage, and other signed adjustments remain documented uncertainties. No joins were accepted because this scenario has one table. The workflow preserves every row and unusual signed value rather than silently resolving these uncertainties. Earlier interpretation caveats about checking hashes and dates describe that stage; the later full-source checks verified the pinned hash and actual date extrema.
 
-This establishes one local historical PostgreSQL workflow. Databricks, continuous updates, broad autonomous method development, coordination among agents, additional source systems, and sustained multi-user scale remain roadmap work. No commit, push, merge, release, deployment, or demonstrated business-value claim is included.
+This original S-38/S-39 demonstration establishes one local historical PostgreSQL workflow. At that stage, Databricks, continuous updates, broad autonomous method development, coordination among agents, additional source systems, and sustained multi-user scale remained roadmap work. Later sections describe subsequent bounded demonstrations. No release, deployment, or demonstrated business-value claim is included.
 
 
 ## Forecast method study
@@ -91,3 +91,36 @@ Local evidence is retained under `/Users/hudson/Library/Application Support/Back
 - `validation.py` and `browser-check.js`: reproducible checks; the live script refuses a fresh paid attempt when one already exists and requires reuse of the retained database.
 
 Study: `08f463288faa6444548a191203fd4fcc933f03178dc4e23d475fcd800c792e4c`. Saved workflow: `07869f4fa1ef975523b06e23750c9441106067d1c7bb7b4ff7f0de87f267cfd8`. See [saved-workflow guidance](saved-workflows.md#forecast-method-studies) for the shared toolkit and application entry points. These results establish the bounded local demonstration; they do not establish continuous operation, deployment, or reliability on other questions.
+
+## Specialist coordination
+
+On October 16, 2026, three live specialists completed the saved retail question together. The data specialist interpreted the fields, the analysis specialist selected the calculation, and the checking specialist reviewed an independent calculation over retained original records. BackIntel managed their handoffs through one durable job and a shared objective, source scope, and spending limit.
+
+All **541,909 rows** were processed, with zero excluded, failed, or pending rows. Net invoice value was **GBP 9,747,747.934**, including signed cancellations of **GBP -896,812.49**. Cancellation reduction was **GBP 896,812.49**. Every product and country group, the source period, and the totals matched the independent calculation. The historical-data, unknown-timezone, and invoice-value limitations stated above still apply.
+
+| Specialist | Actual requests | Measured cost (USD) |
+| --- | ---: | ---: |
+| Interpret the data | 2 | 0.024754950 |
+| Choose the calculation | 2 | 0.011015235 |
+| Check the finding | 2 | 0.006000390 |
+| Successful attempt | 6 | 0.041770575 |
+
+An earlier two-request attempt stopped because the proposed unit did not quote the saved objective. It cost USD 0.025643475. The data specialist now reuses the existing interpretation rules; the validator and business definitions remain unchanged. **Both attempts used eight requests and cost USD 0.067414050**, below the approved USD 0.50 total. The successful attempt had its own USD 0.47 cap. Earlier paid-request records were retained. Local computing cost was not measured.
+
+The live demonstration interrupted the analysis specialist after a response was retained. It resumed without repeating that charge or losing the accepted data contribution. A duplicate invocation reused the same run. The toolkit, authenticated API, and real browser showed the same accepted contributions, input and evidence versions, and per-specialist charges on desktop and mobile.
+
+Separate fault-injected checks deliberately changed a total, confirmed rejection without replacing the last accepted answer, denied revoked source access, and blocked retry of a simulated unresolved charge. Those fault scenarios used explicitly simulated model responses and made no additional paid calls. The corrected full-data recovery demonstration passed under `S33RecoveryFixture-20261016`. Five focused coordination tests, the required dead-code and dependency-graph checks, and the existing web tests and production build also passed.
+
+Live evidence is retained under `/Users/hudson/Library/Application Support/BackIntel/Validation/S33Live-20261016B`:
+
+- `shared-progress.json`: three actual accepted contributions, version references, and measured usage.
+- `checked-answer.json`: complete coverage, reconciled values, findings, and limitations.
+- `interrupted-progress.json`: the retained data contribution and interrupted analysis request.
+- `browser.log`, `coordination-desktop.png`, and `coordination-mobile.png`: the accepted plan displayed in the actual application.
+- `summary.json` and `coordination-cases.json`: the passed live demonstration and injected failure checks, including the rejected-result browser check.
+- `combined-allowance.json`: all eight requests and their combined USD 0.067414050 charge.
+- `runtime-result.dump`: accepted and rejected work, original records, and retained provider accounting. The disposable database and native server were removed after verification.
+
+Accepted run: `7fab65c358a07f1d7912266ca3dce48eeb7c65c709a8a0a6b02848a406ea4193`. The earlier two-request ledger remains in `S33Live-20261016/runtime-result.dump` and `retained-request-review.json`. Model requests contained only the saved objective, field meanings, aggregate profiles, and check results; no raw retail records or identifier values were sent.
+
+This establishes a bounded local workflow with actual specialist agents. It does not establish Databricks integration, coordination across additional business systems, sustained production capacity, or measured business benefit. See [saved-workflow guidance](saved-workflows.md#specialist-coordination) for the application, API, and toolkit entry points.

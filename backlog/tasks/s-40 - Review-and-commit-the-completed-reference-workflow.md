@@ -1,11 +1,11 @@
 ---
 id: S-40
 title: Review and commit the completed reference workflow
-status: Review
+status: Done
 assignee:
   - '@codex'
 created_date: '2026-10-16 02:03'
-updated_date: '2026-10-16 16:03'
+updated_date: '2026-10-16 16:08'
 labels:
   - development-workflow
   - git-hygiene
@@ -45,8 +45,8 @@ S-38 and its completed reference-workflow evidence. This is delivery housekeepin
 <!-- AC:BEGIN -->
 - [x] #1 The execution-time handoff identifies the candidate branch and revision, intended changed files, existing sprint history relevant to review, and unrelated or excluded local work. The proposed commit includes the intended implementation and documentation without raw datasets, database archives, secrets, or accidental unrelated changes.
 - [x] #2 The review records the observed product result, material limitations, and relevant verification for the actual candidate. Unchanged evidence is reused where applicable; affected checks are rerun after material edits, and unresolved failures remain explicit.
-- [ ] #3 The concrete commit scope and message receive any required explicit approval, then the intended work is committed and the local commit is verified. Missing approval or a failed commit prevents this acceptance criterion from being checked.
-- [ ] #4 The task records the retained commit, scope, exclusions, approval, and remaining review or publication decisions. It makes no claim of push, merge, release, deployment, or independent-user acceptance.
+- [x] #3 The concrete commit scope and message receive any required explicit approval, then the intended work is committed and the local commit is verified. Missing approval or a failed commit prevents this acceptance criterion from being checked.
+- [x] #4 The task records the retained commit, scope, exclusions, approval, and remaining review or publication decisions. It makes no claim of push, merge, release, deployment, or independent-user acceptance.
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -70,4 +70,12 @@ Reviewed the objective-to-workflow integrations, source permissions and migratio
 Proposed commit message: Add connected-source analysis and continuous workflow updates. Acceptance 3 and 4 remain pending explicit approval, a successful local commit, and commit readback. No push or publication is included.
 
 The staged check additionally covered newly added files and found four whitespace-only lines in scripts/validation/workflow_update_cases.py. Removed their trailing spaces without changing executable content; repeated the staged diff check. This formatting correction is the only source-file edit made for S-40.
+
+User approved the exact 90-file local commit in this turn. Commit 106b7ebd4dd58388ef94467bb7f07322e567c680 preserves the reviewed implementation, tests, configuration, documentation, and task records. Verified every staged blob against the approval inventory before committing and verified committed tree 40a69ba7e5dc20ed78c6ee2c3980821c2dbd9561 afterward. No push, publication, merge, deployment, branch deletion, or cleanup was performed. This completion note follows the preserved commit and will remain a normal subsequent tracking change.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Preserved the completed connected-source workflow, forecasting study, and continuous updates in approved local commit 106b7eb. The 90 committed files exactly match the reviewed candidate. Current build, 21 web tests, dead-code and staged patch checks passed; existing live acceptance was reused. S-33 coordination is the next selected product story.
+<!-- SECTION:FINAL_SUMMARY:END -->

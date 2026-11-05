@@ -337,9 +337,9 @@ def provider_dispatch(identity, call_id):
               AND NOT g.paused AND g.version=r.goal_version
               AND ((r.body->>'operation'='planning' AND p.role='manager'
                     AND g.body ? 'objective' AND r.snapshot_id IS NULL)
-                     OR (r.body->>'operation' IN ('interpretation','answer','method') AND p.role='manager'
+                     OR (r.body->>'operation' IN ('interpretation','answer','method','coordination') AND p.role='manager'
                        AND g.confirmed AND g.body ? 'objective' AND r.snapshot_id IS NULL)
-                     OR (r.body->>'operation' NOT IN ('planning','interpretation','answer','method') AND g.confirmed
+                     OR (r.body->>'operation' NOT IN ('planning','interpretation','answer','method','coordination') AND g.confirmed
               AND s.latest_snapshot=r.snapshot_id AND g.active_model IS NOT DISTINCT FROM r.body->>'model_id'
               AND s.body->'terms_acknowledged'='true'::jsonb))
               AND p.enabled AND (p.expires_at IS NULL OR p.expires_at>clock_timestamp())
@@ -348,7 +348,8 @@ def provider_dispatch(identity, call_id):
         if not eligible:
             raise RuntimeError('Provider reservation changed before dispatch; no request was sent')
         current = db.run(identity, connection=connection)
-        if current['body']['operation'] in ('interpretation','answer','method'):
+        db.authorize_run({'id': current['owner']}, current, ('manager', 'analyst'), permission='run', connection=connection)
+        if current['body']['operation'] in ('interpretation','answer','method', 'coordination'):
             from runtime.source_access import require_source_access
             require_source_access(current['goal_id'], {'id': current['owner']}, connection=connection,
                                   expected_version=current['goal_version'])
@@ -361,16 +362,20 @@ def provider_dispatch(identity, call_id):
         yield
 
 
-def request(identity, index, inputs, *, tool_specs=TOOLS, answer_schema=ANSWER_SCHEMA):
+def request(identity, index, inputs, *, tool_specs=TOOLS, answer_schema=ANSWER_SCHEMA, tool_choice=None, on_request=None):
     _, g = db.check_run(identity)
     config = CONFIG['analyst']
     payload = {'model': config['model'], 'input': inputs, 'tools': tool_specs, 'max_output_tokens': config['max_output_tokens'],
                'reasoning': {'effort': 'medium'}, 'provider': {'order': [config['provider']], 'allow_fallbacks': False, 'require_parameters': True},
                'text': {'format': {'type': 'json_schema', 'name': 'analysis_answer', 'strict': True, 'schema': answer_schema}}}
+    if tool_choice is not None:
+        payload['tool_choice'] = tool_choice
     size = len(json.dumps(payload).encode())
     if size > config['input_bytes']:
         raise RuntimeError('Analyst input context limit exceeded')
     call_id = digest([identity, index, payload])
+    if on_request is not None:
+        on_request(call_id)
     cached = db.query('SELECT status,response FROM backintel.analysis_requests WHERE id=%s', (call_id,), one=True)
     if cached and cached['status'] == 'reserved':
         # The job handler holds the task lock; an earlier attempt cannot still
@@ -444,7 +449,7 @@ def reconcile_charge(call_id, actor):
     if not request:
         raise ValueError('Unknown provider request')
     r = db.run(request['run_id'])
-    db.authorize(actor, db.run_domain(r), ('manager',))
+    db.authorize_run(actor, r, ('manager',), permission='manage')
     value = request['response']
     if request['charge'] is not None:
         record_charge(call_id, request['charge'])

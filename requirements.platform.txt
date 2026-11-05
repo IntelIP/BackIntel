@@ -1,0 +1,5 @@
+# Connected PostgreSQL workflow and native API; optional model/framework tools stay separate.
+-r requirements.txt
+aegra-api==0.10.5
+httpx==0.28.1
+uvicorn==0.54.0

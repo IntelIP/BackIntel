@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from contextlib import nullcontext
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 import subprocess
 import sys
@@ -23,7 +24,7 @@ from scripts.analysis_setup import validate_source_receipt
 
 
 def _import_source(domain, actor, *, connection=None, run_id=None):
-    db.authorize(actor, domain, ('manager',))
+    db.authorize(actor, domain, ('manager',), administrator=True)
     with (nullcontext(connection) if connection is not None else db.connect()) as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
         source = db.source(domain, connection=c)
@@ -39,7 +40,7 @@ def _import_source(domain, actor, *, connection=None, run_id=None):
             if (prior['body']['files'] == files
                     and all(prior['body'].get(key) == value for key, value in adapter_identity(domain).items())
                     and (domain!='maintenance' or prior['body'].get('unit_mapping')=='dataset-qualified-engine-v2')):
-                db.authorize(actor, domain, ('manager',), connection=c)
+                db.authorize(actor, domain, ('manager',), connection=c, administrator=True)
                 return {'snapshot': source['latest_snapshot'], 'changed': False}
         identity, body, rows = adapt(domain, paths)
         if identity != approved['snapshot_id'] or body != approved['adapter_receipt']:
@@ -52,12 +53,12 @@ def _import_source(domain, actor, *, connection=None, run_id=None):
             cancelled = c.execute('SELECT cancel_requested FROM backintel.capability_jobs WHERE job_id=%s FOR UPDATE', (db.run(run_id)['job_id'],)).fetchone()[0]
             if cancelled:
                 raise InterruptedError('Import cancelled')
-        db.authorize(actor, domain, ('manager',), connection=c)
+        db.authorize(actor, domain, ('manager',), connection=c, administrator=True)
         db.save_snapshot(domain, identity, body, rows, connection=c)
         return {'snapshot': identity, 'changed': source['latest_snapshot'] != identity}
 
 def import_source(domain, actor, *, connection=None, run_id=None):
-    db.authorize(actor, domain, ('manager',))
+    db.authorize(actor, domain, ('manager',), administrator=True)
     failure = None
     with (nullcontext(connection) if connection is not None else db.connect()) as c:
         with c.transaction():
@@ -98,10 +99,14 @@ def create_goal(actor, domain, question, *, objective=None):
     return db.goal(identity)
 
 
-def revise_goal(identity, actor, question=None, paused=None, confirmed=None, threshold=None, budget_usd=None, objective=None):
+def revise_goal(identity, actor, question=None, paused=None, confirmed=None, threshold=None, budget_usd=None, objective=None, document_refs=None, expected_version=None):
     g = db.goal(identity)
-    db.authorize(actor, g['domain'], ('manager',))
+    db.authorize_goal(actor, identity, ('manager',), permission='manage')
+    if expected_version is not None and expected_version != g['version']:
+        raise ValueError('Goal changed during this edit; reload it and try again')
     body = dict(g['body'])
+    if document_refs is not None:
+        body['document_refs'] = document_refs
     if budget_usd is not None:
         if isinstance(budget_usd,bool) or not isinstance(budget_usd,(int,float)) or not 0 <= budget_usd <= CONFIG['budget']['run_usd']:
             raise ValueError('Goal budget must be nonnegative and within the approved run cap')
@@ -121,9 +126,14 @@ def revise_goal(identity, actor, question=None, paused=None, confirmed=None, thr
         body.pop('plan', None)
     version = g['version'] + int(body != g['body'])
     with db.connect() as c, c.transaction():
+        c.execute('SELECT id FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (identity,))
+        db.authorize_goal(actor, identity, ('manager',), permission='manage', connection=c)
+        if document_refs is not None:
+            from runtime.source_documents import validate_references
+            validate_references(identity, document_refs, actor, connection=c)
         manager = c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s
             AND enabled AND (expires_at IS NULL OR expires_at>now())
-            AND role='manager' AND %s=ANY(domains) FOR UPDATE""", (actor['id'], g['domain'])).fetchone()
+            AND role='manager' AND %s=ANY(domains) FOR SHARE""", (actor['id'], g['domain'])).fetchone()
         if not manager:
             raise PermissionError('Current manager authority is required to edit a goal')
         changed = c.execute('UPDATE backintel.analysis_goals SET body=%s,version=%s,paused=%s,confirmed=%s WHERE id=%s AND version=%s AND body=%s AND paused=%s AND confirmed=%s',
@@ -135,10 +145,10 @@ def revise_goal(identity, actor, question=None, paused=None, confirmed=None, thr
     return db.goal(identity)
 
 
-def submit(identity, actor, question=None, operation='analysis', *, connection=None, workflow_version=None, input_ref=None, method_policy=None, refresh_key=None):
+def submit(identity, actor, question=None, operation='analysis', *, connection=None, workflow_version=None, input_ref=None, method_policy=None, refresh_key=None, coordination_policy=None):
     g = db.goal(identity)
     with (nullcontext(connection) if connection is not None else db.connect()) as c, c.transaction():
-        run_id = _admit_run(c, g, actor, question, operation, workflow_version=workflow_version, input_ref=input_ref, method_policy=method_policy, refresh_key=refresh_key)
+        run_id = _admit_run(c, g, actor, question, operation, workflow_version=workflow_version, input_ref=input_ref, method_policy=method_policy, refresh_key=refresh_key, coordination_policy=coordination_policy)
         return db.run(run_id, connection=c)
 
 
@@ -148,8 +158,8 @@ def analysis_identity():
     return digest({'implementation':{str(path.relative_to(root)):fingerprint(path)['sha256'] for path in files}, 'config':CONFIG})
 
 
-def _admit_run(c, g, actor, question=None, operation='analysis', *, workflow_version=None, input_ref=None, method_policy=None, refresh_key=None):
-    if operation not in ('analysis', 'training', 'planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh'):
+def _admit_run(c, g, actor, question=None, operation='analysis', *, workflow_version=None, input_ref=None, method_policy=None, refresh_key=None, coordination_policy=None):
+    if operation not in ('analysis', 'training', 'planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh', 'coordination'):
         raise ValueError('Unsupported operation')
     binding = None
     if method_policy is not None and operation != 'method':
@@ -171,26 +181,34 @@ def _admit_run(c, g, actor, question=None, operation='analysis', *, workflow_ver
         question = binding['study_policy']['question']
     elif workflow_version is not None or input_ref is not None:
         raise ValueError('Workflow bindings require a workflow invocation')
-    planning = operation in ('planning', 'interpretation', 'answer')
-    pre_ingestion = operation in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh')
+    if operation == 'coordination':
+        from runtime.source_coordination import bind as bind_coordination
+        binding = bind_coordination(g, coordination_policy)
+        question = g['body']['question']
+    elif coordination_policy is not None:
+        raise ValueError('A coordination policy requires a coordination run')
+    planning = operation in ('planning', 'interpretation', 'answer', 'coordination')
+    pre_ingestion = operation in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh', 'coordination')
     identity = g['id']
     c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
     source = db.source(g['domain'], connection=c)
     if not pre_ingestion and not source['body'].get('terms_acknowledged'):
         raise PermissionError('Source terms are not acknowledged')
     with c.cursor(row_factory=dict_row) as cursor:
-        cursor.execute('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (identity,))
+        # Admission reads the objective; share the worker's permission lock so a
+        # new source event need not wait for the current calculation to finish.
+        cursor.execute('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR SHARE', (identity,))
         g = cursor.fetchone()
     if g is None:
         raise ValueError('Unknown goal')
-    db.authorize(actor, g['domain'], ('manager',) if operation in ('training', 'planning', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh') else ('manager', 'analyst'), connection=c)
+    db.authorize_goal(actor, g['id'], ('manager',) if operation in ('training', 'planning', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh', 'coordination') else ('manager', 'analyst'), permission='run', connection=c)
     if binding and (binding['goal_id']!=g['id'] or binding['goal_version']!=g['version']):
         raise ValueError('Workflow belongs to a different or superseded objective version')
     if planning and not g['body'].get('objective'):
         raise ValueError('Save a connected-source objective before requesting a plan')
     if planning and g['body'].get('budget_usd', 0) <= 0:
         raise PermissionError('Approve a positive planning budget before requesting a model call')
-    if operation in ('discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh'):
+    if operation in ('discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh', 'coordination'):
         from runtime.source_access import require_source_access
         require_source_access(identity, actor, connection=c, expected_version=g['version'])
     if not pre_ingestion and g['body'].get('objective'):
@@ -220,13 +238,16 @@ def _admit_run(c, g, actor, question=None, operation='analysis', *, workflow_ver
             # This identity pins the current goal, snapshot, model and implementation.
             c.execute('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s', (run_id, identity))
         return run_id
-    # The source advisory lock serializes admission across all goals and owners.
+    # Reserve space for active jobs to return to waiting after interruption.
+    # One global lock bounds admission across domains, owners, and dispatchers.
+    c.execute("SELECT pg_advisory_xact_lock(hashtextextended('analysis-admission',0))")
     pending = c.execute("""SELECT count(*) FROM backintel.analysis_runs r
-        JOIN backintel.analysis_goals g ON g.id=r.goal_id
         JOIN backintel.capability_jobs j ON j.job_id=r.job_id
-        WHERE g.domain=%s AND j.state IN ('queued','running','retry')""", (g['domain'],)).fetchone()[0]
-    if pending >= 20:
-        raise RuntimeError('Source analysis queue has reached its 20 pending-run limit')
+        WHERE r.id<>%s AND j.state IN ('queued','running','retry')""", (run_id,)).fetchone()[0]
+    if pending >= waiting_limit():
+        raise RuntimeError('Shared analysis queue has reached its six outstanding-job limit; retry after capacity is available')
+    if operation == 'coordination':
+        binding['accepted_before'] = g['last_success']
     payload = {'run_id': run_id, 'operation': operation}
     c.execute('INSERT INTO backintel.analysis_runs(id,goal_id,owner,snapshot_id,goal_version,body) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
               (run_id, identity, actor['id'], snapshot, g['version'], Jsonb({'question': question, 'definitions': g['body']['definitions'], 'operation': operation, 'model_id': g['active_model'], 'analysis_identity': implementation, 'prior_snapshot': prior_snapshot, **(binding or {})})))
@@ -249,7 +270,7 @@ def _admit_run(c, g, actor, question=None, operation='analysis', *, workflow_ver
 
 
 def submit_import(domain, actor):
-    actor = db.authorize(actor, domain, ('manager',))
+    actor = db.authorize(actor, domain, ('manager',), administrator=True)
     if not db.source(domain)['body'].get('terms_acknowledged'):
         raise PermissionError('Confirm source access and terms before importing')
     with db.connect() as c, c.transaction():
@@ -292,9 +313,11 @@ def promote(identity, actor, route='catboost-facts'):
     if not m:
         raise ValueError('Unknown candidate')
     g = db.goal(m['goal_id'])
-    db.authorize(actor, g['domain'], ('manager',))
+    db.authorize_goal(actor, g['id'], ('manager',), permission='manage')
     with db.connect() as c, c.transaction():
         c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+g['domain'],))
+        c.execute('SELECT id FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (g['id'],))
+        db.authorize_goal(actor, g['id'], ('manager',), permission='manage', connection=c)
         source = db.source(g['domain'], connection=c)
         locked = c.execute('SELECT body,promoted FROM backintel.analysis_models WHERE id=%s FOR UPDATE', (identity,)).fetchone()
         if locked[0].get('invalidated_by'):
@@ -311,7 +334,7 @@ def promote(identity, actor, route='catboost-facts'):
         run_id = _admit_run(c, g, actor)
         manager = c.execute("""SELECT id FROM backintel.analysis_principals WHERE id=%s AND enabled
             AND (expires_at IS NULL OR expires_at>clock_timestamp()) AND role='manager'
-            AND %s=ANY(domains) FOR UPDATE""", (actor['id'], g['domain'])).fetchone()
+            AND %s=ANY(domains) FOR SHARE""", (actor['id'], g['domain'])).fetchone()
         if not manager:
             raise PermissionError('Current manager authority is required to promote a predictor')
         if not locked[1]:
@@ -351,7 +374,10 @@ def handle(store, payload):
                     db.write('UPDATE backintel.analysis_runs SET snapshot_id=%s WHERE id=%s', (result['snapshot'],identity), connection=store.connection)
                     result['goals'] = schedule_snapshot(r['body']['domain'], result, connection=store.connection)
             else:
-                if payload['operation'] == 'planning':
+                if payload['operation'] == 'coordination':
+                    from runtime.source_coordination import coordinate
+                    result = coordinate(identity)
+                elif payload['operation'] == 'planning':
                     result = propose(identity)
                 elif payload['operation'] == 'discovery':
                     from runtime.source_access import discover
@@ -388,7 +414,7 @@ def handle(store, payload):
                     domain = db.run_domain(r)
                     connection.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('analysis-source:'+domain,))
                     source = db.source(domain, connection=connection)
-                    if payload['operation'] not in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh') and not source['body'].get('terms_acknowledged'):
+                    if payload['operation'] not in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh', 'coordination') and not source['body'].get('terms_acknowledged'):
                         raise PermissionError('Source terms are not acknowledged')
                     eligible = db.query('SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE', (r['goal_id'],), one=True, connection=connection)
                     if payload['operation'] != 'planning' and eligible['body'].get('objective'):
@@ -396,11 +422,11 @@ def handle(store, payload):
                         require_source_access(r['goal_id'], {'id': r['owner']}, connection=connection)
                     if (payload['operation'] != 'planning' and not eligible['confirmed']) or eligible['paused'] or eligible['version'] != r['goal_version']:
                         raise PermissionError('Goal became ineligible before publication')
-                    if payload['operation'] not in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh') and (source['latest_snapshot'] != r['snapshot_id'] or eligible['active_model'] != r['body'].get('model_id')):
+                    if payload['operation'] not in ('planning', 'discovery', 'collection', 'interpretation', 'preparation', 'validation', 'answer', 'workflow', 'method', 'refresh', 'coordination') and (source['latest_snapshot'] != r['snapshot_id'] or eligible['active_model'] != r['body'].get('model_id')):
                         raise PermissionError('Source snapshot or approved model changed before publication')
                 owner = db.query("""SELECT id FROM backintel.analysis_principals
                     WHERE id=%s AND enabled AND (expires_at IS NULL OR expires_at>clock_timestamp())
-                    AND role=ANY(%s) AND %s=ANY(domains) FOR UPDATE""",
+                    AND role=ANY(%s) AND %s=ANY(domains) FOR SHARE""",
                     (r['owner'], ['manager','analyst'] if payload['operation'] in ('analysis','discovery','collection') else ['manager'], db.run_domain(r)),
                     one=True, connection=connection)
                 if not owner:
@@ -408,10 +434,12 @@ def handle(store, payload):
                 if payload['operation'] == 'workflow':
                     from runtime import workflow_updates
                     workflow_updates.guard_publication(r, eligible, connection)
+                if payload['operation'] == 'coordination' and eligible['last_success'] != r['body']['accepted_before']:
+                    raise ValueError('Another answer was accepted while specialists worked; review before replacing it')
                 connection.execute("UPDATE backintel.analysis_runs SET status='succeeded',result=%s,error=NULL,updated_at=now() WHERE id=%s", (Jsonb(result), identity))
                 if payload['operation'] == 'workflow':
                     workflow_updates.save_version(identity, result, connection)
-                if payload['operation'] in ('analysis','answer','workflow'):
+                if payload['operation'] in ('analysis','answer','workflow', 'coordination'):
                     g = db.goal(r['goal_id'])
                     previous = db.run(g['last_success']) if g['last_success'] else None
                     standing = r['body']['question'] == g['body']['question'] and r['goal_version'] == g['version']
@@ -458,8 +486,36 @@ def _finish_run_failure(connection, job_id, job_state, reason):
         connection.execute('INSERT INTO backintel.analysis_events(run_id,kind,body) VALUES(%s,%s,%s)', (run[0], 'completed', Jsonb({'status': status, 'reason': reason})))
 
 
+def waiting_limit():
+    # Active jobs retain queue reservations, so retries cannot overflow waiting.
+    return 6
+
+
+def execution_limit():
+    limit = CONFIG.get('execution', {}).get('max_active_jobs', 1)
+    if type(limit) is not int or not 1 <= limit <= 2:
+        raise ValueError('This local execution policy supports one or two active jobs')
+    return limit
+
+
+def _execute_analysis_job(job_id):
+    r = db.query('SELECT id,body,goal_id FROM backintel.analysis_runs WHERE job_id=%s', (job_id,), one=True)
+    if not r:
+        raise ValueError('Unknown analysis job')
+    duration = 1800 if r['body']['operation'] == 'training' else 600
+    if r['body']['operation'] in ('workflow', 'refresh', 'coordination'):
+        duration = max(25, min(1800, db.goal(r['goal_id'])['body']['objective']['limits']['timeout_seconds']))
+    result = execute(job_id, handle, max_wall_seconds=duration,
+                     usage_reader=lambda: db.usage(r['id']))
+    if result['state'] in ('failed', 'cancelled'):
+        with db.connect() as c, c.transaction():
+            _finish_run_failure(c, job_id, result['state'], result.get('error', 'Job stopped before acceptance'))
+    return result
+
+
 def dispatch(run_id=None):
-    # One process owns model work. Drain new arrivals before releasing the worker.
+    # One dispatcher supervises a bounded pool. Its lock still fences orphan recovery.
+    limit = execution_limit()
     results = []
     with db.connect() as c:
         if not c.execute('SELECT pg_try_advisory_lock(81827028)').fetchone()[0]:
@@ -474,55 +530,56 @@ def dispatch(run_id=None):
             for job_id, reason, job_state in stranded:
                 _finish_run_failure(c, job_id, job_state, reason)
         continued = set()
-        while True:
-            from runtime.source_workflows import continue_refresh
-            pending_refreshes = db.query("""SELECT r.id FROM backintel.analysis_runs r
-                WHERE r.body->>'operation'='refresh' AND r.status='succeeded'
-                AND NOT EXISTS (SELECT 1 FROM backintel.analysis_steps s WHERE s.run_id=r.id AND s.id='refresh-workflow')
-                ORDER BY r.created_at LIMIT 20""")
-            for refresh in pending_refreshes:
-                if refresh['id'] in continued:
+        with ThreadPoolExecutor(max_workers=limit) as workers:
+            active = {}
+            while True:
+                for future in [future for future in active if future.done()]:
+                    results.append(future.result())
+                    del active[future]
+                from runtime.source_workflows import continue_refresh
+                pending_refreshes = db.query("""SELECT r.id FROM backintel.analysis_runs r
+                    WHERE r.body->>'operation'='refresh' AND r.status='succeeded'
+                    AND NOT EXISTS (SELECT 1 FROM backintel.analysis_steps s WHERE s.run_id=r.id AND s.id='refresh-workflow')
+                    ORDER BY r.created_at LIMIT 20""")
+                for refresh in pending_refreshes:
+                    if refresh['id'] in continued:
+                        continue
+                    try:
+                        continue_refresh(refresh['id'])
+                        continued.add(refresh['id'])
+                    except (ValueError, PermissionError, RuntimeError, OSError) as error:
+                        db.save_step(refresh['id'], 'refresh-workflow-error', 'refresh_error', {'decision': safe_error(error)})
+                task_ids = [r['task_id'] for r in db.query("SELECT DISTINCT task_id FROM backintel.capability_jobs WHERE task_id LIKE 'analysis-job-%' AND state IN ('queued','retry','running')")]
+                with c.transaction():
+                    failed = c.execute("UPDATE backintel.capability_jobs SET state=CASE WHEN cancel_requested THEN 'cancelled' ELSE 'failed' END,error=CASE WHEN cancel_requested THEN 'Cancelled after worker interruption' ELSE 'Worker lease expired at attempt limit' END,lease_until=NULL WHERE task_id=ANY(%s) AND state='running' AND lease_until<now() AND (cancel_requested OR attempts>=max_attempts) RETURNING job_id,error,state", (task_ids,)).fetchall()
+                    for job_id, reason, job_state in failed:
+                        _finish_run_failure(c, job_id, job_state, reason)
+                available = runnable(c, task_ids)
+                for abandoned in db.query("SELECT DISTINCT r.run_id FROM backintel.analysis_requests r JOIN backintel.analysis_runs a ON a.id=r.run_id JOIN backintel.capability_jobs j ON j.job_id=a.job_id WHERE r.status='reserved' AND j.state<>'running'"):
+                    with db.connect() as cleanup, cleanup.transaction():
+                        Evidence(cleanup, 'analysis-job-'+abandoned['run_id']).lock()
+                        state = cleanup.execute('SELECT j.state FROM backintel.capability_jobs j JOIN backintel.analysis_runs r ON r.job_id=j.job_id WHERE r.id=%s', (abandoned['run_id'],)).fetchone()[0]
+                        if state != 'running':
+                            db.release_unsent(abandoned['run_id'], connection=cleanup)
+                for job_id in available:
+                    if len(active) >= limit:
+                        break
+                    if job_id not in active.values():
+                        active[workers.submit(_execute_analysis_job, job_id)] = job_id
+                if active:
+                    wait(active, timeout=1, return_when=FIRST_COMPLETED)
                     continue
-                continued.add(refresh['id'])
-                try:
-                    continue_refresh(refresh['id'])
-                except (ValueError, PermissionError, RuntimeError, OSError) as error:
-                    db.save_step(refresh['id'], 'refresh-workflow-error', 'refresh_error', {'decision': safe_error(error)})
-            task_ids = [r['task_id'] for r in db.query("SELECT DISTINCT task_id FROM backintel.capability_jobs WHERE task_id LIKE 'analysis-job-%' AND state IN ('queued','retry','running')")]
-            with c.transaction():
-                failed = c.execute("UPDATE backintel.capability_jobs SET state=CASE WHEN cancel_requested THEN 'cancelled' ELSE 'failed' END,error=CASE WHEN cancel_requested THEN 'Cancelled after worker interruption' ELSE 'Worker lease expired at attempt limit' END,lease_until=NULL WHERE task_id=ANY(%s) AND state='running' AND lease_until<now() AND (cancel_requested OR attempts>=max_attempts) RETURNING job_id,error,state", (task_ids,)).fetchall()
-                for job_id, reason, job_state in failed:
-                    _finish_run_failure(c, job_id, job_state, reason)
-            available = runnable(c, task_ids)
-            for abandoned in db.query("SELECT DISTINCT r.run_id FROM backintel.analysis_requests r JOIN backintel.analysis_runs a ON a.id=r.run_id JOIN backintel.capability_jobs j ON j.job_id=a.job_id WHERE r.status='reserved' AND j.state<>'running'"):
-                with db.connect() as cleanup, cleanup.transaction():
-                    Evidence(cleanup, 'analysis-job-'+abandoned['run_id']).lock()
-                    state = cleanup.execute('SELECT j.state FROM backintel.capability_jobs j JOIN backintel.analysis_runs r ON r.job_id=j.job_id WHERE r.id=%s', (abandoned['run_id'],)).fetchone()[0]
-                    if state != 'running':
-                        db.release_unsent(abandoned['run_id'], connection=cleanup)
-            if not available:
-                delayed = c.execute("""SELECT EXTRACT(EPOCH FROM min(j.due_at)-now())
-                    FROM backintel.capability_jobs j
-                    WHERE j.task_id=ANY(%s) AND j.state='retry'
-                    AND NOT EXISTS (SELECT 1 FROM backintel.capability_jobs earlier
-                        WHERE earlier.task_id=j.task_id AND earlier.sequence<j.sequence
-                        AND earlier.state IN ('queued','retry','running','failed'))""", (task_ids,)).fetchone()[0]
-                if delayed is None:
-                    break
-                time.sleep(max(.01, min(1., float(delayed))))
-                continue
-            for job_id in available:
-                r = db.query('SELECT id,body FROM backintel.analysis_runs WHERE job_id=%s', (job_id,), one=True)
-                if r:
-                    duration = 1800 if r['body']['operation']=='training' else 600
-                    if r['body']['operation'] in ('workflow', 'refresh'):
-                        duration = max(25,min(1800,db.goal(db.run(r['id'])['goal_id'])['body']['objective']['limits']['timeout_seconds']))
-                    result = execute(job_id, handle, max_wall_seconds=duration,
-                                     usage_reader=lambda identity=r['id']: db.usage(identity))
-                    results.append(result)
-                    if result['state'] in ('failed', 'cancelled'):
-                        with c.transaction():
-                            _finish_run_failure(c, job_id, result['state'], result.get('error', 'Job stopped before acceptance'))
+                if not available:
+                    delayed = c.execute("""SELECT EXTRACT(EPOCH FROM min(j.due_at)-now())
+                        FROM backintel.capability_jobs j
+                        WHERE j.task_id=ANY(%s) AND j.state='retry'
+                        AND NOT EXISTS (SELECT 1 FROM backintel.capability_jobs earlier
+                            WHERE earlier.task_id=j.task_id AND earlier.sequence<j.sequence
+                            AND earlier.state IN ('queued','retry','running','failed'))""", (task_ids,)).fetchone()[0]
+                    if delayed is None:
+                        break
+                    time.sleep(max(.01, min(1., float(delayed))))
+                    continue
     return {'status': 'completed', 'jobs': results}
 
 
@@ -555,7 +612,7 @@ def refresh():
         domain = source['domain']
         if domain not in CONFIG['sources']:
             continue
-        owner = db.query("SELECT id FROM backintel.analysis_principals WHERE enabled AND (expires_at IS NULL OR expires_at>now()) AND role='manager' AND %s=ANY(domains) ORDER BY id LIMIT 1", (domain,), one=True)
+        owner = db.query("SELECT id FROM backintel.analysis_principals WHERE enabled AND administrator AND (expires_at IS NULL OR expires_at>now()) AND role='manager' AND %s=ANY(domains) ORDER BY id LIMIT 1", (domain,), one=True)
         if not owner:
             results.append({'domain': domain, 'status': 'blocked', 'reason': 'No manager has permission to refresh this source'})
             continue

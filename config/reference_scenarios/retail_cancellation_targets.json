@@ -1,0 +1,202 @@
+{
+  "format": "backintel.demo-cancellation-targets/v1",
+  "demonstration": true,
+  "version": "retail-demonstration-v1",
+  "metric": "negative_cancellation_value_over_non_cancellation_value",
+  "currency": "GBP",
+  "published_at": "2026-10-18T00:00:00Z",
+  "effective_from": "2010-12-01",
+  "effective_through": "2011-12-09",
+  "countries": [
+    {
+      "country_id": "demo-country-001",
+      "source_country": "Australia",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-002",
+      "source_country": "Austria",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-003",
+      "source_country": "Bahrain",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-004",
+      "source_country": "Belgium",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-005",
+      "source_country": "Brazil",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-006",
+      "source_country": "Canada",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-007",
+      "source_country": "Channel Islands",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-008",
+      "source_country": "Cyprus",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-009",
+      "source_country": "Czech Republic",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-010",
+      "source_country": "Denmark",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-011",
+      "source_country": "EIRE",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-012",
+      "source_country": "European Community",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-013",
+      "source_country": "Finland",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-014",
+      "source_country": "France",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-015",
+      "source_country": "Germany",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-016",
+      "source_country": "Greece",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-017",
+      "source_country": "Hong Kong",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-018",
+      "source_country": "Iceland",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-019",
+      "source_country": "Israel",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-020",
+      "source_country": "Italy",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-021",
+      "source_country": "Japan",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-022",
+      "source_country": "Lebanon",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-023",
+      "source_country": "Lithuania",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-024",
+      "source_country": "Malta",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-025",
+      "source_country": "Netherlands",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-026",
+      "source_country": "Norway",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-027",
+      "source_country": "Poland",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-028",
+      "source_country": "Portugal",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-029",
+      "source_country": "RSA",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-030",
+      "source_country": "Saudi Arabia",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-031",
+      "source_country": "Singapore",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-032",
+      "source_country": "Spain",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-033",
+      "source_country": "Sweden",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-034",
+      "source_country": "Switzerland",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-035",
+      "source_country": "USA",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-036",
+      "source_country": "United Arab Emirates",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-037",
+      "source_country": "United Kingdom",
+      "target_fraction": "0.10"
+    },
+    {
+      "country_id": "demo-country-038",
+      "source_country": "Unspecified",
+      "target_fraction": "0.10"
+    }
+  ]
+}

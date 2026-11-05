@@ -46,10 +46,49 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--browser-only', action='store_true', help='Check the current UI against a prior successful runtime archive')
     parser.add_argument('--updates', action='store_true', help='Exercise S-21 controlled changes with the real saved-workflow executor')
+    parser.add_argument('--langchain', action='store_true', help='Test an external LangChain agent with scripted model responses and the real saved workflow; no paid calls')
+    parser.add_argument('--framework', choices=('agno', 'mastra'), help='Test another external agent with scripted responses and the real saved workflow; no paid calls')
+    parser.add_argument('--multi-user', choices=('checks', 'retail'), help='Check S-30 user isolation and the agreed local concurrent workload')
+    parser.add_argument('--documents', type=Path, help='Exercise S-27 with a retained UTF-8 HTML field guide and simulated model replies; no paid calls')
+    parser.add_argument('--documents-resume', type=Path, help='Resume document acceptance from completed interpretation artifacts in the restored archive')
+    parser.add_argument('--documents-live', action='store_true', help='Use at most two real document interpretation calls within US$0.25; requires a separate explicit allowance')
+    parser.add_argument('--cross-systems', action='store_true', help='S-34: actual retail PostgreSQL plus a separate local demonstration target/inbox service; no model calls')
+    parser.add_argument('--cross-systems-resume', type=Path, help='Reuse completed S-34 collection and workflow evidence from the restored archive')
     parser.add_argument('--updates-after-repair', action='store_true', help='Continue the remaining update cases from an archive whose accepted-repair browser check already passed')
     parser.add_argument('--updates-resume', type=Path, help='Resume the forecast check using completed cases from the restored archive')
     parser.add_argument('--incremental-csv', type=Path, help='Run S-24 against a disposable real source built from the pinned retail CSV')
+    parser.add_argument('--coordination', choices=('fixture', 'live'), help='Exercise S-33 against the pinned source; live requires a separately approved provider allowance')
+    parser.add_argument('--coordination-resume', type=Path, help='Prior interrupted-progress.json for a completed coordination run retained in the archive')
+    parser.add_argument('--coordination-max-spend-usd', type=float, default=0.5,
+                        help='Approved allowance for this coordination run, excluding retained earlier charges')
+    parser.add_argument('--sustained', action='store_true', help='S-36: approved 30-minute, two-owner local trial; no model calls')
     args = parser.parse_args()
+    if args.sustained and (not args.incremental_csv or args.cross_systems or args.documents or args.multi_user
+            or args.framework or args.langchain or args.coordination or args.updates or args.browser_only):
+        parser.error('--sustained requires --incremental-csv and must run separately from other scenarios')
+    if args.cross_systems_resume and not args.cross_systems:
+        parser.error('--cross-systems-resume requires --cross-systems')
+    if args.cross_systems and (not args.incremental_csv or args.documents or args.multi_user or args.framework
+            or args.langchain or args.coordination or args.coordination_resume or args.updates or args.updates_after_repair
+            or args.updates_resume or args.browser_only):
+        parser.error('--cross-systems requires --incremental-csv and must run separately from other scenarios')
+    if args.documents_resume and not args.documents:
+        parser.error('--documents-resume requires --documents')
+    if args.documents_live and not (args.documents and args.documents_resume):
+        parser.error('--documents-live requires a retained pre-calculation document trial and --documents-resume')
+    if args.documents and (args.multi_user or args.framework or args.langchain or args.coordination or args.coordination_resume
+                           or args.incremental_csv or args.updates or args.updates_after_repair or args.updates_resume or args.browser_only):
+        parser.error('The document trial must run separately from other scenarios')
+    if args.multi_user and (args.framework or args.langchain or args.coordination or args.coordination_resume
+                           or args.incremental_csv or args.updates or args.updates_after_repair or args.updates_resume or args.browser_only):
+        parser.error('The multi-user trial must run separately from other scenarios')
+    if (args.langchain or args.framework) and (
+            args.coordination or args.coordination_resume or args.incremental_csv or args.updates
+            or args.browser_only or args.updates_after_repair or args.updates_resume
+            or (args.langchain and args.framework)):
+        parser.error('Framework trials must run separately from other scenarios')
+    if args.coordination and not args.incremental_csv:
+        parser.error('--coordination requires --incremental-csv')
     args.output.mkdir(parents=True, exist_ok=True, mode=0o700)
     name = 'backintel-s20-' + secrets.token_hex(6)
     env = os.environ.copy()
@@ -57,6 +96,12 @@ def main():
     env.pop('OPENROUTER_API_KEY', None)
     server = None
     database_ready = False
+    database_started = False
+    database_mount = []
+    if args.sustained:
+        storage = (args.output/'postgres-data').resolve()
+        storage.mkdir(mode=0o700)
+        database_mount = ['--mount', f'type=bind,source={storage},target=/var/lib/postgresql/data']
     summary = {'status': 'failed', 'scope': 'local working tree; historical retail data', 'model_calls': None}
     with tempfile.TemporaryDirectory(prefix='BackIntelS20Credentials') as secret_dir:
         try:
@@ -64,7 +109,8 @@ def main():
             command(['docker', 'run', '-d', '--rm', '--name', name, '-p', '127.0.0.1::5432',
                      '-e', 'POSTGRES_PASSWORD', '-e', 'POSTGRES_DB=backintel_app', '--health-cmd',
                      'pg_isready -h 127.0.0.1 -U postgres -d backintel_app', '--health-interval', '1s',
-                     '--health-retries', '30', 'postgres:17-alpine'], env=env)
+                     '--health-retries', '30', *database_mount, 'postgres:17-alpine'], env=env)
+            database_started = True
             events = subprocess.Popen(['docker', 'events', '--since', since, '--filter', 'container=' + name,
                                        '--filter', 'event=health_status', '--format', '{{.Action}}'],
                                       stdout=subprocess.PIPE, text=True)
@@ -95,10 +141,28 @@ def main():
                 (actor['id'],),one=True)
             assert source is not None, 'The archive has no accepted real retail answer for the selected owner'
             source_id = source['id']
+            # Restored reference archives predate private objectives. Explicitly share
+            # only this disposable demonstration objective with its retained run owner.
+            db.write('''INSERT INTO backintel.analysis_goal_access(goal_id,principal_id,permission)
+                VALUES(%s,%s,'manage') ON CONFLICT(goal_id,principal_id) DO UPDATE SET permission='manage' ''',
+                (source['goal_id'], actor['id']))
             assert source['status'] == 'succeeded' and source['body']['operation'] == 'answer'
             assert source['result']['mode'] != 'fixture'
-            package = workflows.save(source_id, actor)
-            assert workflows.load(package, actor)['status'] == 'ready'
+            if args.coordination_resume:
+                source = db.run(json.loads(args.coordination_resume.read_text())['run_id'])
+                assert source['owner'] == actor['id'] and source['body']['operation'] == 'coordination'
+                source_id = source['id']
+                package = {'body': {
+                    'interpretation': db.step(source_id, 'coord-agent-data')['contribution'],
+                    'method': db.step(source_id, 'coord-agent-analysis')['contribution']}}
+            elif args.coordination:
+                prepared = db.run(source['result']['calculation']['preparation_run_id'])
+                interpreted = db.run(prepared['result']['interpretation_run_id'])
+                package = {'body': {'interpretation': interpreted['result']['interpretation'],
+                                    'method': source['result']['calculation']['method']}}
+            else:
+                package = workflows.save(source_id, actor)
+                assert workflows.load(package, actor)['status'] == 'ready'
             baseline_requests = db.query('SELECT id,status,charge FROM backintel.analysis_requests ORDER BY id')
             source_owner_uri = None
             if args.incremental_csv:
@@ -141,6 +205,62 @@ def main():
             import httpx
             with httpx.Client(base_url=base, headers={'Authorization': 'Bearer '+token}, timeout=30) as client:
                 client.get('/api/v1/me').raise_for_status()
+                if args.sustained:
+                    from scripts.validation.workflow_sustained_cases import check_sustained
+                    result = check_sustained(actor, source, package, client, args.output, source_owner_uri, name, server.pid)
+                    assert db.query('SELECT id,status,charge FROM backintel.analysis_requests ORDER BY id') == baseline_requests
+                    summary.update(**result)
+                    return 0 if result['status'] == 'passed' else 1
+                if args.cross_systems:
+                    from scripts.validation.workflow_cross_system_cases import check_cross_systems
+                    result = check_cross_systems(actor, source, package, client, args.output, source_owner_uri,
+                                                 resume=args.cross_systems_resume)
+                    assert db.query('SELECT id,status,charge FROM backintel.analysis_requests ORDER BY id') == baseline_requests
+                    summary.update(**result)
+                    return 0
+                if args.documents:
+                    from scripts.validation.workflow_document_cases import check_documents
+                    result = check_documents(actor, source, package, client, args.output, args.documents,
+                                             resume=args.documents_resume, live=args.documents_live)
+                    if not args.documents_live:
+                        assert db.query('SELECT id,status,charge FROM backintel.analysis_requests ORDER BY id') == baseline_requests
+                    summary.update(**result)
+                    return 0
+                if args.multi_user:
+                    from scripts.validation.workflow_multiuser_cases import check_multiuser
+                    result = check_multiuser(actor, source, package, client, args.output, checks_only=args.multi_user == 'checks')
+                    assert db.query('SELECT id,status,charge FROM backintel.analysis_requests ORDER BY id') == baseline_requests
+                    (args.output/'multiuser-cases.json').write_text(json.dumps(result, default=str, indent=2))
+                    summary.update(**result)
+                    return 0
+                if args.framework:
+                    if args.framework == 'agno':
+                        from scripts.validation.agno_trial import check_agno
+                        result = check_agno(actor, source, package, client, args.output)
+                    else:
+                        from scripts.validation.mastra_trial import check_mastra
+                        result = check_mastra(actor, source, package, client, args.output)
+                    assert db.query('SELECT id,status,charge FROM backintel.analysis_requests ORDER BY id') == baseline_requests
+                    (args.output/f'{args.framework}-cases.json').write_text(json.dumps(result, indent=2))
+                    summary.update(**result)
+                    return 0
+                if args.langchain:
+                    from scripts.validation.langchain_trial import check_langchain
+                    result = check_langchain(actor, source, package, client, args.output)
+                    assert db.query('SELECT id,status,charge FROM backintel.analysis_requests ORDER BY id') == baseline_requests
+                    (args.output/'langchain-cases.json').write_text(json.dumps(result, indent=2))
+                    summary.update(**result)
+                    return 0
+                if args.coordination:
+                    from scripts.validation.workflow_coordination_cases import check_coordination
+                    result = check_coordination(actor, source, package, client, args.output,
+                                                live=args.coordination == 'live', resume=args.coordination_resume,
+                                                max_spend_usd=args.coordination_max_spend_usd)
+                    retained = db.query('SELECT id,status,charge FROM backintel.analysis_requests ORDER BY id')
+                    assert all(row in retained for row in baseline_requests), 'Earlier request accounting changed'
+                    (args.output/'coordination-cases.json').write_text(json.dumps(result, default=str, indent=2))
+                    summary.update(**result)
+                    return 0
                 if args.incremental_csv:
                     from scripts.validation.workflow_incremental_cases import check_incremental
                     result = check_incremental(actor, source, package, client, base, token, env, args.output, source_owner_uri)
@@ -244,6 +364,9 @@ def main():
                             'interrupted admission rollback','zero-spend schema','toolkit parity','native cleanup'])
                 (args.output/'trigger-history.json').write_text(json.dumps(observed,default=str,indent=2))
                 (args.output/'workflow-package.json').write_text(json.dumps(package,default=str,indent=2))
+        except Exception as error:
+            summary['error'] = str(error)
+            raise
         finally:
             if server is not None:
                 os.killpg(server.pid,signal.SIGTERM)
@@ -252,13 +375,41 @@ def main():
                 except subprocess.TimeoutExpired:
                     os.killpg(server.pid,signal.SIGKILL); server.wait(timeout=5)
             if database_ready:
-                dump=command(['docker','exec',name,'pg_dump','-U','postgres','-d','backintel_app','-Fc'])
-                (args.output/'runtime-result.dump').write_bytes(dump.stdout)
-            command(['docker','rm','-f',name])
-            summary['database_removed']=True
+                try:
+                    if not args.coordination or (args.output/'run.json').exists():
+                        dump=command(['docker','exec',name,'pg_dump','-U','postgres','-d','backintel_app','-Fc'])
+                        archive_allowed = True
+                        if args.sustained:
+                            database_bytes = int(command(['docker','exec',name,'du','-sk','/var/lib/postgresql/data']).stdout.split()[0])*1024
+                            from scripts.validation.workflow_sustained_cases import evidence_bytes, prior_trial_bytes
+                            output_bytes = evidence_bytes(args.output) + prior_trial_bytes(args.output)
+                            peak_with_archive = database_bytes + output_bytes + len(dump.stdout)
+                            archive_allowed = peak_with_archive <= 4_000_000_000
+                            summary['storage_bytes_including_archive'] = peak_with_archive
+                            summary['archive_retained'] = archive_allowed
+                            if not archive_allowed:
+                                summary.update(status='failed', archive_storage_limit_exceeded=True,
+                                               error='The retained database archive would exceed the approved 4 GB storage limit')
+                            report_path = args.output/'sustained-report.json'
+                            if report_path.exists():
+                                report = json.loads(report_path.read_text())
+                                report.update(storage_bytes_including_archive=peak_with_archive, archive_retained=archive_allowed)
+                                if not archive_allowed:
+                                    report.update(status='failed', error=summary['error'])
+                                report_path.write_text(json.dumps(report, default=str, indent=2))
+                        if archive_allowed:
+                            (args.output/'runtime-result.dump').write_bytes(dump.stdout)
+                finally:
+                    command(['docker','rm','-f',name])
+                    summary['database_removed']=True
+            elif database_started:
+                command(['docker','rm','-f',name])
+                summary['database_removed']=True
             summary['native_server_stopped']=server is None or server.poll() is not None
             (args.output/'summary.json').write_text(json.dumps(summary,default=str,indent=2))
             print(json.dumps(summary,default=str),flush=True)
+            if summary.get('archive_storage_limit_exceeded'):
+                raise RuntimeError(summary['error'])
     return 0
 
 

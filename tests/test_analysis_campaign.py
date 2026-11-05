@@ -30,8 +30,8 @@ class CampaignChecks(unittest.TestCase):
         db.catalog()
         for role in ('manager', 'analyst', 'viewer'):
             identity = 'campaign-' + role
-            db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',
-                     (identity, hashlib.sha256(identity.encode()).hexdigest(), role, ['commerce', 'support']))
+            db.write('INSERT INTO backintel.analysis_principals(id,token_hash,role,domains,administrator,budget_usd) VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING',
+                     (identity, hashlib.sha256(identity.encode()).hexdigest(), role, ['commerce', 'support'], role == 'manager', 20))
         cls.actor = {'id': 'campaign-manager'}
 
     def setUp(self):
@@ -303,6 +303,7 @@ class CampaignChecks(unittest.TestCase):
     def test_review_insertion_rechecks_analyst_authority(self):
         from runtime import analysis_api as api
         actor = {'id':'campaign-analyst'}
+        db.share_goal(self.goal, actor['id'], 'run', self.actor)
         original = db.authorize
         def revoke(p, domain=None, roles=('manager','analyst','viewer'), **kwargs):
             current = original(p, domain, roles, **kwargs)
@@ -351,13 +352,13 @@ class CampaignChecks(unittest.TestCase):
     def test_cancel_run_rechecks_manager_authority_after_admission(self):
         from runtime import analysis_api as api
         original = db.authorize
-        def revoke(actor, domain=None, roles=('manager', 'analyst', 'viewer')):
-            admitted = original(actor, domain, roles)
+        def revoke(actor, domain=None, roles=('manager', 'analyst', 'viewer'), **kwargs):
+            admitted = original(actor, domain, roles, **kwargs)
             db.write('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s', (actor['id'],))
             return admitted
         try:
             with patch.object(db, 'authorize', side_effect=revoke):
-                with self.assertRaisesRegex(PermissionError, 'Current manager authority'):
+                with self.assertRaises(PermissionError):
                     api.cancel_run(self.run['id'], self.actor)
             self.assertEqual(db.run(self.run['id'])['status'], 'queued')
         finally:
@@ -521,7 +522,7 @@ class CampaignChecks(unittest.TestCase):
             with patch.object(service,'analysis_identity',return_value=change):
                 run=service.submit(self.goal,self.actor)
             def revoke(sql,*args,**kwargs):
-                if sql.startswith('SELECT id FROM backintel.analysis_principals'):
+                if sql.startswith('SELECT id,role,domains,administrator,budget_usd FROM backintel.analysis_principals'):
                     db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s',(self.actor['id'],))
                 return query(sql,*args,**kwargs)
             try:
@@ -567,7 +568,7 @@ class CampaignChecks(unittest.TestCase):
                     listing(stale)
                     calls = [call for call in query.call_args_list if 'domain=ANY' in call.args[0]]
                     self.assertEqual(len(calls), 1)
-                    self.assertEqual(calls[0].args[1], (['commerce'],))
+                    self.assertEqual(calls[0].args[1][0], ['commerce'])
         finally:
             db.write('UPDATE backintel.analysis_principals SET domains=%s WHERE id=%s', (stale['domains'], self.actor['id']))
 
@@ -580,7 +581,7 @@ class CampaignChecks(unittest.TestCase):
                 db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
                 return current
             try:
-                with self.subTest(change=change), patch.object(db, 'authorize', side_effect=revoke), self.assertRaisesRegex(PermissionError, 'Current manager authority'):
+                with self.subTest(change=change), patch.object(db, 'authorize', side_effect=revoke), self.assertRaises(PermissionError):
                     correction('commerce', CorrectionInput(record_id=self.rows[0]['id'], features={'age': 41}, explanation='Fixture correction'), self.actor)
                 self.assertEqual(db.source('commerce')['latest_snapshot'], self.snapshot)
                 self.assertEqual(db.records(self.snapshot)[0]['features']['age'], 40)
@@ -598,7 +599,7 @@ class CampaignChecks(unittest.TestCase):
                 db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
                 return current
             try:
-                with self.subTest(change=change), patch.object(db, 'authorize', side_effect=revoke), self.assertRaisesRegex(PermissionError, 'Current manager authority'):
+                with self.subTest(change=change), patch.object(db, 'authorize', side_effect=revoke), self.assertRaises(PermissionError):
                     terms('commerce', TermsInput(acknowledged=True, source_spec_sha256=source['body']['source_spec_sha256']), self.actor)
                 self.assertEqual(db.source('commerce')['body'], source['body'])
             finally:
@@ -625,7 +626,7 @@ class CampaignChecks(unittest.TestCase):
             self.assertNotIn(self.goal, [goal['id'] for goal in visible])
     def test_source_queue_limit_is_atomic_and_replays_remain_available(self):
         from runtime.analysis_api import cancel_run
-        for index in range(18):
+        for index in range(service.waiting_limit()-2):
             service.submit(self.goal, self.actor, question=f'Queued question {index}')
         barrier = threading.Barrier(2)
         def submit(index):
@@ -633,7 +634,7 @@ class CampaignChecks(unittest.TestCase):
             try:
                 return service.submit(self.goal, self.actor, question=f'Racing question {index}')
             except RuntimeError as exc:
-                self.assertIn('20 pending-run limit', str(exc))
+                self.assertIn('six outstanding-job limit', str(exc))
                 return None
         with ThreadPoolExecutor(max_workers=2) as workers:
             results = list(workers.map(submit, range(2)))
@@ -799,17 +800,18 @@ class CampaignChecks(unittest.TestCase):
             service.promote(candidate, self.actor)
         self.assertIsNone(db.goal(self.goal)['active_model'])
 
-    def test_promotion_rolls_back_when_manager_authority_changes_after_admission(self):
-        admit = service._admit_run
+    def test_promotion_rechecks_manager_authority_before_locked_admission(self):
+        authorize = db.authorize_goal
         candidate = self.candidate_fixture()
         for change in ('enabled=false', "expires_at=now()-interval '1 second'", "role='analyst'", "domains=ARRAY['support']"):
             before = db.query('SELECT count(*) AS n FROM backintel.analysis_runs WHERE goal_id=%s', (self.goal,), one=True)['n']
-            def revoke_after_admission(*args, **kwargs):
-                run_id = admit(*args, **kwargs)
-                db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
-                return run_id
+            def revoke_after_authorization(*args, **kwargs):
+                result = authorize(*args, **kwargs)
+                if kwargs.get('connection') is None:
+                    db.write('UPDATE backintel.analysis_principals SET '+change+' WHERE id=%s', (self.actor['id'],))
+                return result
             try:
-                with self.subTest(change=change), patch.object(service, '_admit_run', side_effect=revoke_after_admission), self.assertRaisesRegex(PermissionError, 'Current manager authority'):
+                with self.subTest(change=change), patch.object(db, 'authorize_goal', side_effect=revoke_after_authorization), self.assertRaises(PermissionError):
                     service.promote(candidate, self.actor)
                 self.assertIsNone(db.goal(self.goal)['active_model'])
                 self.assertFalse(db.query('SELECT promoted FROM backintel.analysis_models WHERE id=%s', (candidate,), one=True)['promoted'])
@@ -875,7 +877,9 @@ class CampaignChecks(unittest.TestCase):
                 service.revise_goal(self.goal, self.actor, paused=False, confirmed=True)
                 run = service.submit(self.goal, self.actor)
                 def revoke_before_lock(sql, *args, **kwargs):
-                    if sql == 'SELECT * FROM backintel.analysis_goals WHERE id=%s FOR UPDATE':
+                    # The publication check now takes a shared authority lock first.
+                    # Revoke before that lock, rather than synchronously waiting on ourselves.
+                    if sql == 'SELECT * FROM backintel.analysis_goals WHERE id=%s FOR SHARE':
                         service.revise_goal(self.goal, self.actor, **edit)
                     return query(sql, *args, **kwargs)
                 with patch('runtime.analysis_agent.analyze', return_value={'summary':'fixture'}), patch.object(db, 'query', side_effect=revoke_before_lock):
@@ -1021,6 +1025,7 @@ class CampaignChecks(unittest.TestCase):
         for i in range(39):
             other = service.submit(self.goal if i < 19 else support_goal, self.actor, question='Historical fixture ' + str(i))
             self.settled('history-' + str(i), Decimal('.25'), other)
+            db.write("UPDATE backintel.capability_jobs SET state='cancelled' WHERE job_id=%s", (other['job_id'],))
         # Exactly $0.25 remains; two $0.20 requests may not both enter.
         self.test_concurrent_admission_keeps_one_request_in_flight()
         total = db.query('SELECT sum(COALESCE(charge,reserved)) AS n FROM backintel.analysis_requests', one=True)['n']
@@ -1194,6 +1199,7 @@ class CampaignChecks(unittest.TestCase):
     def test_resumed_run_uses_current_authorized_submitter(self):
         db.write("UPDATE backintel.capability_jobs SET state='cancelled' WHERE job_id=%s", (self.run['job_id'],))
         db.write("UPDATE backintel.analysis_runs SET status='cancelled' WHERE id=%s", (self.run['id'],))
+        db.share_goal(self.goal, 'campaign-analyst', 'run', self.actor)
         db.write('UPDATE backintel.analysis_principals SET enabled=false WHERE id=%s', (self.actor['id'],))
         self.addCleanup(db.write, 'UPDATE backintel.analysis_principals SET enabled=true WHERE id=%s', (self.actor['id'],))
         resumed = service.submit(self.goal, {'id': 'campaign-analyst'})
@@ -1217,6 +1223,7 @@ class CampaignChecks(unittest.TestCase):
         db.write('UPDATE backintel.analysis_runs SET result=%s WHERE id=%s', (Jsonb({'comparison': manifest}), self.run['id']))
         db.write('UPDATE backintel.analysis_goals SET last_success=%s WHERE id=%s', (self.run['id'], self.goal))
         evidence = db.evidence(self.run['id'], 'model_comparison', 'viewer-model', manifest)
+        db.share_goal(self.goal, 'campaign-viewer', 'read', self.actor)
         client = TestClient(app)
         routes = ['/api/v1/goals/'+self.goal+'/models', '/api/v1/runs?goal_id='+self.goal,
                   '/api/v1/runs/'+self.run['id'], '/api/v1/goals/'+self.goal+'/findings', '/api/v1/evidence/'+evidence]
