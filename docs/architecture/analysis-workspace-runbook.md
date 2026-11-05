@@ -29,7 +29,7 @@ python3 -m scripts.analysis_demo open --role manager
 
 ## Restored local checkout
 
-The October 4 resume ZIP is restored at `/Users/hudson/Documents/GitHub/BackIntelLocalResume`, based on `f5e2b693476541ce9fb7598d5d759a28b74af2b3`. It contains the analysis workspace, not the later agent toolkit candidate. The existing checkout at `/Users/hudson/Documents/GitHub/BackIntel` retains its source changes.
+The October 4 resume ZIP is restored at `/Users/hudson/Documents/GitHub/BackIntelLocalResume`, based on `f5e2b693476541ce9fb7598d5d759a28b74af2b3`. It contains the analysis workspace, not the later agent toolkit candidate. The existing checkout at `/Users/hudson/Documents/GitHub/Products/BackIntel` retains its source changes.
 
 The ignored `.env` selects the separate `backintel-local-resume` Docker project and reuses existing dataset files and model weights. Start it and open manager access without changing stored Keychain grants:
 

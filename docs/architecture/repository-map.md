@@ -1,6 +1,6 @@
 # Current repository map
 
-Maintained integration checkout: `/Users/hudson/Documents/GitHub/BackIntel`.
+Maintained integration checkout: `/Users/hudson/Documents/GitHub/Products/BackIntel`.
 
 | Surface | Source | Responsibility |
 | --- | --- | --- |
