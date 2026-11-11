@@ -20,7 +20,7 @@ from deepagents.backends import FilesystemBackend
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel
 
-from backintel.contracts import AnalystAnswer
+from backintel.answer_validation import FinishRepeatedReadMiddleware, answer_schema
 from backintel.sandbox import PythonSandbox
 from backintel.stores.base import Store
 from backintel.tools import build_tools
@@ -70,6 +70,7 @@ def build_agent(model: BaseChatModel, store: Store, sandbox: PythonSandbox, *, r
         backend=FilesystemBackend(root_dir=root, virtual_mode=True),
         skills=["/skills/common/", *skill_sources(store)],
         permissions=[FilesystemPermission(operations=["write"], paths=["/**"], mode="deny")],
-        response_format=ToolStrategy(AnalystAnswer),
+        response_format=ToolStrategy(answer_schema(store, sandbox)),
+        middleware=[FinishRepeatedReadMiddleware()],
         name="backintel-analyst",
     )

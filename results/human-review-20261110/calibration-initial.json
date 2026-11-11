@@ -1,0 +1,145 @@
+{
+  "packet_hash": "a7a31ba650f987a4ab232e59a3971dfa5db10438096e07fee8f5f21a63140304",
+  "status": "awaiting_human_review",
+  "reviewer": null,
+  "reviewed_at": null,
+  "rated_criteria": 0,
+  "exact_agreement": null,
+  "mean_absolute_rating_difference": null,
+  "disagreements": [],
+  "missing": [
+    {
+      "case": "review-01",
+      "criterion": "conventions_stated",
+      "human": null,
+      "judge": 1.0
+    },
+    {
+      "case": "review-01",
+      "criterion": "method_matches_question",
+      "human": null,
+      "judge": 1.0
+    },
+    {
+      "case": "review-01",
+      "criterion": "no_overreach",
+      "human": null,
+      "judge": 1.0
+    },
+    {
+      "case": "review-01",
+      "criterion": "caveats_material",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-02",
+      "criterion": "gap_is_real",
+      "human": null,
+      "judge": 1.0
+    },
+    {
+      "case": "review-02",
+      "criterion": "no_fabrication",
+      "human": null,
+      "judge": 1.0
+    },
+    {
+      "case": "review-02",
+      "criterion": "names_what_is_needed",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-03",
+      "criterion": "conventions_stated",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-03",
+      "criterion": "method_matches_question",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-03",
+      "criterion": "no_overreach",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-03",
+      "criterion": "caveats_material",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-04",
+      "criterion": "conventions_stated",
+      "human": null,
+      "judge": 1.0
+    },
+    {
+      "case": "review-04",
+      "criterion": "method_matches_question",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-04",
+      "criterion": "no_overreach",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-04",
+      "criterion": "caveats_material",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-05",
+      "criterion": "gap_is_real",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-05",
+      "criterion": "no_fabrication",
+      "human": null,
+      "judge": 1.0
+    },
+    {
+      "case": "review-05",
+      "criterion": "names_what_is_needed",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-06",
+      "criterion": "conventions_stated",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-06",
+      "criterion": "method_matches_question",
+      "human": null,
+      "judge": 1.0
+    },
+    {
+      "case": "review-06",
+      "criterion": "no_overreach",
+      "human": null,
+      "judge": 0.5
+    },
+    {
+      "case": "review-06",
+      "criterion": "caveats_material",
+      "human": null,
+      "judge": 0.5
+    }
+  ],
+  "interpretation": "Descriptive agreement on this packet; no statistical reliability or owner approval inferred"
+}

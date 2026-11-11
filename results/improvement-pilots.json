@@ -1,0 +1,1051 @@
+{
+  "schema": 1,
+  "title": "BackIntel completed improvement pilots",
+  "judge_calibration": {
+    "status": "uncalibrated",
+    "human_calibration": "waived_by_owner"
+  },
+  "pilots": [
+    {
+      "id": "runtime-pilot-01",
+      "scope": "Fresh baseline runtime versus frozen current runtime, two original development cases, one trial per case per arm.",
+      "completed_at_utc": "2026-11-11T03:13:49.733372+00:00",
+      "policy_verdict": "reject",
+      "acceptance_failures": [
+        {
+          "reason": "no previously failed case improved"
+        }
+      ],
+      "baseline_supported": 2,
+      "candidate_supported": 2,
+      "cases_per_arm": 2,
+      "trials_per_case": 1,
+      "regressions": [],
+      "improvements": [],
+      "invalid_reasons": [],
+      "conclusion": "No deterministic regression was observed. The historical failed-evidence case passed in the fresh baseline too, so this pilot demonstrated no quality improvement and failed the predeclared improvement requirement.",
+      "full_acceptance": false,
+      "reserved_cases_evaluated": false,
+      "experiments": {
+        "baseline": [
+          {
+            "name": "backintel_original_regression_v1-sqlite-gpt-6-luna-L16-20261111-0311-6736f32d",
+            "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/ec19dc38-5424-47c4-b633-124636f91dcb",
+            "records": 2
+          }
+        ],
+        "candidate": [
+          {
+            "name": "backintel_original_regression_v1-sqlite-gpt-6-luna-L16-20261111-0312-09e96dca",
+            "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/d7ed273d-b4f1-4627-967e-ef6119631402",
+            "records": 2
+          }
+        ]
+      },
+      "identity": {
+        "dataset": "backintel_original_regression_v1",
+        "data_version": "a4ed0a7916f7d6c64b806cf1bb2a6f29ea3adf648856955f1f74e7f9f415e318",
+        "reference_version": "ff8ec2d2417b412f",
+        "scorer_version": "74186fb62c27e2ce",
+        "judge_model": "openrouter/anthropic/claude-haiku-5.5",
+        "judge_version": "fca43a717d4f",
+        "analyst_model": "openrouter/openai/gpt-6-luna",
+        "baseline_revision": "cb963fdefc6e5d2daf9779f6726a2c199ed195ee",
+        "baseline_source_version": "645a4b51759f6fad",
+        "candidate_source_version": "40cf15514d4670f7",
+        "baseline_method_version": "3ae47ed328d2",
+        "candidate_method_version": "d6e5b376c40c",
+        "manifest_hash": "cd2e0718e6a0c01c795fe46eb154a39aef6c654243dba19eeda09bf21f899499",
+        "policy_hash": "3b384b1df5789822e855861fd5fcf0a4fcc6c7184402e01b29c8c539e7c9a351",
+        "scenario_manifest_hash": "6e65e1ec3cb1ad62c0667793a3ee4b2307f5265eefa52f35c2d94f677fb3796e",
+        "runner_hash": "63ecc2198cfd9a1dfcfc5eafb028eb45b55e9264e8b99b416529be0670880855",
+        "comparison_implementation_hash": "fd63450d021068c9f113c32d62175b9c72d6b6fa4ff6390d482c416aa582b34c",
+        "baseline_records_hash": "b7d9e5091cb851cc30b03ba718f07f5f5070647035714bf488d6e30a9aa3bf1b",
+        "candidate_records_hash": "b21225019ce3d99452c49877e7eadd594ce9bb99bbe4a9039f134373a1ef5c9b",
+        "sandbox": "docker",
+        "dependencies": {
+          "deepagents": "0.7.35",
+          "langsmith": "0.14.17",
+          "duckdb": "2.0.0",
+          "polars": "2.1.0"
+        }
+      },
+      "usage": {
+        "baseline": {
+          "analyst": {
+            "calls": 18,
+            "input_tokens": 122824,
+            "output_tokens": 5579,
+            "reported_cost_usd": 0.00601091865,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "judge": {
+            "calls": 2,
+            "input_tokens": 4907,
+            "output_tokens": 1111,
+            "reported_cost_usd": 0.001035738,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "total_reported_cost_usd": 0.00704665665,
+          "total_calls": 20,
+          "analyst_latency_s": 86.72,
+          "judge_latency_s": 7.72
+        },
+        "candidate": {
+          "analyst": {
+            "calls": 14,
+            "input_tokens": 92933,
+            "output_tokens": 4396,
+            "reported_cost_usd": 0.0050668596,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "judge": {
+            "calls": 2,
+            "input_tokens": 4397,
+            "output_tokens": 956,
+            "reported_cost_usd": 0.000908523,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "total_reported_cost_usd": 0.0059753826,
+          "total_calls": 16,
+          "analyst_latency_s": 67.22,
+          "judge_latency_s": 7.47
+        }
+      },
+      "total_reported_model_cost_usd": 0.01302203925,
+      "total_model_calls": 36,
+      "usage_scope": "Provider-reported analyst and judge model API usage; excludes LangSmith, local compute and any unreported provider billing.",
+      "budget": {
+        "limit_usd": 0.05,
+        "max_calls": 80,
+        "reservation_usd": 0.01,
+        "note": "operator-invoked paid run; reserved/unknown charges halt continuation"
+      },
+      "cases": [
+        {
+          "scenario_id": "olist-l1-01",
+          "bound_store": "sqlite:olist",
+          "baseline": {
+            "trial": 0,
+            "evaluation_status": "valid",
+            "scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.75,
+              "fully_supported": 1.0
+            },
+            "langsmith_run_id": "01a1c896-6094-7b8d-bd35-8ef664c721e1",
+            "analyst_cost_usd": 0.0016096310999999999,
+            "judge_cost_usd": 0.000365607,
+            "total_reported_cost_usd": 0.0019752381
+          },
+          "candidate": {
+            "trial": 0,
+            "evaluation_status": "valid",
+            "scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.75,
+              "fully_supported": 1.0
+            },
+            "langsmith_run_id": "01a1c897-dc88-7a18-9c3d-3b4ac428b0aa",
+            "analyst_cost_usd": 0.0015404004,
+            "judge_cost_usd": 0.000349965,
+            "total_reported_cost_usd": 0.0018903654
+          }
+        },
+        {
+          "scenario_id": "olist-l6-repeat-2017-09",
+          "bound_store": "sqlite:olist_asof_2017-09",
+          "baseline": {
+            "trial": 0,
+            "evaluation_status": "valid",
+            "scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.375,
+              "fully_supported": 1.0
+            },
+            "langsmith_run_id": "01a1c896-ba4f-7f52-8a95-0f69a43bac00",
+            "analyst_cost_usd": 0.00440128755,
+            "judge_cost_usd": 0.000670131,
+            "total_reported_cost_usd": 0.00507141855
+          },
+          "candidate": {
+            "trial": 0,
+            "evaluation_status": "valid",
+            "scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.625,
+              "fully_supported": 1.0
+            },
+            "langsmith_run_id": "01a1c898-3b6f-754d-84ea-119ccc11f5c5",
+            "analyst_cost_usd": 0.0035264592,
+            "judge_cost_usd": 0.000558558,
+            "total_reported_cost_usd": 0.0040850172
+          }
+        }
+      ],
+      "artifacts": {
+        "manifest.json": "data/improvement/runtime-pilot-01/manifest.json",
+        "policy.json": "data/improvement/runtime-pilot-01/policy.json",
+        "comparison.json": "data/improvement/runtime-pilot-01/comparison.json",
+        "baseline-result.json": "data/improvement/runtime-pilot-01/baseline-result.json",
+        "candidate-result.json": "data/improvement/runtime-pilot-01/candidate-result.json"
+      },
+      "limitations": [
+        "Two selected development cases and one trial per arm are not the full acceptance suite.",
+        "No statistical significance or general cost/latency improvement is established.",
+        "Human calibration was waived by the owner; judge scores remain uncalibrated.",
+        "No new coding-worker proposal was part of this runtime pilot."
+      ],
+      "observed_judge_limitations": [
+        {
+          "scenario_id": "olist-l6-repeat-2017-09",
+          "candidate_run_id": "01a1c898-3b6f-754d-84ea-119ccc11f5c5",
+          "criterion": "method_matches_question",
+          "score": 0.5,
+          "finding": "The judge penalized the absence of an SQL as-of filter although the scenario binds an already-truncated September 2017 snapshot and the answer states this scope. It also speculated about missing customer/item joins without data-profile evidence. The judge lacks validated environment/data-profile context and can penalize valid snapshot use.",
+          "handling": "Recorded as an evaluator limitation; numerical and evidence scores remain separate. No regrade performed. Human calibration was waived."
+        }
+      ]
+    },
+    {
+      "id": "coding-pilot-01",
+      "scope": "Fresh baseline, actual isolated coding-model proposal, and fresh candidate on a two-case development answerability contrast; one trial per case per arm.",
+      "completed_at_utc": "2026-11-11T03:17:12.894880+00:00",
+      "policy_verdict": "reject",
+      "acceptance_failures": [
+        {
+          "reason": "no previously failed case improved"
+        }
+      ],
+      "baseline_supported": 2,
+      "candidate_supported": 2,
+      "cases_per_arm": 2,
+      "trials_per_case": 1,
+      "regressions": [],
+      "improvements": [],
+      "invalid_reasons": [],
+      "conclusion": "The coding model proposed and applied a general prompt change in isolation. Both baseline and candidate correctly answered the complete-data case and declined the missing-cost case. No deterministic regression or previously failed case improvement was observed, so the improvement gate rejected the candidate.",
+      "full_acceptance": false,
+      "reserved_cases_evaluated": false,
+      "promoted": false,
+      "experiments": {
+        "baseline": [
+          {
+            "name": "backintel_acceptance_v1_development-sqlite-gpt-6-luna-L3-20261111-0314-3d87b867",
+            "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/8ca2c495-b768-4062-8f14-277640fa02ee",
+            "records": 2
+          }
+        ],
+        "candidate": [
+          {
+            "name": "backintel_acceptance_v1_development-sqlite-gpt-6-luna-L3-20261111-0316-a5045a16",
+            "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/e8110d2b-7e5b-41fb-abe9-b7c154ad7df9",
+            "records": 2
+          }
+        ]
+      },
+      "identity": {
+        "dataset": "backintel_acceptance_v1_development",
+        "data_version": "0b65012dc6217c5a77b8e8b5f64f84b6ebd53b3a85e7cd73faa17da7bc60c741",
+        "reference_version": "ed3e5f6f1b001583",
+        "scorer_version": "74186fb62c27e2ce",
+        "judge_model": "openrouter/anthropic/claude-haiku-5.5",
+        "judge_version": "fca43a717d4f",
+        "analyst_model": "openrouter/openai/gpt-6-luna",
+        "worker_model": "openrouter/openai/gpt-6-luna",
+        "baseline_revision": "cb963fdefc6e5d2daf9779f6726a2c199ed195ee",
+        "baseline_source_version": "645a4b51759f6fad",
+        "candidate_initial_source_version": "645a4b51759f6fad",
+        "candidate_source_version": "fa6196e1a67c4996",
+        "baseline_method_version": "3ae47ed328d2",
+        "candidate_method_version": "1325bc40c12a",
+        "manifest_hash": "c14d15cad09a52da7961eb0d95efd7b5a36d8589e8d7296d078dfdb6580c6d94",
+        "policy_hash": "3ca3c821e331ff56074cab707e3fec0d06fb4f4f82e1844382e9af54b0db47fe",
+        "runner_hash": "63ecc2198cfd9a1dfcfc5eafb028eb45b55e9264e8b99b416529be0670880855",
+        "comparison_implementation_hash": "fd63450d021068c9f113c32d62175b9c72d6b6fa4ff6390d482c416aa582b34c",
+        "baseline_records_hash": "d8dc80a2d80bf0c3ca7d297dbbd7ac95152f2c24be118a8200d757fc1ca8af1b",
+        "candidate_records_hash": "9167c9bd7bfb19081e10e57d081c7112663fd9bf624266aa91be2f68c7434086",
+        "sandbox": "docker",
+        "dependencies": {
+          "deepagents": "0.7.35",
+          "langsmith": "0.14.17",
+          "duckdb": "2.0.0",
+          "polars": "2.1.0"
+        }
+      },
+      "worker": {
+        "status": "proposed",
+        "model": "openrouter/openai/gpt-6-luna",
+        "input_hash": "7f35fb0bf49ee7018365965ff45fbbd0c1891bde1a2a842e5a311de598884596",
+        "brief_hash": "157075efe77f94856b8518dbf5c65414d0b11df6bdcd7ce7ce63e2789f4c7676",
+        "proposal_file_hash": "9db20351d0647f09413ad4a98de5ee65fd1727127a75cb8c5685e4cde8761eea",
+        "changed_files": [
+          {
+            "path": "src/backintel/agent_files/lead.md",
+            "base_hash": "8fd5ea1428a4da97493f2b2a44aeada045729740d57bc69eb352f78f0b28d2e1",
+            "candidate_hash": "67f6415c62d5c5d9a5c833cf4c19c1139851be67688eaebf165ce9c101dc06d3"
+          }
+        ],
+        "explanation": "Clarifies how to distinguish query failures from successful empty results, assess whether the available data can answer the question, and stop repeating discovery requests that add no information.",
+        "context_boundary": "Only sanitized brief and explicitly allowlisted lead.md contents supplied; no tools, shell or filesystem access given to the coding model.",
+        "review_note": "The orchestrating agent inspected the proposal: general data-sufficiency/stopping language, no case answers or permission expansion. The change remains isolated and was not promoted."
+      },
+      "usage": {
+        "baseline": {
+          "analyst": {
+            "calls": 14,
+            "input_tokens": 76369,
+            "output_tokens": 4041,
+            "reported_cost_usd": 0.0043484859,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "judge": {
+            "calls": 2,
+            "input_tokens": 3643,
+            "output_tokens": 1378,
+            "reported_cost_usd": 0.001042767,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "total_reported_cost_usd": 0.0053912529,
+          "total_calls": 16,
+          "analyst_latency_s": 69.37,
+          "judge_latency_s": 8.47
+        },
+        "candidate": {
+          "analyst": {
+            "calls": 10,
+            "input_tokens": 52881,
+            "output_tokens": 2895,
+            "reported_cost_usd": 0.00341349525,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "judge": {
+            "calls": 2,
+            "input_tokens": 3748,
+            "output_tokens": 916,
+            "reported_cost_usd": 0.000824472,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "total_reported_cost_usd": 0.00423796725,
+          "total_calls": 12,
+          "analyst_latency_s": 40.58,
+          "judge_latency_s": 6.83
+        },
+        "worker": {
+          "calls": 1,
+          "input_tokens": 1164,
+          "output_tokens": 1259,
+          "reported_cost_usd": 0.00076717575,
+          "cost_complete": true,
+          "usage_complete": true
+        }
+      },
+      "total_reported_model_cost_usd": 0.0103963959,
+      "total_model_calls": 29,
+      "usage_scope": "Provider-reported analyst, judge and coding-worker model API usage; excludes LangSmith, local compute and any unreported provider billing.",
+      "budget": {
+        "limit_usd": 0.04,
+        "max_calls": 80,
+        "reservation_usd": 0.01,
+        "note": "operator-invoked paid run; reserved/unknown charges halt continuation"
+      },
+      "cases": [
+        {
+          "scenario_id": "acceptance-v1-development-profit-complete",
+          "bound_store": "sqlite:bi_7b7ed8e8c4bea802",
+          "answerable": true,
+          "baseline": {
+            "trial": 0,
+            "evaluation_status": "valid",
+            "scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.5,
+              "fully_supported": 1.0
+            },
+            "langsmith_run_id": "01a1c89a-81c9-71f5-928e-07ce9eb299d4",
+            "analyst_cost_usd": 0.0021020472,
+            "judge_cost_usd": 0.00047718,
+            "total_reported_cost_usd": 0.0025792272
+          },
+          "candidate": {
+            "trial": 0,
+            "evaluation_status": "valid",
+            "scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.875,
+              "fully_supported": 1.0
+            },
+            "langsmith_run_id": "01a1c89b-978e-7d47-b6ca-c363f09d4736",
+            "analyst_cost_usd": 0.0019902366,
+            "judge_cost_usd": 0.000489852,
+            "total_reported_cost_usd": 0.0024800886
+          }
+        },
+        {
+          "scenario_id": "acceptance-v1-development-profit-missing",
+          "bound_store": "sqlite:bi_e82f8281462186cf",
+          "answerable": false,
+          "baseline": {
+            "trial": 0,
+            "evaluation_status": "valid",
+            "scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": null,
+              "abstention_correct": 1.0,
+              "judge_method": 0.833,
+              "fully_supported": 1.0
+            },
+            "langsmith_run_id": "01a1c899-e8eb-7224-93c0-943bb37f0ab6",
+            "analyst_cost_usd": 0.0022464387,
+            "judge_cost_usd": 0.000565587,
+            "total_reported_cost_usd": 0.0028120257
+          },
+          "candidate": {
+            "trial": 0,
+            "evaluation_status": "valid",
+            "scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": null,
+              "abstention_correct": 1.0,
+              "judge_method": 0.833,
+              "fully_supported": 1.0
+            },
+            "langsmith_run_id": "01a1c89b-5f91-7df2-b588-80c5ff0b4770",
+            "analyst_cost_usd": 0.00142325865,
+            "judge_cost_usd": 0.00033462,
+            "total_reported_cost_usd": 0.00175787865
+          }
+        }
+      ],
+      "artifacts": {
+        "manifest.json": "data/improvement/coding-pilot-01/manifest.json",
+        "policy.json": "data/improvement/coding-pilot-01/policy.json",
+        "comparison.json": "data/improvement/coding-pilot-01/comparison.json",
+        "baseline-result.json": "data/improvement/coding-pilot-01/baseline-result.json",
+        "worker-result.json": "data/improvement/coding-pilot-01/worker-result.json",
+        "candidate-result.json": "data/improvement/coding-pilot-01/candidate-result.json",
+        "worker/cycle-results/proposal.json": "data/improvement/coding-pilot-01/worker/cycle-results/proposal.json"
+      },
+      "limitations": [
+        "Two selected development cases and one trial per arm do not establish full acceptance.",
+        "No statistical significance or general cost/latency improvement is established.",
+        "Human calibration was waived by the owner; judge scores remain uncalibrated.",
+        "A real worker change and completed comparison establish execution of the loop, not an improvement in answer quality."
+      ]
+    }
+  ],
+  "total_reported_model_cost_usd": null,
+  "note": "Completed pilots, controlled demos and invalid attempts are separated. Raw answers and traces remain in ignored data directories and LangSmith. A complete monetary total is unavailable while a request remains unpriced.",
+  "total_model_calls": 108,
+  "controlled_demos": [
+    {
+      "id": "rejection-demo-01",
+      "source_kind": "controlled-negative-fixture",
+      "status": "demonstrated",
+      "interpretation": "Controlled rejection-path check; not evidence that an LLM regressed",
+      "completed_at_utc": "2026-11-11T03:22:00.761511+00:00",
+      "experiment": {
+        "name": "backintel_original_regression_v1-sqlite-wrong-zero-no-analyst-model-L1-20261111-0321-9ab101f4",
+        "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/559b4ac4-e0e9-4a95-936c-8408023d82c1",
+        "records": 1
+      },
+      "scenario_id": "olist-l1-01",
+      "bound_store": "sqlite:olist",
+      "trial": 0,
+      "policy_verdict": "reject",
+      "regressions": [
+        {
+          "case": "olist-l1-01",
+          "trial": 0,
+          "metric": "correct"
+        },
+        {
+          "case": "olist-l1-01",
+          "trial": 0,
+          "metric": "fully_supported"
+        }
+      ],
+      "acceptance_failures": [
+        {
+          "case": "olist-l1-01",
+          "trial": 0,
+          "reason": "mandatory case failed"
+        }
+      ],
+      "invalid_reasons": [],
+      "candidate_scores": {
+        "correct": 0.0,
+        "partial_credit": 0.0,
+        "evidence_reproduces": 1.0,
+        "abstention_correct": 1.0,
+        "judge_method": 0.125,
+        "fully_supported": 0.0
+      },
+      "baseline_scores": {
+        "correct": 1.0,
+        "partial_credit": 1.0,
+        "evidence_reproduces": 1.0,
+        "abstention_correct": 1.0,
+        "judge_method": 0.75,
+        "fully_supported": 1.0
+      },
+      "candidate_run_id": "01a1c8a0-6654-78e6-a2d9-c2539fabc589",
+      "baseline_run_id": "01a1c896-6094-7b8d-bd35-8ef664c721e1",
+      "baseline_reused": true,
+      "baseline_new_cost_usd": 0,
+      "baseline_previously_reported_cost_usd_excluded": 0.0019752381,
+      "baseline_source_pilot": "runtime-pilot-01",
+      "full_acceptance": false,
+      "identity": {
+        "dataset": "backintel_original_regression_v1",
+        "data_version": "a4ed0a7916f7d6c64b806cf1bb2a6f29ea3adf648856955f1f74e7f9f415e318",
+        "reference_version": "ff8ec2d2417b412f",
+        "scorer_version": "74186fb62c27e2ce",
+        "judge_model": "openrouter/anthropic/claude-haiku-5.5",
+        "judge_version": "fca43a717d4f",
+        "policy_hash": "b2b1f1bb162340ff12e851ac439d2630f065d454063ea8a478fd5faaf281b230",
+        "manifest_file_sha256": "7d528703768796570b280c12859db193ee084a33885c3228ef89a00937edfd16",
+        "control_source_sha256": "120bd957195dbafd724f6fcef66ce66803f572edb2e7d7f34c4f833f97925840",
+        "comparison_source_sha256": "fd63450d021068c9f113c32d62175b9c72d6b6fa4ff6390d482c416aa582b34c",
+        "baseline_record_hash": "eee6d125d6a938f2746b30c3e992c42869dce2c8fdd3f9138c3beeaed844d1c4",
+        "baseline_records_hash": "0af7f6eebfca72ad5e8f8857dfed1200273d8f29b62c3c01fba7c65ce6a5f861",
+        "candidate_records_hash": "44648b86c366c876919e0116aa08f7c9ec4c58f2499030c209a8ea0910d4a84e",
+        "scenario_manifest_sha256": "6e65e1ec3cb1ad62c0667793a3ee4b2307f5265eefa52f35c2d94f677fb3796e"
+      },
+      "new_usage": {
+        "analyst": {
+          "calls": 0,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "reported_cost_usd": 0
+        },
+        "judge": {
+          "calls": 1,
+          "input_tokens": 1412,
+          "output_tokens": 343,
+          "reported_cost_usd": 0.000309573,
+          "cost_complete": true,
+          "usage_complete": true
+        },
+        "total_reported_model_cost_usd": 0.000309573,
+        "total_model_calls": 1
+      },
+      "budget": {
+        "limit_usd": 0.005,
+        "max_calls": 1,
+        "reservation_usd": 0.005
+      },
+      "conclusion": "The deliberate zero-count answer had reproducible evidence but failed reference correctness. The mandatory-case and regression gates rejected it. This demonstrates the rejection path, not an LLM regression.",
+      "limitations": [
+        "Controlled deterministic answer, not an analyst-model response.",
+        "Compatible passing baseline reused unchanged; its historical cost and calls are excluded from new spend.",
+        "One case verifies this rejection path; it is not full acceptance or evaluator calibration.",
+        "The real method-judge score is uncalibrated because the owner waived human calibration."
+      ],
+      "artifacts": {
+        "manifest.json": "data/improvement/rejection-demo-01/manifest.json",
+        "policy.json": "data/improvement/rejection-demo-01/policy.json",
+        "comparison.json": "data/improvement/rejection-demo-01/comparison.json",
+        "execution-result.json": "data/improvement/rejection-demo-01/execution-result.json",
+        "baseline-reused.jsonl": "data/improvement/rejection-demo-01/baseline-reused.jsonl",
+        "control-source.py": "data/improvement/rejection-demo-01/control-source.py"
+      }
+    }
+  ],
+  "total_usage_scope": "New provider-reported model API spend/calls across completed and invalid attempts; known charges are a subtotal, reused baseline charges/calls appear only in their original pilot.",
+  "invalid_attempts": [
+    {
+      "id": "runtime-failures-01",
+      "status": "invalid_infrastructure_attempt",
+      "comparison_status": "not_run_due_to_invalid_candidate_stage",
+      "policy_verdict": null,
+      "conclusion": "Provider credit admission rejected the candidate March request with code 402/payment_required. The candidate stage stopped with one unpriced call. This batch supports no capability, improvement or regression conclusion.",
+      "scope": "Two original development cases, one planned baseline/current trial each; fresh baseline completed, candidate batch invalid.",
+      "baseline_valid_cases": 2,
+      "candidate_valid_cases": 1,
+      "candidate_invalid_cases": 1,
+      "experiments": {
+        "baseline": [
+          {
+            "name": "backintel_original_regression_v1-sqlite-gpt-6-luna-L36-20261111-0320-4d889702",
+            "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/648f3079-aff6-416b-beaa-3df7024ec399",
+            "records": 2
+          }
+        ],
+        "candidate": [
+          {
+            "name": "backintel_original_regression_v1-sqlite-gpt-6-luna-L36-20261111-0322-4128a2a8",
+            "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/7899f3fe-16c3-4ce2-a308-d57ca8910208",
+            "records": 2
+          }
+        ]
+      },
+      "identity": {
+        "dataset": "backintel_original_regression_v1",
+        "data_version": "a4ed0a7916f7d6c64b806cf1bb2a6f29ea3adf648856955f1f74e7f9f415e318",
+        "reference_version": "ff8ec2d2417b412f",
+        "scorer_version": "74186fb62c27e2ce",
+        "judge_model": "openrouter/anthropic/claude-haiku-5.5",
+        "judge_version": "fca43a717d4f",
+        "model": "openrouter/openai/gpt-6-luna",
+        "baseline_revision": "cb963fdefc6e5d2daf9779f6726a2c199ed195ee",
+        "baseline_source_version": "645a4b51759f6fad",
+        "candidate_source_version": "40cf15514d4670f7",
+        "manifest_hash": "0e5474be2cdfb810c3e10b28a17cc0e0a4c0fbe2a01b03d27e4277b7f8c4cb59",
+        "policy_hash": "072866d1d7a545a3e8ab0a923b6c7831dc90e6cb33a14653943d768d64364a39",
+        "runner_hash": "63ecc2198cfd9a1dfcfc5eafb028eb45b55e9264e8b99b416529be0670880855",
+        "scenario_manifest_hash": "6e65e1ec3cb1ad62c0667793a3ee4b2307f5265eefa52f35c2d94f677fb3796e",
+        "baseline_raw_records_sha256": "ab0da61adb1409ca1a073003eeef74fdb814cd598a5625c561f4d4c372253ede",
+        "candidate_raw_records_sha256": "719c740fab6b3e80b194c4b0701556b62cf5fadf8af37d36c709ba70fc51292f"
+      },
+      "initial_classification_defect": {
+        "run_id": "01a1c8a1-0663-7a96-bf81-3ad4529872a9",
+        "recorded_failure_class": "agent",
+        "recorded_evaluation_status": "valid",
+        "recorded_quality_scores": "zero",
+        "correct_classification": "infrastructure/provider_credit_admission",
+        "cause": "langchain_openai wrapped the provider error envelope in ValueError; the old classifier treated it as an ordinary agent ValueError.",
+        "observed_envelope": {
+          "code": 402,
+          "metadata": {
+            "error_type": "payment_required"
+          }
+        },
+        "accounting_guard": "total_cost_complete=false and unknown_charge=true stopped comparison despite the misclassified raw scores.",
+        "source_fix": "Future runs recognize this structured payment-required envelope as infrastructure, skip the judge and emit null quality grades. Ordinary ValueError remains an agent failure.",
+        "future_scorer_version_after_classification_fix": "c686b7f4cf1e0b67",
+        "raw_records_and_frozen_snapshots_rewritten": false,
+        "langsmith_annotation": "Applied by the orchestrating agent: evaluation_valid=0 correction feedback. Original immutable trace and zero scores remain preserved; exclude this run from quality comparisons."
+      },
+      "usage": {
+        "baseline": {
+          "analyst": {
+            "calls": 16,
+            "reported_input_tokens": 106978,
+            "reported_output_tokens": 5046,
+            "reported_known_cost_usd": 0.00537147765,
+            "unpriced_calls": 0,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "judge": {
+            "calls": 2,
+            "reported_input_tokens": 4547,
+            "reported_output_tokens": 1045,
+            "reported_known_cost_usd": 0.000967428,
+            "unpriced_calls": 0,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "reported_known_cost_usd": 0.00633890565,
+          "calls": 18,
+          "cost_complete": true,
+          "total_cost_usd": 0.00633890565
+        },
+        "candidate": {
+          "analyst": {
+            "calls": 6,
+            "reported_input_tokens": 28706,
+            "reported_output_tokens": 727,
+            "reported_known_cost_usd": 0.001146024,
+            "unpriced_calls": 1,
+            "cost_complete": false,
+            "usage_complete": false
+          },
+          "judge": {
+            "calls": 1,
+            "reported_input_tokens": 1188,
+            "reported_output_tokens": 356,
+            "reported_known_cost_usd": 0.000293832,
+            "unpriced_calls": 0,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "reported_known_cost_usd": 0.001439856,
+          "calls": 7,
+          "cost_complete": false,
+          "total_cost_usd": null
+        }
+      },
+      "reported_known_cost_usd": 0.00777876165,
+      "total_cost_usd": null,
+      "cost_complete": false,
+      "unpriced_model_calls": 1,
+      "observed_model_calls": 25,
+      "budget": {
+        "limit_usd": 0.025,
+        "max_calls": 80,
+        "reservation_usd": 0.005,
+        "note": "operator-invoked paid run; reserved/unknown charges halt continuation"
+      },
+      "cases": [
+        {
+          "scenario_id": "olist-l3-07",
+          "bound_store": "sqlite:olist",
+          "baseline": {
+            "run_id": "01a1c89f-76bd-7c2a-a822-857116d80042",
+            "recorded_evaluation_status": "valid",
+            "recorded_failure_class": null,
+            "recorded_scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": null,
+              "abstention_correct": 1.0,
+              "judge_method": 0.667,
+              "fully_supported": 1.0
+            },
+            "assessment": "valid_case_result",
+            "capability_scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": null,
+              "abstention_correct": 1.0,
+              "judge_method": 0.667,
+              "fully_supported": 1.0
+            },
+            "cost_complete": true,
+            "unpriced_model_calls": 0
+          },
+          "candidate": {
+            "run_id": "01a1c8a0-c490-70c0-8c01-3b37c5c60aec",
+            "recorded_evaluation_status": "valid",
+            "recorded_failure_class": null,
+            "recorded_scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": null,
+              "abstention_correct": 1.0,
+              "judge_method": 0.667,
+              "fully_supported": 1.0
+            },
+            "assessment": "valid_case_result",
+            "capability_scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": null,
+              "abstention_correct": 1.0,
+              "judge_method": 0.667,
+              "fully_supported": 1.0
+            },
+            "cost_complete": true,
+            "unpriced_model_calls": 0
+          }
+        },
+        {
+          "scenario_id": "olist-l6-2018-03",
+          "bound_store": "sqlite:olist_asof_2018-03",
+          "baseline": {
+            "run_id": "01a1c89f-bd10-7c6f-84a9-9fc2767a712d",
+            "recorded_evaluation_status": "valid",
+            "recorded_failure_class": null,
+            "recorded_scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.875,
+              "fully_supported": 1.0
+            },
+            "assessment": "valid_case_result",
+            "capability_scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.875,
+              "fully_supported": 1.0
+            },
+            "cost_complete": true,
+            "unpriced_model_calls": 0
+          },
+          "candidate": {
+            "run_id": "01a1c8a1-0663-7a96-bf81-3ad4529872a9",
+            "recorded_evaluation_status": "valid",
+            "recorded_failure_class": "agent",
+            "recorded_scores": {
+              "correct": 0.0,
+              "partial_credit": 0.0,
+              "evidence_reproduces": 0.0,
+              "abstention_correct": 0.0,
+              "judge_method": 0.0,
+              "fully_supported": 0.0
+            },
+            "assessment": "invalid_infrastructure_provider_payment_required",
+            "capability_scores": null,
+            "cost_complete": false,
+            "unpriced_model_calls": 1
+          }
+        }
+      ],
+      "full_acceptance": false,
+      "artifacts": {
+        "manifest.json": "data/improvement/runtime-failures-01/manifest.json",
+        "policy.json": "data/improvement/runtime-failures-01/policy.json",
+        "baseline-result.json": "data/improvement/runtime-failures-01/baseline-result.json",
+        "candidate-result.json": "data/improvement/runtime-failures-01/candidate-result.json",
+        "allowance-after-candidate.json": "data/improvement/runtime-failures-01/allowance-after-candidate.json",
+        "provider-error-annotation.json": "data/improvement/runtime-failures-01/provider-error-annotation.json"
+      },
+      "langsmith_correction": {
+        "run_id": "01a1c8a1-0663-7a96-bf81-3ad4529872a9",
+        "feedback_id": "dc28aff9-b9f7-5939-bd75-62fe41232ab0",
+        "evaluation_valid": 0,
+        "classification": "infrastructure",
+        "raw_record_preserved": true,
+        "original_scores_are_not_capability_results": true,
+        "annotation_method": "new validity feedback; completed trace update rejected by server409",
+        "receipt_path": "data/improvement/runtime-failures-01/provider-error-annotation.json"
+      }
+    },
+    {
+      "id": "runtime-report-retry-01",
+      "status": "invalid_infrastructure_attempt",
+      "comparison_status": "not_run_due_to_invalid_candidate_stage",
+      "policy_verdict": null,
+      "conclusion": "The fresh baseline passed. Candidate execution ended with a structured 502/provider_unavailable envelope stating upstream credits were exhausted. One request is unpriced, the candidate stage is invalid, and no capability or regression conclusion is supported.",
+      "scope": "One original March 2018 report case, one planned fresh baseline/current trial each.",
+      "baseline_valid_cases": 1,
+      "candidate_valid_cases": 0,
+      "candidate_invalid_cases": 1,
+      "experiments": {
+        "baseline": [
+          {
+            "name": "backintel_original_regression_v1-sqlite-gpt-6-luna-L6-20261111-0327-73274f3c",
+            "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/424c5bb1-7534-4f7d-bafd-be898e1a3d72",
+            "records": 1
+          }
+        ],
+        "candidate": [
+          {
+            "name": "backintel_original_regression_v1-sqlite-gpt-6-luna-L6-20261111-0328-9d194d5d",
+            "url": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/1479dbd9-aee9-4878-a0e1-fe3681bb7143",
+            "records": 1
+          }
+        ]
+      },
+      "identity": {
+        "dataset": "backintel_original_regression_v1",
+        "data_version": "a4ed0a7916f7d6c64b806cf1bb2a6f29ea3adf648856955f1f74e7f9f415e318",
+        "reference_version": "ff8ec2d2417b412f",
+        "scorer_version": "c686b7f4cf1e0b67",
+        "judge_model": "openrouter/anthropic/claude-haiku-5.5",
+        "judge_version": "fca43a717d4f",
+        "model": "openrouter/openai/gpt-6-luna",
+        "baseline_revision": "cb963fdefc6e5d2daf9779f6726a2c199ed195ee",
+        "baseline_source_version": "c3388b4c021f91a2",
+        "candidate_source_version": "64a1ccb0b358dc96",
+        "manifest_hash": "4a056d3049183ccaad7d106ab3c5a1f10bf758738902425b0694c974a6bdf5d6",
+        "policy_hash": "fbfe5878973de5a4b8a17458d4b11cd4fe56ba9089afaff3215e0a40c827d8f3",
+        "runner_hash": "63ecc2198cfd9a1dfcfc5eafb028eb45b55e9264e8b99b416529be0670880855",
+        "scenario_manifest_hash": "6e65e1ec3cb1ad62c0667793a3ee4b2307f5265eefa52f35c2d94f677fb3796e",
+        "baseline_raw_records_sha256": "d8fc472b6f7759bd5b65ff315a74896acb37d63000b550f7022225409ec5a052",
+        "candidate_raw_records_sha256": "5a758e7129072a21dcf8ebc743dda9b03a28c3bc7adc1e84335040593fb11540"
+      },
+      "initial_classification_defect": {
+        "run_id": "01a1c8a6-1e98-744e-a668-e99abbadedb6",
+        "recorded_failure_class": "agent",
+        "recorded_evaluation_status": "valid",
+        "recorded_quality_scores": "zero",
+        "correct_classification": "infrastructure/provider_unavailable",
+        "cause": "The previous classifier recognized only the observed 402/payment_required envelope; this retry exposed the same provider error contract with code502/provider_unavailable.",
+        "observed_envelope": {
+          "code": 502,
+          "metadata": {
+            "error_type": "provider_unavailable"
+          },
+          "message_summary": "Upstream provider reports no credits remaining."
+        },
+        "accounting_guard": "Unknown request usage kept total_cost_complete=false and stopped comparison.",
+        "source_fix": "Recognize ValueError dictionaries with string message, integer HTTP error code400..599, and nonempty string metadata.error_type as infrastructure. Ordinary ValueError remains an agent failure.",
+        "future_scorer_version_after_classification_fix": "790d4585de502251",
+        "raw_records_and_frozen_snapshots_rewritten": false,
+        "langsmith_annotation": "Applied by the orchestrating agent: evaluation_valid=0 correction feedback. Original immutable trace and zero scores remain preserved; exclude this run from quality comparisons."
+      },
+      "usage": {
+        "baseline": {
+          "analyst": {
+            "calls": 10,
+            "reported_input_tokens": 74001,
+            "reported_output_tokens": 4480,
+            "reported_known_cost_usd": 0.00385703505,
+            "unpriced_calls": 0,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "judge": {
+            "calls": 1,
+            "reported_input_tokens": 3210,
+            "reported_output_tokens": 582,
+            "reported_known_cost_usd": 0.00060588,
+            "unpriced_calls": 0,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "reported_known_cost_usd": 0.00446291505,
+          "calls": 11,
+          "cost_complete": true,
+          "total_cost_usd": 0.00446291505
+        },
+        "candidate": {
+          "analyst": {
+            "calls": 6,
+            "reported_input_tokens": 32243,
+            "reported_output_tokens": 2339,
+            "reported_known_cost_usd": 0.0024510024,
+            "unpriced_calls": 1,
+            "cost_complete": false,
+            "usage_complete": false
+          },
+          "judge": {
+            "calls": 0,
+            "reported_input_tokens": 0,
+            "reported_output_tokens": 0,
+            "reported_known_cost_usd": 0.0,
+            "unpriced_calls": 0,
+            "cost_complete": true,
+            "usage_complete": true
+          },
+          "reported_known_cost_usd": 0.0024510024,
+          "calls": 6,
+          "cost_complete": false,
+          "total_cost_usd": null
+        }
+      },
+      "reported_known_cost_usd": 0.00691391745,
+      "total_cost_usd": null,
+      "cost_complete": false,
+      "unpriced_model_calls": 1,
+      "observed_model_calls": 17,
+      "budget": {
+        "limit_usd": 0.02,
+        "max_calls": 60,
+        "reservation_usd": 0.005,
+        "note": "operator-invoked paid run; reserved/unknown charges halt continuation"
+      },
+      "cases": [
+        {
+          "scenario_id": "olist-l6-2018-03",
+          "bound_store": "sqlite:olist_asof_2018-03",
+          "baseline": {
+            "run_id": "01a1c8a5-0b26-7843-913c-44308fc16b73",
+            "recorded_evaluation_status": "valid",
+            "recorded_failure_class": null,
+            "recorded_scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.875,
+              "fully_supported": 1.0
+            },
+            "assessment": "valid_case_result",
+            "capability_scores": {
+              "correct": 1.0,
+              "partial_credit": 1.0,
+              "evidence_reproduces": 1.0,
+              "abstention_correct": 1.0,
+              "judge_method": 0.875,
+              "fully_supported": 1.0
+            },
+            "cost_complete": true,
+            "unpriced_model_calls": 0
+          },
+          "candidate": {
+            "run_id": "01a1c8a6-1e98-744e-a668-e99abbadedb6",
+            "recorded_evaluation_status": "valid",
+            "recorded_failure_class": "agent",
+            "recorded_scores": {
+              "correct": 0.0,
+              "partial_credit": 0.0,
+              "evidence_reproduces": 0.0,
+              "abstention_correct": 0.0,
+              "judge_method": 0.0,
+              "fully_supported": 0.0
+            },
+            "assessment": "invalid_infrastructure_provider_unavailable",
+            "capability_scores": null,
+            "cost_complete": false,
+            "unpriced_model_calls": 1
+          }
+        }
+      ],
+      "full_acceptance": false,
+      "continuation": "No further paid retries until the funding/upstream-credit condition is resolved.",
+      "artifacts": {
+        "manifest.json": "data/improvement/runtime-report-retry-01/manifest.json",
+        "policy.json": "data/improvement/runtime-report-retry-01/policy.json",
+        "baseline-result.json": "data/improvement/runtime-report-retry-01/baseline-result.json",
+        "candidate-result.json": "data/improvement/runtime-report-retry-01/candidate-result.json",
+        "allowance-after-candidate.json": "data/improvement/runtime-report-retry-01/allowance-after-candidate.json",
+        "provider-error-annotation.json": "data/improvement/runtime-report-retry-01/provider-error-annotation.json"
+      },
+      "langsmith_correction": {
+        "run_id": "01a1c8a6-1e98-744e-a668-e99abbadedb6",
+        "feedback_id": "d71465ba-73ab-51db-b0f6-0ce4cae49d5f",
+        "evaluation_valid": 0,
+        "classification": "infrastructure",
+        "raw_record_preserved": true,
+        "original_scores_are_not_capability_results": true,
+        "receipt_path": "data/improvement/runtime-report-retry-01/provider-error-annotation.json"
+      }
+    }
+  ],
+  "completed_experiments_reported_cost_usd": 0.02372800815,
+  "reported_known_model_cost_usd": 0.03842068725,
+  "cost_complete": false,
+  "unpriced_model_calls": 2,
+  "continuation": "Further paid retries require resolution of the funding/upstream-credit condition.",
+  "provider_account_reconciliation": {
+    "source": "Read-only provider account/key observations supplied by the orchestrating agent.",
+    "initial": {
+      "total_credits_usd": 395,
+      "total_usage_usd": 394.938511806,
+      "available_credit_usd": 0.061488194
+    },
+    "latest": {
+      "total_credits_usd": 395,
+      "total_usage_usd": 394.976932453,
+      "available_credit_usd": 0.023067547
+    },
+    "observed_credit_decrease_usd": 0.038420647,
+    "known_reported_model_charges_usd": 0.03842068725,
+    "known_charges_minus_credit_movement_usd": 4.025e-08,
+    "interpretation": "Aggregate provider credit movement matches known reported charges to rounding; no unexplained debit was observed.",
+    "individual_rejected_requests_still_unpriced": 2,
+    "cost_complete": false,
+    "latest_key_metadata": {
+      "limit": null,
+      "byok_usage_daily": 0
+    },
+    "provider_failure_interpretation": "The returned provider errors do not establish that the owner's personal OpenAI key needs funding. Account/key metadata shows no configured key limit and zero reported daily BYOK usage; the upstream error condition remains to be resolved before more paid retries."
+  },
+  "langsmith_filter_instruction": "Exclude runs with evaluation_valid=0 feedback from capability, regression and acceptance rollups; their immutable original zero scores are infrastructure artifacts."
+}

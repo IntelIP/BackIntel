@@ -61,7 +61,10 @@ LangSmith receives separate feedback fields:
 - `correct`: the requested result matches the independent reference.
 - `partial_credit`: matching report facts/table rows or ranked-item overlap.
 - `evidence_reproduces`: cited SQL, native aggregation JSON or Python re-executes and
-  contains the result fields; a failed evidence item fails this check.
+  contains the result fields; a failed evidence item fails this check. Explicit report
+  metric/value rows and single-row named outputs must preserve the association between
+  each metric and its value. Contradictory labels fail even if the right number appears
+  elsewhere. SQL/native results and structured Python JSON use the same rule.
 - `abstention_correct`: answered when the data can answer and declined otherwise.
 - `judge_method`: a different model family grades conventions, method fit, overreach and
   material caveats. The revised judge writes a reason for every criterion and uses
@@ -79,9 +82,16 @@ reference. Numerical correctness never depends on the judge.
 Re-execution checks reproducibility, not complete data lineage: a contrived program can
 print a constant, values can coincide, and a correct result can accompany an unsound
 explanation. Independent references, hidden answers and method review reduce these risks;
-the benchmark does not claim adversarial resistance. Grader tests include correct and
+the benchmark does not claim adversarial resistance. Unlabeled output, alternate aliases,
+and multi-row dimensional results retain value-presence grading; the feedback reports how
+many report rows had an explicit association checked. Those outputs do not establish
+metric-level lineage. Grader tests include correct and
 wrong values, partial answers, wrong ordering, zero results, extra rows, swapped report
-labels, refusal and refused writes. The results report includes real trace inspection.
+labels in both answers and cited output, valid grouped alternatives, refusal and refused
+writes. The association check fixes a controlled false positive in the earlier flattened
+evidence check. Its content-derived scorer version is distinct; historical experiments
+remain unchanged, and fresh baseline/candidate comparisons use the corrected scorer on
+both sides. The results report includes real trace inspection.
 
 Infrastructure, verifier and judge errors must be reported separately from capability
 failures. Retain original experiments when correcting the harness; reruns and rescoring

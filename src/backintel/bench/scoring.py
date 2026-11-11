@@ -8,6 +8,7 @@ could and declined when it could not. None of this involves a model.
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from typing import Any
@@ -285,30 +286,84 @@ def abstention_correct(scenario: Scenario, answer: AnalystAnswer | None) -> dict
     return {"score": float(ok), "comment": f"status {answer.status}, expected {expected}"}
 
 
-def _cells_from_sql(store: Store, code: str, target: str | None = None) -> tuple[list[Any], str | None]:
+def _report_bindings(columns: list[str], rows: list[list[Any]]) -> dict[str, list[Any]]:
+    """Retain explicit metric/value rows or one wide row without requiring either.
+
+    Multiple wide rows may represent different countries, periods, or other populations;
+    column names alone cannot bind their values to a single global report metric.
+    """
+    names = [normalize_text(column) for column in columns]
+    long_form = "metric" in names and "value" in names
+    if not long_form and len(rows) != 1:
+        return {}
+    bindings: dict[str, list[Any]] = {}
+    for row in rows:
+        if long_form:
+            pairs = [(row[names.index("metric")], row[names.index("value")])]
+        else:
+            pairs = zip(names, row, strict=True)
+        for key, value in pairs:
+            if isinstance(key, str) and key.strip():
+                bindings.setdefault(normalize_text(key), []).append(value)
+    return bindings
+
+
+def _python_report_bindings(text: str) -> dict[str, list[Any]]:
+    """Recognize JSON objects/rows (including JSON lines); unstructured output remains valid."""
+    try:
+        documents = [json.loads(text)]
+    except ValueError:
+        documents = []
+        for line in text.splitlines():
+            try:
+                documents.append(json.loads(line))
+            except ValueError:
+                continue
+    rows = []
+    for document in documents:
+        rows.extend(document if isinstance(document, list) else [document])
+    rows = [row for row in rows if isinstance(row, dict)]
+    bindings: dict[str, list[Any]] = {}
+    for row in rows:
+        if len(rows) > 1 and not {"metric", "value"}.issubset(normalize_text(key) for key in row):
+            continue
+        for key, values in _report_bindings(list(row), [list(row.values())]).items():
+            bindings.setdefault(key, []).extend(values)
+    return bindings
+
+
+def _cells_from_sql(
+    store: Store, code: str, target: str | None = None
+) -> tuple[list[Any], dict[str, list[Any]], str | None]:
     from backintel.stores.multi import DIRECTIVE, MultiStore
 
     if isinstance(store, MultiStore) and not DIRECTIVE.match(code):
         if target is None:
-            return [], "evidence names no store, so it could not be re-executed"
+            return [], {}, "evidence names no store, so it could not be re-executed"
         code = f"-- store: {target}\n{code}"
     try:
         result = store.query(code, max_rows=5000)
     except (QueryRefused, NotImplementedError) as error:
-        return [], f"query failed on re-execution: {error}"
-    return [cell for row in result.rows for cell in row], None
+        return [], {}, f"query failed on re-execution: {error}"
+    return (
+        [cell for row in result.rows for cell in row],
+        _report_bindings(result.columns, result.rows),
+        None,
+    )
 
 
-def _cells_from_python(sandbox: PythonSandbox, store: Store, code: str) -> tuple[list[Any], str | None]:
+def _cells_from_python(
+    sandbox: PythonSandbox, store: Store, code: str
+) -> tuple[list[Any], dict[str, list[Any]], str | None]:
     result = sandbox.run(
         code, env=store.python_environment(), mounts=store.python_mounts(), network=store.sandbox_network()
     )
     if result.exit_code != 0:
-        return [], f"program failed on re-execution: {result.stderr[-300:]}"
+        return [], {}, f"program failed on re-execution: {result.stderr[-300:]}"
     text = result.stdout
     numbers = [float(m.replace(",", "")) for m in NUMBER.findall(text)]
     tokens = [t for t in re.split(r"[\s,;|\[\]()'\"]+", text) if t]
-    return [*numbers, *tokens, text], None
+    return [*numbers, *tokens, text], _python_report_bindings(text), None
 
 
 def evidence_reproduces(
@@ -322,25 +377,28 @@ def evidence_reproduces(
     if not answer.evidence:
         return {"score": 0.0, "comment": "no evidence cited"}
     cells: list[Any] = []
+    bindings: dict[str, list[Any]] = {}
     problems = []
     for item in answer.evidence:
-        got, problem = (
+        got, associated, problem = (
             _cells_from_sql(store, item.code, item.store)
             if item.kind in ("sql", "query")
             else _cells_from_python(sandbox, store, item.code)
         )
         cells.extend(got)
+        for key, values in associated.items():
+            bindings.setdefault(key, []).extend(values)
         if problem:
             problems.append(problem)
     tight = Tolerance(rel=1e-4, abs=0.011)  # the agent's own value, allowing display rounding
 
-    def has_number(target: float) -> bool:
-        return any((n := to_number(c)) is not None and within(n, target, tight) for c in cells)
+    def has_number(target: float, candidates: list[Any] = cells) -> bool:
+        return any((n := to_number(c)) is not None and within(n, target, tight) for c in candidates)
 
-    def has_text(target: str) -> bool:
+    def has_text(target: str, candidates: list[Any] = cells) -> bool:
         """The answered text equals, contains, or is contained in some output cell (3+ characters)."""
         norm = normalize_text(target)
-        for c in cells:
+        for c in candidates:
             if not isinstance(c, str):
                 continue
             cell = normalize_text(c)
@@ -353,12 +411,27 @@ def evidence_reproduces(
     if kind == "report":
         values = [(row.get("metric"), row.get("value")) for row in answer.rows or []]
         derived = replay_status(answer) if "planted-change" in scenario.tags else None
-        ok = bool(values) and all(
-            (has_text(v) or (key == "status" and v == derived))
-            if isinstance(v, str)
-            else v is not None and has_number(float(v))
-            for key, v in values
-        )
+
+        def metric_reproduces(key, value):
+            associated = bindings.get(normalize_text(key))
+            if associated:
+                # An explicitly contradictory label cannot be rescued by the number appearing
+                # elsewhere, even in another cited program. Repeated matching results are fine.
+                return all(
+                    has_text(value, [candidate])
+                    if isinstance(value, str)
+                    else value is not None and has_number(float(value), [candidate])
+                    for candidate in associated
+                )
+            # Equivalent SQL aliases and plain Python output need not adopt metric identifiers.
+            # This compatibility path establishes value presence, not metric-level lineage.
+            return (
+                (has_text(value) or (key == "status" and value == derived))
+                if isinstance(value, str)
+                else value is not None and has_number(float(value))
+            )
+
+        ok = bool(values) and all(metric_reproduces(key, value) for key, value in values)
     elif kind == "number":
         value = _answer_number(answer)
         ok = value is not None and has_number(value)
@@ -380,6 +453,9 @@ def evidence_reproduces(
         )
     found = "found" if ok else "not found"
     comment = f"{len(answer.evidence)} evidence item(s) re-executed; value {found} in output"
+    if kind == "report":
+        bound = sum(normalize_text(key) in bindings for key, _ in values)
+        comment += f"; explicit metric/value bindings checked for {bound}/{len(values)} report rows"
     if problems:
         comment += "; " + "; ".join(problems)
     return {"score": float(ok and not problems), "comment": comment}

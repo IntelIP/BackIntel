@@ -264,6 +264,10 @@ def main(argv: list[str] | None = None) -> None:
     sandbox.add_argument("action", choices=("check",))
     sandbox.set_defaults(func=cmd_sandbox)
 
+    from backintel.bench.commands import add_commands
+
+    add_commands(sub)
+
     args = parser.parse_args(argv)
     settings = Settings.from_env()
     if args.command == "bench" and args.action == "run" and not args.store:

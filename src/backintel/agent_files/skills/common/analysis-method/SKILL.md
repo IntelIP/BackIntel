@@ -18,6 +18,12 @@ description: "How to turn a business question into a reproducible, evidence-back
   as text, ids stored as text or integer, prices per unit versus per line.
 - Check how the mess shows up: negative quantities, zero prices, null ids, codes that are not
   products, duplicate rows, statuses other than the one you need.
+- Match the inputs required by the question's formula to the observed fields. Derivable
+  inputs are usable; an absent essential input is a data gap. Once relevant schema and
+  value inspection establishes that gap, explain it in a structured `cannot_answer` result.
+- A successful query returning zero rows can establish absence within its scope. Repeating
+  the same read adds no evidence. A tool error is different: correct the query or use an
+  available alternative before concluding that the data is missing.
 
 ## 3. Compute in one reproducible query
 - Prefer a single aggregate query that outputs the final answer. Cast integers to REAL before
@@ -35,6 +41,8 @@ description: "How to turn a business question into a reproducible, evidence-back
 - `value`: the unrounded number. `unit`: what it counts (GBP, orders, customers, days, share).
 - `method`: filters, joins, formula, conventions, in two to five sentences.
 - `evidence`: the exact SQL or Python that produces the number. Paste it verbatim.
+- For reports, use each requested metric identifier once. Re-run every cited program,
+  including sanity checks; correct a failing program before claiming that it checked the result.
 - `caveats`: data limits that matter for the reading (e.g. "21% of rows have no customer id
   and were excluded"; "dataset covers Dec 2009 to Dec 2011 only").
 - `cannot_answer` when a required field does not exist in the data. Say what is missing.

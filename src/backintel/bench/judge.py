@@ -1,8 +1,7 @@
 """LLM judge for what code cannot check: whether the method and caveats are sound.
 
 The judge is a different model family from the analyst (default Claude Haiku 5.5 via
-OpenRouter) to limit self-preference bias. It answers fixed yes/no rubric questions as
-probabilities from the question and the answer alone; it never sees the reference answer, so
+OpenRouter) to limit self-preference bias. It gives anchored ratings with reasons from the question and the answer alone; it never sees the reference answer, so
 it grades reasoning quality, not correctness, which the deterministic scorers own.
 """
 
@@ -43,7 +42,14 @@ def judge_version() -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:12]
 
 
-def judge_answer(question: str, answer: AnalystAnswer | None, *, model_id: str) -> dict:
+def judge_answer(
+    question: str,
+    answer: AnalystAnswer | None,
+    *,
+    model_id: str,
+    callbacks: list | None = None,
+    max_retries: int = 2,
+) -> dict:
     if answer is None:
         return {"score": 0.0, "comment": "no structured answer", "criteria": {}}
     case = (
@@ -89,8 +95,8 @@ def judge_answer(question: str, answer: AnalystAnswer | None, *, model_id: str) 
         + "\n\n"
         + case
     )
-    judge = build_model(model_id)
-    result = judge.with_structured_output(schema).invoke(prompt)
+    judge = build_model(model_id, max_retries=max_retries)
+    result = judge.with_structured_output(schema).invoke(prompt, config={"callbacks": callbacks or []})
     criteria = {key: float(result[key]["rating"]) / 2 for key in rubric}
     score = sum(criteria.values()) / len(criteria)
     weakest = min(criteria, key=criteria.get)

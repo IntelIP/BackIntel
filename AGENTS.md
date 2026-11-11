@@ -51,9 +51,11 @@ infrastructure last. The agent's value is measured, not asserted.
   `uv run pytest -q`. Tests never call a model provider.
 - Datasets, SQLite files, Parquet and raw results stay out of Git (`.gitignore`). Commit
   download scripts, checksums, reference answers and scorecards.
-- A scenario's reference answer and its tolerance live only in `benchmarks/answers`; the
-  agent sees the store through its tools and nothing else. Keep dataset-specific hints out of
-  the skills: the benchmark measures discovery.
+- Scenario references and tolerances are evaluator-owned: existing cases live in
+  `benchmarks/answers`, controlled development/reserved cases in `benchmarks/acceptance`,
+  and frozen comparison selections in `benchmarks/improvement`. The analyst sees only its
+  question and bound store through its tools. Keep dataset-specific hints and reference
+  answers out of runtime skills and coding-worker inputs: the benchmark measures discovery.
 - Record every experiment's model, source/reference hashes, method version (prompt and skills), sandbox
   backend and git SHA; they are in each record and in the scorecard.
 - A low score is a finding. A broken runner, a skipped store, or a fabricated result is

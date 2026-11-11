@@ -69,5 +69,24 @@ checks both datasets through each native path without model calls. `scripts/run_
 runs the full matrix with the configured paid analyst and judge. The measured matrix is
 listed in the report; the three-question mixed-file probe is explicitly a probe.
 
+## Reliability and supervised improvement
+
+The [improvement goal](docs/improvement-goal.md) defines the additional acceptance work.
+The [data-quality report](docs/data-quality.md) explains the source limitations and independent
+reference checks. The [acceptance specification](docs/acceptance-spec.md) adds 17 development
+cases and 17 reserved variants for data sufficiency, report consistency and changes over time.
+These controlled cases supplement the original benchmark; their existence is not a measured
+improvement in the analyst.
+
+Use the [improvement workflow](docs/improvement-loop.md) for bounded model calls, frozen
+baseline/candidate comparisons, human calibration and the coding worker's restricted inputs.
+`uv run backintel acceptance build --split development` prepares cases without model calls.
+Paid trials require an explicit allowance. A passing comparison produces a candidate for
+review; it does not publish or deploy it. The [roadmap](docs/roadmap.md) explains how this
+evidence informs a controlled pilot and the later scheduling and integration work.
+Completed LangSmith trials, costs, rejection decisions and invalid provider attempts are
+recorded in the [improvement pilot report](results/improvement-pilots.md). Human calibration
+was waived by the owner; method-judge scores remain uncalibrated.
+
 Python-only checks run in GitHub Actions. Publication waits for owner approval under
 AGENTS.md; no production service is deployed by this build.

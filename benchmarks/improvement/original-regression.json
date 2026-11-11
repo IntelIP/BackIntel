@@ -1,0 +1,343 @@
+{
+  "schema": 1,
+  "dataset": "backintel_original_regression_v1",
+  "split": "development",
+  "source_answers": {
+    "path": "benchmarks/answers/olist.json",
+    "sha256": "f0e111bd5c30c8db00d4aa090f9421ad014f76cf39f13793d3ede690f772d952"
+  },
+  "selection_rationale": [
+    {
+      "scenario_id": "olist-l3-07",
+      "role": "failure-reproduction",
+      "rationale": "Re-run the fresh SQLite demo missing-cost case; a useful refusal is required instead of a query loop."
+    },
+    {
+      "scenario_id": "olist-l6-repeat-2017-09",
+      "role": "failure-reproduction",
+      "rationale": "Re-run the original quarterly report that cited a Python check using a store note as a database path; all cited evidence must execute."
+    },
+    {
+      "scenario_id": "olist-l6-2018-03",
+      "role": "failure-reproduction",
+      "rationale": "Re-run the original monthly delivery report that duplicated a metric with inconsistent units; requested metrics must be unique and correctly identified."
+    },
+    {
+      "scenario_id": "olist-l5-01",
+      "role": "healthy-control",
+      "rationale": "The ordinary repeat-purchasing report exercises the same identity/report family without the historical snapshot failure."
+    },
+    {
+      "scenario_id": "olist-l5-02",
+      "role": "healthy-control",
+      "rationale": "The delivery/review standing report protects valid multi-metric calculation and explanation behavior after report validation changes."
+    },
+    {
+      "scenario_id": "olist-l1-01",
+      "role": "healthy-control",
+      "rationale": "A simple exact numerical query protects ordinary answerable behavior against an overly broad refusal or stopping rule."
+    }
+  ],
+  "selection_scope": "Three original failure reproductions plus three complementary healthy controls. This is a focused regression comparison, not a new population benchmark or an estimate of production reliability.",
+  "definition_policy": "Full original Scenario records are preserved; only formerly implicit sqlite:olist bindings are made explicit. No historical answer output, score or judge commentary is sent to the analyst.",
+  "analyst_visibility": "The analyst receives only each question and its corresponding read-only SQLite store. This manifest, expected answers, selection roles and historical rationale belong to the evaluator.",
+  "scenarios": [
+    {
+      "id": "olist-l3-07",
+      "dataset": "olist",
+      "level": 3,
+      "question": "What was Olist's net profit in 2017?",
+      "answer_type": "number",
+      "expected": null,
+      "tolerance": {
+        "rel": 0.002,
+        "abs": null
+      },
+      "unit": "BRL",
+      "answerable": false,
+      "tags": [
+        "unanswerable",
+        "missing-cost"
+      ],
+      "notes": "No cost or margin data exists; the right answer is cannot_answer.",
+      "store": "sqlite:olist"
+    },
+    {
+      "id": "olist-l6-repeat-2017-09",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Simulated quarterly review as of the end of 2017-09. Standing problem: how healthy is repeat purchasing? Report one metric per row: (1) the share of people (customer_unique_id) with more than one order, across all orders regardless of status; (2) the average number of orders among those repeat customers; (3) the share of item revenue (sum of item price over orders with status 'delivered') that came from repeat customers' orders; (4) the calendar month (YYYY-MM) in which the most people placed their first order. Then say what the numbers mean together. Use these metric identifiers in rows: repeat_customer_share, avg_orders_per_repeat_customer, repeat_revenue_share, month_most_first_orders.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "repeat_customer_share",
+          "value": 0.027378328913457588,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "avg_orders_per_repeat_customer",
+          "value": 2.1036834924965895,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "repeat_revenue_share",
+          "value": 0.05067740121206707,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "month_most_first_orders",
+          "value": "2017-08",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "quarterly",
+        "repeat"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2017-09"
+    },
+    {
+      "id": "olist-l6-2018-03",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-03 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-03 with orders purchased in 2018-02, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 12.241424543049542,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 15.007036209242397,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.1842876653079304,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_RJ",
+          "value": "RJ",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 12.632831920169231,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 18.436029736228864,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.3147748131831063,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_SP",
+          "value": "SP",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 8.069247442977355,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 10.956142073318503,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": -0.26349554533174624,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-03"
+    },
+    {
+      "id": "olist-l5-01",
+      "dataset": "olist",
+      "level": 5,
+      "question": "Standing problem: how healthy is repeat purchasing? Report one metric per row: (1) the share of people (customer_unique_id) with more than one order, across all orders regardless of status; (2) the average number of orders among those repeat customers; (3) the share of item revenue (sum of item price over orders with status 'delivered') that came from repeat customers' orders; (4) the calendar month (YYYY-MM) in which the most people placed their first order. Then say what the numbers mean together. Use these metric identifiers in rows: repeat_customer_share, avg_orders_per_repeat_customer, repeat_revenue_share, month_most_first_orders.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "repeat_customer_share",
+          "value": 0.031187562437562436,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "avg_orders_per_repeat_customer",
+          "value": 2.116116116116116,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "repeat_revenue_share",
+          "value": 0.057510718806130824,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "month_most_first_orders",
+          "value": "2017-11",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "standing-problem",
+        "identity",
+        "cohort"
+      ],
+      "notes": null,
+      "store": "sqlite:olist"
+    },
+    {
+      "id": "olist-l5-02",
+      "dataset": "olist",
+      "level": 5,
+      "question": "Standing problem: how do delivery performance and customer satisfaction relate? Over orders with status 'delivered' that have a customer delivery date, report one metric per row: (1) the average delivery time in fractional days from purchase to customer delivery; (2) the share of those orders delivered after the estimated delivery date; (3) the average review score of late orders and (4) of on-time orders, averaging over review rows; (5) the customer state (two-letter code) with the longest average delivery time among states with at least 500 such orders. Then say what the numbers mean together, without claiming causes the data cannot show. Use these metric identifiers in rows: avg_delivery_days, late_share, avg_review_score_late, avg_review_score_on_time, slowest_state_500_plus.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "avg_delivery_days",
+          "value": 12.558217098051975,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "late_share",
+          "value": 0.08112366538820359,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "avg_review_score_late",
+          "value": 2.5664935064935066,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "avg_review_score_on_time",
+          "value": 4.2937182046856845,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "slowest_state_500_plus",
+          "value": "PA",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "standing-problem",
+        "dates",
+        "join"
+      ],
+      "notes": null,
+      "store": "sqlite:olist"
+    },
+    {
+      "id": "olist-l1-01",
+      "dataset": "olist",
+      "level": 1,
+      "question": "How many orders have the status 'delivered'?",
+      "answer_type": "number",
+      "expected": 96478.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "orders",
+      "answerable": true,
+      "tags": [
+        "count",
+        "filter"
+      ],
+      "notes": null,
+      "store": "sqlite:olist"
+    }
+  ],
+  "stores": {
+    "sqlite:olist": {
+      "path": "stores/sqlite/olist.sqlite",
+      "sha256": "a4186389a6145463f1b077717439c71972a29d0c6bf01aeae274170138224dbf",
+      "size_bytes": 113442816
+    },
+    "sqlite:olist_asof_2017-09": {
+      "path": "stores/sqlite/olist_asof_2017-09.sqlite",
+      "sha256": "8c8ef25148504a8626bd14986bba14c2c163719f7838aaba8ee98c71fcb6a44a",
+      "size_bytes": 46125056
+    },
+    "sqlite:olist_asof_2018-03": {
+      "path": "stores/sqlite/olist_asof_2018-03.sqlite",
+      "sha256": "95a15f7f9d0f932f29e2753972e8eff19780149a6fa43f4230837fb08a1bb963",
+      "size_bytes": 81940480
+    }
+  },
+  "reference_hash": "ff8ec2d2417b412f",
+  "data_hash": "a4ed0a7916f7d6c64b806cf1bb2a6f29ea3adf648856955f1f74e7f9f415e318"
+}

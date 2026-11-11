@@ -1,0 +1,60 @@
+{
+  "packet_hash": "a7a31ba650f987a4ab232e59a3971dfa5db10438096e07fee8f5f21a63140304",
+  "reviewer": null,
+  "reviewer_type": "human",
+  "reviewed_at": null,
+  "cases": {
+    "review-01": {
+      "ratings": {
+        "conventions_stated": null,
+        "method_matches_question": null,
+        "no_overreach": null,
+        "caveats_material": null
+      },
+      "comment": null
+    },
+    "review-02": {
+      "ratings": {
+        "gap_is_real": null,
+        "no_fabrication": null,
+        "names_what_is_needed": null
+      },
+      "comment": null
+    },
+    "review-03": {
+      "ratings": {
+        "conventions_stated": null,
+        "method_matches_question": null,
+        "no_overreach": null,
+        "caveats_material": null
+      },
+      "comment": null
+    },
+    "review-04": {
+      "ratings": {
+        "conventions_stated": null,
+        "method_matches_question": null,
+        "no_overreach": null,
+        "caveats_material": null
+      },
+      "comment": null
+    },
+    "review-05": {
+      "ratings": {
+        "gap_is_real": null,
+        "no_fabrication": null,
+        "names_what_is_needed": null
+      },
+      "comment": null
+    },
+    "review-06": {
+      "ratings": {
+        "conventions_stated": null,
+        "method_matches_question": null,
+        "no_overreach": null,
+        "caveats_material": null
+      },
+      "comment": null
+    }
+  }
+}

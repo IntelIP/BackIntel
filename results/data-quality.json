@@ -1,0 +1,448 @@
+{
+  "datasets": [
+    {
+      "dataset": "olist",
+      "recorded_at": "2026-11-11T02:08:42.463360+00:00",
+      "source_url": "https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce",
+      "archive_sha256": "967e41e04fc306fe604e2a693f488995a8b41e5047418f8a5c8e4abd6deca784",
+      "canonical_sha256": {
+        "customers.parquet": "c4f674cff4a2b564199ea8faf535a4aa0a28a52352ef132e49e7b9ec462c916d",
+        "geolocation.parquet": "c437beeea198f406f2a387fe398823733ba22b3d788e0b00b9f497f8f170a3db",
+        "order_items.parquet": "ca0b0dff1e7763b02b7b086c4664f676f9d52fa0cddd32f0b600be27be3210c2",
+        "order_payments.parquet": "7ccab02d8d3855b6e268871759a7d166b9eea675f8a513587beb5a36695cf5c1",
+        "order_reviews.parquet": "6dee3b68eb599b2831291fe1df0e684f480753d70e916e851c074f7ba14f8c8e",
+        "orders.parquet": "5e1b8cd6eb77c4f29d991bcdb678634fa12a741658aa85d35c30a088f0a6aaeb",
+        "product_category_translation.parquet": "227e4cc04db4999b9e11f8eefab848c000e15a27b552ed2975e9cabdc1f50117",
+        "products.parquet": "961c3107a450ba7301ba02f36dad1983662912f3ecd5bf7cf99524043857b180",
+        "sellers.parquet": "3e6540d2506e10a6f700974ca4b0b4e830678898ad9183ed66d886fe4648e9c2"
+      },
+      "tables": {
+        "customers": {
+          "rows": 99441,
+          "columns": {
+            "customer_id": "String",
+            "customer_unique_id": "String",
+            "customer_zip_code_prefix": "Int64",
+            "customer_city": "String",
+            "customer_state": "String"
+          },
+          "nulls": {
+            "customer_id": 0,
+            "customer_unique_id": 0,
+            "customer_zip_code_prefix": 0,
+            "customer_city": 0,
+            "customer_state": 0
+          },
+          "exact_duplicate_surplus": 0,
+          "key_columns": [
+            "customer_id"
+          ],
+          "duplicate_key_surplus": 0,
+          "date_ranges": {}
+        },
+        "geolocation": {
+          "rows": 1000163,
+          "columns": {
+            "geolocation_zip_code_prefix": "Int64",
+            "geolocation_lat": "Float64",
+            "geolocation_lng": "Float64",
+            "geolocation_city": "String",
+            "geolocation_state": "String"
+          },
+          "nulls": {
+            "geolocation_zip_code_prefix": 0,
+            "geolocation_lat": 0,
+            "geolocation_lng": 0,
+            "geolocation_city": 0,
+            "geolocation_state": 0
+          },
+          "exact_duplicate_surplus": 261831,
+          "date_ranges": {}
+        },
+        "order_items": {
+          "rows": 112650,
+          "columns": {
+            "order_id": "String",
+            "order_item_id": "Int64",
+            "product_id": "String",
+            "seller_id": "String",
+            "shipping_limit_date": "Datetime(time_unit='us', time_zone=None)",
+            "price": "Float64",
+            "freight_value": "Float64"
+          },
+          "nulls": {
+            "order_id": 0,
+            "order_item_id": 0,
+            "product_id": 0,
+            "seller_id": 0,
+            "shipping_limit_date": 0,
+            "price": 0,
+            "freight_value": 0
+          },
+          "exact_duplicate_surplus": 0,
+          "key_columns": [
+            "order_id",
+            "order_item_id"
+          ],
+          "duplicate_key_surplus": 0,
+          "date_ranges": {
+            "shipping_limit_date": {
+              "min": "2016-09-19 00:15:34",
+              "max": "2020-04-09 22:35:08"
+            }
+          }
+        },
+        "order_payments": {
+          "rows": 103886,
+          "columns": {
+            "order_id": "String",
+            "payment_sequential": "Int64",
+            "payment_type": "String",
+            "payment_installments": "Int64",
+            "payment_value": "Float64"
+          },
+          "nulls": {
+            "order_id": 0,
+            "payment_sequential": 0,
+            "payment_type": 0,
+            "payment_installments": 0,
+            "payment_value": 0
+          },
+          "exact_duplicate_surplus": 0,
+          "key_columns": [
+            "order_id",
+            "payment_sequential"
+          ],
+          "duplicate_key_surplus": 0,
+          "date_ranges": {}
+        },
+        "order_reviews": {
+          "rows": 99224,
+          "columns": {
+            "review_id": "String",
+            "order_id": "String",
+            "review_score": "Int64",
+            "review_comment_title": "String",
+            "review_comment_message": "String",
+            "review_creation_date": "Datetime(time_unit='us', time_zone=None)",
+            "review_answer_timestamp": "Datetime(time_unit='us', time_zone=None)"
+          },
+          "nulls": {
+            "review_id": 0,
+            "order_id": 0,
+            "review_score": 0,
+            "review_comment_title": 87656,
+            "review_comment_message": 58247,
+            "review_creation_date": 0,
+            "review_answer_timestamp": 0
+          },
+          "exact_duplicate_surplus": 0,
+          "date_ranges": {
+            "review_creation_date": {
+              "min": "2016-10-02 00:00:00",
+              "max": "2018-08-31 00:00:00"
+            },
+            "review_answer_timestamp": {
+              "min": "2016-10-07 18:32:28",
+              "max": "2018-10-29 12:27:35"
+            }
+          }
+        },
+        "orders": {
+          "rows": 99441,
+          "columns": {
+            "order_id": "String",
+            "customer_id": "String",
+            "order_status": "String",
+            "order_purchase_timestamp": "Datetime(time_unit='us', time_zone=None)",
+            "order_approved_at": "Datetime(time_unit='us', time_zone=None)",
+            "order_delivered_carrier_date": "Datetime(time_unit='us', time_zone=None)",
+            "order_delivered_customer_date": "Datetime(time_unit='us', time_zone=None)",
+            "order_estimated_delivery_date": "Datetime(time_unit='us', time_zone=None)"
+          },
+          "nulls": {
+            "order_id": 0,
+            "customer_id": 0,
+            "order_status": 0,
+            "order_purchase_timestamp": 0,
+            "order_approved_at": 160,
+            "order_delivered_carrier_date": 1783,
+            "order_delivered_customer_date": 2965,
+            "order_estimated_delivery_date": 0
+          },
+          "exact_duplicate_surplus": 0,
+          "key_columns": [
+            "order_id"
+          ],
+          "duplicate_key_surplus": 0,
+          "date_ranges": {
+            "order_purchase_timestamp": {
+              "min": "2016-09-04 21:15:19",
+              "max": "2018-10-17 17:30:18"
+            },
+            "order_approved_at": {
+              "min": "2016-09-15 12:16:38",
+              "max": "2018-09-03 17:40:06"
+            },
+            "order_delivered_carrier_date": {
+              "min": "2016-10-08 10:34:01",
+              "max": "2018-09-11 19:48:28"
+            },
+            "order_delivered_customer_date": {
+              "min": "2016-10-11 13:46:32",
+              "max": "2018-10-17 13:22:46"
+            },
+            "order_estimated_delivery_date": {
+              "min": "2016-09-30 00:00:00",
+              "max": "2018-11-12 00:00:00"
+            }
+          }
+        },
+        "product_category_translation": {
+          "rows": 71,
+          "columns": {
+            "product_category_name": "String",
+            "product_category_name_english": "String"
+          },
+          "nulls": {
+            "product_category_name": 0,
+            "product_category_name_english": 0
+          },
+          "exact_duplicate_surplus": 0,
+          "key_columns": [
+            "product_category_name"
+          ],
+          "duplicate_key_surplus": 0,
+          "date_ranges": {}
+        },
+        "products": {
+          "rows": 32951,
+          "columns": {
+            "product_id": "String",
+            "product_category_name": "String",
+            "product_name_lenght": "Int64",
+            "product_description_lenght": "Int64",
+            "product_photos_qty": "Int64",
+            "product_weight_g": "Int64",
+            "product_length_cm": "Int64",
+            "product_height_cm": "Int64",
+            "product_width_cm": "Int64"
+          },
+          "nulls": {
+            "product_id": 0,
+            "product_category_name": 610,
+            "product_name_lenght": 610,
+            "product_description_lenght": 610,
+            "product_photos_qty": 610,
+            "product_weight_g": 2,
+            "product_length_cm": 2,
+            "product_height_cm": 2,
+            "product_width_cm": 2
+          },
+          "exact_duplicate_surplus": 0,
+          "key_columns": [
+            "product_id"
+          ],
+          "duplicate_key_surplus": 0,
+          "date_ranges": {}
+        },
+        "sellers": {
+          "rows": 3095,
+          "columns": {
+            "seller_id": "String",
+            "seller_zip_code_prefix": "Int64",
+            "seller_city": "String",
+            "seller_state": "String"
+          },
+          "nulls": {
+            "seller_id": 0,
+            "seller_zip_code_prefix": 0,
+            "seller_city": 0,
+            "seller_state": 0
+          },
+          "exact_duplicate_surplus": 0,
+          "key_columns": [
+            "seller_id"
+          ],
+          "duplicate_key_surplus": 0,
+          "date_ranges": {}
+        }
+      },
+      "scope": "Canonical data and selected analytical risks; not a source-system audit.",
+      "relationships": {
+        "orders_without_customer": 0,
+        "order_items_without_order": 0,
+        "order_payments_without_order": 0,
+        "order_reviews_without_order": 0,
+        "items_without_product": 0,
+        "items_without_seller": 0
+      },
+      "analytical_risks": {
+        "delivered_without_delivery_date": 8,
+        "eligible_delivery_orders": 96470,
+        "eligible_orders_without_review": 646,
+        "eligible_review_rows": 96353,
+        "review_id_duplicate_surplus": 814,
+        "orders_with_multiple_review_rows": 547,
+        "orders_with_multiple_payment_rows": 2961,
+        "customer_rows": 99441,
+        "distinct_people": 96096,
+        "negative_delivery_durations": 0,
+        "products_missing_category": 610,
+        "cost_ledger_present": false,
+        "causal_assignment_present": false
+      }
+    },
+    {
+      "dataset": "online_retail_ii",
+      "recorded_at": "2026-11-11T02:08:42.719044+00:00",
+      "source_url": "https://archive.ics.uci.edu/dataset/502/online+retail+ii",
+      "archive_sha256": "572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb",
+      "canonical_sha256": {
+        "transactions.parquet": "f47a53ed26228e7c4e05152fa7197645d7003c3c4923b7dc615fd3e7faf82e09"
+      },
+      "tables": {
+        "transactions": {
+          "rows": 1067371,
+          "columns": {
+            "invoice": "String",
+            "stock_code": "String",
+            "description": "String",
+            "quantity": "Int64",
+            "invoice_date": "Datetime(time_unit='us', time_zone=None)",
+            "price": "Float64",
+            "customer_id": "Int64",
+            "country": "String"
+          },
+          "nulls": {
+            "invoice": 0,
+            "stock_code": 0,
+            "description": 4382,
+            "quantity": 0,
+            "invoice_date": 0,
+            "price": 0,
+            "customer_id": 243007,
+            "country": 0
+          },
+          "exact_duplicate_surplus": 34335,
+          "date_ranges": {
+            "invoice_date": {
+              "min": "2009-12-01 07:45:00",
+              "max": "2011-12-09 12:50:00"
+            }
+          }
+        }
+      },
+      "scope": "Canonical data and selected analytical risks; not a source-system audit.",
+      "analytical_risks": {
+        "missing_customer_id": 243007,
+        "negative_quantity_rows": 22950,
+        "nonpositive_price_rows": 6207,
+        "cancellation_invoice_rows": 19494,
+        "non_cancellation_negative_quantity_rows": 3457,
+        "source_sheet_is_provenance_only": true,
+        "cost_ledger_present": false,
+        "acquisition_channel_present": false
+      }
+    }
+  ],
+  "reference_checks": [
+    {
+      "scenario_id": "olist-l1-01",
+      "sql": "SELECT COUNT(*) FROM orders WHERE order_status='delivered'",
+      "actual": 96478,
+      "expected": 96478.0,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "olist-l1-02",
+      "sql": "SELECT COUNT(DISTINCT customer_unique_id) FROM customers",
+      "actual": 96096,
+      "expected": 96096.0,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "olist-l2-02",
+      "sql": "SELECT AVG(julianday(order_delivered_customer_date)-julianday(order_purchase_timestamp)) FROM orders WHERE order_status='delivered' AND order_delivered_customer_date IS NOT NULL",
+      "actual": 12.558217098051923,
+      "expected": 12.558217098051975,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "olist-l2-04",
+      "sql": "SELECT AVG(r.review_score) FROM orders o JOIN order_reviews r ON o.order_id=r.order_id WHERE o.order_status='delivered' AND o.order_delivered_customer_date>o.order_estimated_delivery_date",
+      "actual": 2.5664935064935066,
+      "expected": 2.5664935064935066,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "olist-l2-07",
+      "sql": "SELECT AVG(CASE WHEN n>1 THEN 1.0 ELSE 0 END) FROM (SELECT c.customer_unique_id, COUNT(*) n FROM orders o JOIN customers c ON o.customer_id=c.customer_id GROUP BY c.customer_unique_id)",
+      "actual": 0.031187562437562436,
+      "expected": 0.031187562437562436,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "olist-l3-01",
+      "sql": "SELECT COUNT(*) FROM orders WHERE order_status='delivered' AND order_delivered_customer_date IS NULL",
+      "actual": 8,
+      "expected": 8.0,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "olist-l3-04",
+      "sql": "SELECT COUNT(*)-COUNT(DISTINCT review_id) FROM order_reviews",
+      "actual": 814,
+      "expected": 814.0,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "orii-l1-01",
+      "sql": "SELECT COUNT(*) FROM transactions",
+      "actual": 1067371,
+      "expected": 1067371.0,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "orii-l1-02",
+      "sql": "SELECT SUM(quantity*price) FROM transactions WHERE invoice_date>='2011-03-01' AND invoice_date<'2011-04-01' AND invoice NOT LIKE 'C%'",
+      "actual": 717639.36,
+      "expected": 717639.3600000001,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "orii-l3-01",
+      "sql": "SELECT (SELECT COUNT(*) FROM transactions)-COUNT(*) FROM (SELECT DISTINCT invoice, stock_code, description, quantity, invoice_date, price, customer_id, country FROM transactions)",
+      "actual": 34335,
+      "expected": 34335.0,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "orii-l3-03",
+      "sql": "SELECT SUM(quantity*price) FROM transactions WHERE invoice_date>='2011-01-01' AND invoice_date<'2011-12-10'",
+      "actual": 8998808.914,
+      "expected": 8998808.914,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    },
+    {
+      "scenario_id": "orii-l3-05",
+      "sql": "SELECT AVG(CASE WHEN customer_id IS NULL THEN 1.0 ELSE 0 END) FROM transactions WHERE invoice_date>='2011-01-01' AND invoice_date<'2011-12-10'",
+      "actual": 0.23917113343438207,
+      "expected": 0.23917113343438207,
+      "matches": true,
+      "independence": "SQLite SQL on store copy versus existing Polars reference; shared source parsing is not independently verified."
+    }
+  ],
+  "human_review": "pending; automated checks are not human calibration"
+}

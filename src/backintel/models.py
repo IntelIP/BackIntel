@@ -29,8 +29,14 @@ def parse_model_id(model_id: str) -> tuple[str, str]:
 
 
 def build_model(
-    model_id: str, *, env: dict[str, str] | None = None, temperature: float | None = None
+    model_id: str,
+    *,
+    env: dict[str, str] | None = None,
+    temperature: float | None = None,
+    max_retries: int = 2,
 ) -> BaseChatModel:
+    if max_retries < 0:
+        raise ValueError("max_retries must be non-negative")
     env = os.environ if env is None else env
     provider, name = parse_model_id(model_id)
     if provider == "openrouter":
@@ -47,7 +53,7 @@ def build_model(
             model=name,
             api_key=key,
             base_url=OPENROUTER_URL,
-            max_retries=2,
+            max_retries=max_retries,
             max_tokens=int(env.get("BACKINTEL_MAX_COMPLETION_TOKENS", "8192")),
             timeout=300,
             # OpenRouter returns the request's cost with usage when asked; it lands in
@@ -67,7 +73,7 @@ def build_model(
         key = env.get("OPENAI_API_KEY")
         if not key:
             raise RuntimeError("OPENAI_API_KEY is not set.")
-        return ChatOpenAI(model=name, api_key=key, max_retries=2, timeout=300)
+        return ChatOpenAI(model=name, api_key=key, max_retries=max_retries, timeout=300)
     raise ValueError(f"Unknown provider {provider!r}; use openrouter, chatgpt-plan or openai.")
 
 
