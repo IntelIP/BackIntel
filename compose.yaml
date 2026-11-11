@@ -1,0 +1,56 @@
+name: backintel-v2
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    container_name: backintel-clickhouse
+    profiles: [clickhouse]
+    mem_limit: 1536m
+    ports: ["127.0.0.1:18123:8123"]
+    environment:
+      CLICKHOUSE_USER: loader
+      CLICKHOUSE_PASSWORD: backintel-local-loader
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse:/var/lib/clickhouse
+    networks: [stores, hostlink]
+  documentdb:
+    image: ghcr.io/ferretdb/postgres-documentdb:17-0.107.0-ferretdb-2.7.0
+    profiles: [ferretdb]
+    mem_limit: 1024m
+    environment:
+      POSTGRES_USER: loader
+      POSTGRES_PASSWORD: backintel-local-loader
+      POSTGRES_DB: postgres
+    volumes:
+      - documentdb:/var/lib/postgresql/data
+    networks: [stores, hostlink]
+  ferretdb:
+    image: ghcr.io/ferretdb/ferretdb:2.7.0
+    container_name: backintel-ferretdb
+    profiles: [ferretdb]
+    mem_limit: 256m
+    depends_on: [documentdb]
+    ports: ["127.0.0.1:27018:27017"]
+    environment:
+      FERRETDB_POSTGRESQL_URL: postgres://loader:backintel-local-loader@documentdb:5432/postgres
+      FERRETDB_TELEMETRY: disabled
+    networks: [stores, hostlink]
+  garage:
+    image: dxflrs/garage:v2.1.0
+    container_name: backintel-garage
+    profiles: [lake]
+    mem_limit: 512m
+    ports: ["127.0.0.1:13900:3900"]
+    volumes:
+      - ./data/stores/garage/garage.toml:/etc/garage.toml:ro
+      - garage:/var/lib/garage
+    networks: [stores, hostlink]
+networks:
+  hostlink: {}
+  stores:
+    external: true
+    name: backintel-net
+volumes:
+  clickhouse:
+  documentdb:
+  garage:

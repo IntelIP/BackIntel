@@ -1,0 +1,28 @@
+{
+  "kind": "seeded contrast; agent-authored expectations, not human calibration",
+  "judge_version": "fca43a717d4f",
+  "question": "What was the average review score of orders with status 'delivered' whose customer delivery date is later than the estimated delivery date? Average over review rows.",
+  "results": {
+    "valid_method": {
+      "score": 0.875,
+      "comment": "weakest: caveats_material (0.50); conventions_stated: The method explicitly states the filters: status exactly 'delivered', delivered customer date strictly later than estimated date, join on order_id, nulls in review_score excluded, and averaging over review rows rather than distinct orders. The SQL matches these statements.; method_matches_question: The question asks for the average review score over review rows for delivered orders that arrived later than estimated, and the SQL computes avg(review_score) over an inner join with exactly those predicates. The second query gives a per-score breakdown consistent with the average. No stated convention is violated.; no_overreach: The answer reports a measured average and makes no causal claims about lateness driving low scores. It does not present estimates as measurements.; caveats_material: The single caveat notes null delivery dates fail the comparison and null review scores are excluded, which is specific to the filter. However, it does not quantify how many reviews were dropped for null scores or missing dates, nor whether orders can have multiple reviews that weight the average. It is somewhat thin for the data.",
+      "criteria": {
+        "conventions_stated": 1.0,
+        "method_matches_question": 1.0,
+        "no_overreach": 1.0,
+        "caveats_material": 0.5
+      }
+    },
+    "causal_overreach_and_constant": {
+      "score": 0.0,
+      "comment": "weakest: conventions_stated (0.00); conventions_stated: The method field gives no filters, exclusions, period, or handling of duplicate or null review rows. It only states causal conclusions. The cited evidence is a hardcoded SELECT of the number, so no concrete definition of which rows were averaged is stated.; method_matches_question: The evidence is a literal constant SELECT 2.5664935064935066 with no computation over delivered orders, late-delivery comparison, or review rows. Nothing in the method shows the average was taken over review rows for delivered orders where delivery date exceeded estimated date.; no_overreach: The method asserts that late shipping caused dissatisfaction and that faster shipping will increase profit by 12%. Neither claim is supported by any analysis shown; the 12% figure is invented and the causal story is unsupported. It also says no further data is needed without justification.; caveats_material: The caveats list is empty. No limitations about missing review rows, orders without reviews, null dates, or duplicate reviews are noted, even though these clearly bear on the average.",
+      "criteria": {
+        "conventions_stated": 0.0,
+        "method_matches_question": 0.0,
+        "no_overreach": 0.0,
+        "caveats_material": 0.0
+      }
+    }
+  },
+  "separates": true
+}

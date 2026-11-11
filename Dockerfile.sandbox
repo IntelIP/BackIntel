@@ -1,0 +1,9 @@
+# The analyst's Python sandbox image: a plain interpreter with the data libraries it may use.
+# Build: docker build -f Dockerfile.sandbox -t backintel-sandbox:py312 .
+FROM python:3.12-slim
+RUN pip install --no-cache-dir polars==2.1.0 pandas==3.1.1 numpy scipy connectorx duckdb==2.0.0 \
+    "psycopg[binary]==3.3.8" pymongo clickhouse-connect \
+ && useradd -m -u 10001 analyst
+USER analyst
+RUN python -c "import duckdb; c=duckdb.connect(); c.execute('INSTALL httpfs'); c.execute('INSTALL avro'); c.execute('INSTALL iceberg'); c.execute('LOAD iceberg')"
+WORKDIR /work

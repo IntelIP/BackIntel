@@ -1,71 +1,73 @@
-# BackIntel — Demo Proof of Concept
+# BackIntel v2
 
-BackIntel helps a reviewer inspect an operational finding, check its evidence, and record a decision. This repository contains a runnable recorded demo and the developing analysis system behind it.
+An ambient data-analyst agent built on the Deep Agents SDK, benchmarked before it is
+productised. One lead agent, no sub-agents, native read-only queries, schema discovery, sandboxed
+Python and storage skills, and an answer contract whose numbers are re-checked by code.
 
-**Status: demonstration proof of concept.** The recorded demo uses synthetic business data and saved results. The current analysis workspace uses known dataset formats. Autonomous collection and preparation of unfamiliar data remain future work.
+## Quick start
 
-[Try the recorded demo](#try-the-recorded-demo) · [Current capabilities](docs/demo/PoCStatus.txt) · [Architecture](docs/architecture/current-system.md) · [Future product concept](docs/research/autonomous-workflow-concept.txt)
-
-## Try the recorded demo
-
-Requirements: Python 3.10 or later and an unzip utility. From this repository checkout:
-
-```sh
-unzip docs/demo/Packages/BackIntelDemoBusinessV4.zip -d /path/to/a/new/demo-folder
-python3 -m scripts.package_business_demo --package-root /path/to/a/new/demo-folder/BackIntelDemo --check
-python3 -m scripts.package_business_demo --package-root /path/to/a/new/demo-folder/BackIntelDemo
+```bash
+uv sync
+doppler run -p backintel -c dev -- uv run backintel data build all      # download + canonical + SQLite
+doppler run -p backintel -c dev -- uv run backintel oracle build all    # reference answers
+docker build -f Dockerfile.sandbox -t backintel-sandbox:py312 .         # the Python sandbox
+doppler run -p backintel -c dev -- uv run backintel sandbox check
+doppler run -p backintel -c dev -- uv run backintel ask --store sqlite:olist "How many orders were delivered?"
+doppler run -p backintel -c dev -- uv run backintel bench run --dataset olist --levels 1,2,3
+doppler run -p backintel -c dev -- uv run backintel bench scorecard
 ```
 
-Open <http://127.0.0.1:2053/>. Stop with Ctrl-C. Add `--port 2054` to the serving command if that port is occupied. Extract into a new folder to preserve any previous demo reviews.
+Environment (from Doppler): `OPENROUTER_API_KEY`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`,
+`LANGSMITH_TRACING`, optional `BACKINTEL_MODEL`, `BACKINTEL_JUDGE_MODEL`,
+`BACKINTEL_SANDBOX` (`docker` or `subprocess`), `BACKINTEL_DATA_DIR`. Kaggle downloads read
+`~/.kaggle/access_token` or `KAGGLE_API_TOKEN`.
 
-Run these commands from a trusted repository checkout. The launcher checks the archive against the checkout’s receipt and verifies the extracted files before serving them. It imports no Python code from the extracted package. An embedded `RunDemo.py --check` cannot establish trust in an altered or redistributed package by itself.
+## Datasets
 
-The package includes the built interface and saved results. It needs no Node installation, database server, model download, provider key, or paid inference. New review notes are saved under `~/.local/state/backintel/recorded-demos`, separately for each extracted package location and manifest. Saved reviews supplied inside a redistributed package are ignored; the verified seed supplies the initial review state.
+| Dataset | Source | Licence | Used for |
+|---|---|---|---|
+| Online Retail II | UCI Machine Learning Repository (id 502) | CC BY 4.0 | single-table and messy-data levels |
+| Brazilian E-Commerce (Olist) | Kaggle `olistbr/brazilian-ecommerce` | CC BY-NC-SA 4.0 | joins and messy-data levels |
 
-Follow the [five-minute narration](docs/demo/SupportNarration.txt): inspect the original support message, interpretation, prediction comparison, corrected result, and recorded human decision. See [package instructions](docs/demo/DemoPackage.txt) for details.
+Raw files never enter Git. `backintel data build` downloads them, verifies the pinned SHA-256,
+writes typed Parquet copies under `data/canonical/` and loads SQLite stores under `data/stores/`.
 
-The archive is a historical recording, with its original source identity and limitations retained in its manifest. Running it does not execute the current analysis engine or prove current live-model performance.
+## Benchmark
 
-## Choose the right entry point
+Seven levels; all have scenarios, stores and scoring:
 
-| Purpose | Entry point | Execution boundary |
-| --- | --- | --- |
-| Show findings, evidence, and a human decision | Recorded ZIP above | Saved results; no new model calls. |
-| Exercise the workflow without external services | `python3 -m scripts.simulate` | Synthetic data and simulated model responses. |
-| Develop the current analysis workspace | [`apps/web` runbook](docs/architecture/analysis-workspace-runbook.md) | Local database and workers; hosted analysis requires separate setup and spending authority. |
-| Develop the earlier decision-review interface | [`frontend` guide](frontend/README.md) | Local review API; includes an optional Reflex interface. |
+1. **Single table**: filters, aggregates, rankings with stated conventions.
+2. **Joins / multi-step**: three-table joins, ratios, identity resolution.
+3. **Messy data**: duplicated exports, cancellations as negative quantities, null ids,
+   non-product codes, untranslated categories, grain mismatches, and questions the data
+   cannot answer (the right answer is to decline).
+4. **Cross-store**: the same dataset split across PostgreSQL and SQLite; answers need both.
+5. **Standing problems**: one problem, several facets, answered as a report that tells a story.
+6. **Ambient replay**: monthly delivery, quarterly repeat-purchasing, and weekly category/seller questions against
+   snapshots that hide future observations, with a
+   planted step change (declared in `bench/replay.py`) among the data's natural variation.
+7. **Scale**: TPC-H generated at a chosen scale factor and queried as a Parquet lake.
 
-The simulation writes reports under `~/Library/Application Support/BackIntel/Evidence/Simulation` by default. Use `--output /absolute/path` to choose another location.
+Stores: `sqlite`, `postgres`, `ferretdb`, `lake-iceberg` (Iceberg on Garage S3 through DuckDB),
+`clickhouse`, `files` (CSV), `files-mixed` (CSV/JSON), `lake-parquet` (local-file baseline), and
+`multi` (several at once). Build them with `backintel data build all`,
+`backintel split build`, `backintel replay build`, `backintel tpch generate --sf 1`.
 
-## What is demonstrated
+Scores, all recorded as LangSmith feedback and in `results/`:
 
-The current source includes saved questions, source permissions, versioned data snapshots, evidence-linked findings, local predictor comparisons, corrections, durable jobs, and recovery checks. Each analysis goal belongs to one domain.
+- `correct`: answer matches the polars-computed reference within the scenario's tolerance.
+- `evidence_reproduces`: the cited SQL/Python is re-executed read-only and yields the answer.
+- `abstention_correct`: answered when answerable, declined when not.
+- `judge_method`: a cross-family LLM rubric on conventions, method fit, overreach, caveats.
+- `fully_supported`: correct + evidence + abstention, the headline number.
 
-The October 6 consolidation campaign at `8f3cb28` recorded 162 passing Python tests and 50 passing scenarios, with six blocked cases. Four available domains ran real local predictors. Offline workflow checks used simulated analyst responses. These are historical results for that source revision; see [scope and limitations](docs/demo/PoCStatus.txt).
+See [the capability report](docs/results.md) for the measured outcome and limitations,
+[the scorecard](results/scorecard.md) for all experiments, and [the benchmark specification](docs/benchmark.md)
+for exact scoring and reproduction commands. `doppler run -p backintel -c dev --
+scripts/prepare_testbed.sh` prepares every local store; `uv run python scripts/verify_testbed.py`
+checks both datasets through each native path without model calls. `scripts/run_matrix.sh`
+runs the full matrix with the configured paid analyst and judge. The measured matrix is
+listed in the report; the three-question mixed-file probe is explicitly a probe.
 
-Credit prediction and the five live analyst cases remained blocked. Production readiness, customer accuracy, commercial savings, and complete operating cost are not established.
-
-## Development and validation
-
-Use the [analysis runbook](docs/architecture/analysis-workspace-runbook.md) for local setup and the [benchmark campaign](docs/roadmap/BenchmarkCampaign.txt) for repeatable checks. Dataset files, model weights, credentials, and private run evidence are kept outside tracked source.
-
-GitHub workflows check source, both web interfaces, database behavior, and simulated browser/recovery journeys. A fixture pass does not establish live analyst acceptance.
-
-Demo merges use `tabellio.demo.validation.json`: recorded-package installation, current UI workflows, visual and keyboard checks, recovery, role permissions, budget controls, and actual sandbox isolation. GitHub Codex review must also pass. The unchanged `tabellio.validation.json` preserves full-product acceptance, including actual Jev, CatBoost and TabICLv2 execution; a passing demo is not full-product acceptance.
-
-- [Current repository map](docs/architecture/repository-map.md)
-- [Git reconciliation and preserved work](docs/architecture/GitReconciliation.txt)
-- [Benchmark methods](docs/research/AnalysisBenchmarkMethods.txt)
-- [Historical developer guide](docs/demo/LegacyDeveloperGuide.txt)
-
-## Product direction
-
-The intended product accepts an objective and permitted information, acquires and prepares unfamiliar data in its own workspace, completes the task, and saves a reusable workflow. That broader capability is not implemented by the current demo.
-
-The agreed sequence is to clean up and clarify this proof of concept before expanding. The [saved concept and research](docs/research/autonomous-workflow-concept.txt) records that direction and the remaining gaps.
-
-## License
-
-BackIntel source is licensed under [MIT](LICENSE), copyright 2026 IntelIP. Preserve the recorded package's [dependency and dataset notices](docs/demo/DemoLicensing.txt) when sharing it. Third-party software, models, and services retain their own terms.
-
-[Website and SEO source](https://github.com/IntelIP/BackIntelWebsite)
+Python-only checks run in GitHub Actions. Publication waits for owner approval under
+AGENTS.md; no production service is deployed by this build.
