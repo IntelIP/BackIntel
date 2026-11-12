@@ -1,0 +1,419 @@
+{
+  "dataset": "online_retail_ii",
+  "archive_sha256": "572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb",
+  "built_at": "2026-11-10T00:36:11.125081+00:00",
+  "oracle": "polars over canonical parquet",
+  "scenarios": [
+    {
+      "id": "orii-l1-01",
+      "dataset": "online_retail_ii",
+      "level": 1,
+      "question": "How many rows (invoice lines) does the transactions table contain in total?",
+      "answer_type": "number",
+      "expected": 1067371.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "rows",
+      "answerable": true,
+      "tags": [
+        "count"
+      ],
+      "notes": "Calibration item: a single COUNT(*)."
+    },
+    {
+      "id": "orii-l1-02",
+      "dataset": "online_retail_ii",
+      "level": 1,
+      "question": "What was total revenue in March 2011? Revenue is quantity times price summed over lines, excluding cancellation invoices (invoice numbers starting with 'C'). Answer in GBP.",
+      "answer_type": "number",
+      "expected": 717639.3600000001,
+      "tolerance": {
+        "rel": 0.002,
+        "abs": null
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "sum",
+        "date-filter",
+        "stated-convention"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l1-03",
+      "dataset": "online_retail_ii",
+      "level": 1,
+      "question": "Which country outside the United Kingdom had the highest revenue (quantity times price, excluding invoices starting with 'C') between 1 January and 9 December 2011?",
+      "answer_type": "text",
+      "expected": "Netherlands",
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ranking",
+        "text-answer"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l1-04",
+      "dataset": "online_retail_ii",
+      "level": 1,
+      "question": "How many distinct customers (rows with a customer id) made a non-cancelled purchase between 1 January and 9 December 2011? Exclude invoices starting with 'C'.",
+      "answer_type": "number",
+      "expected": 4220.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "customers",
+      "answerable": true,
+      "tags": [
+        "count-distinct",
+        "nulls"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l1-05",
+      "dataset": "online_retail_ii",
+      "level": 1,
+      "question": "List the top 5 countries outside the United Kingdom by number of distinct non-cancelled invoices between 1 January and 9 December 2011, highest first. Exclude invoices starting with 'C'. Break ties alphabetically.",
+      "answer_type": "ranked_list",
+      "expected": [
+        "Germany",
+        "France",
+        "EIRE",
+        "Belgium",
+        "Netherlands"
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ranking",
+        "count-distinct"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l1-06",
+      "dataset": "online_retail_ii",
+      "level": 1,
+      "question": "What is the simple average of the unit price column for stock code 85123A over non-cancelled lines with a positive price between 1 January and 9 December 2011? Answer in GBP.",
+      "answer_type": "number",
+      "expected": 3.1147445972495085,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "mean",
+        "filter"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l1-07",
+      "dataset": "online_retail_ii",
+      "level": 1,
+      "question": "How many units of stock code 85123A were sold in November 2011? Sum the quantity column over lines in November 2011, excluding invoices starting with 'C'.",
+      "answer_type": "number",
+      "expected": 4654.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "units",
+      "answerable": true,
+      "tags": [
+        "sum",
+        "date-filter"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l1-08",
+      "dataset": "online_retail_ii",
+      "level": 1,
+      "question": "For each month from January to June 2011, how many distinct non-cancelled invoices were issued? Exclude invoices starting with 'C'. Return a table with columns `month` (format YYYY-MM) and `invoices`.",
+      "answer_type": "table",
+      "expected": [
+        {
+          "month": "2011-01",
+          "invoices": 1216.0
+        },
+        {
+          "month": "2011-02",
+          "invoices": 1174.0
+        },
+        {
+          "month": "2011-03",
+          "invoices": 1665.0
+        },
+        {
+          "month": "2011-04",
+          "invoices": 1504.0
+        },
+        {
+          "month": "2011-05",
+          "invoices": 1848.0
+        },
+        {
+          "month": "2011-06",
+          "invoices": 1683.0
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "invoices",
+      "answerable": true,
+      "tags": [
+        "table",
+        "group-by-month"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l2-01",
+      "dataset": "online_retail_ii",
+      "level": 2,
+      "question": "Among customers with a customer id who made at least one non-cancelled purchase between 1 January and 9 December 2011, what share had more than one distinct invoice in that period? Exclude invoices starting with 'C'. Answer as a fraction between 0 and 1.",
+      "answer_type": "number",
+      "expected": 0.6438388625592417,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "share",
+      "answerable": true,
+      "tags": [
+        "two-step",
+        "ratio"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l2-02",
+      "dataset": "online_retail_ii",
+      "level": 2,
+      "question": "Which calendar month of 2011 had the highest revenue (quantity times price, excluding invoices starting with 'C')? Answer in the format YYYY-MM.",
+      "answer_type": "text",
+      "expected": "2011-11",
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ranking",
+        "group-by-month"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l2-03",
+      "dataset": "online_retail_ii",
+      "level": 2,
+      "question": "What was the average basket value in 2011 (1 January to 9 December): total revenue (quantity times price) divided by the number of distinct invoices, both excluding invoices starting with 'C'? Answer in GBP.",
+      "answer_type": "number",
+      "expected": 482.2407210410018,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "ratio",
+        "two-step"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l3-01",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "How many rows in the transactions table are exact duplicates of another row, counting every copy beyond the first? Two rows are duplicates when all columns are equal.",
+      "answer_type": "number",
+      "expected": 34335.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "rows",
+      "answerable": true,
+      "tags": [
+        "duplicates",
+        "discovery"
+      ],
+      "notes": "The two yearly sheets of the source overlap for 1-9 Dec 2010, plus genuine repeated lines."
+    },
+    {
+      "id": "orii-l3-02",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "What was total revenue in December 2010 (1 to 31 December), excluding invoices starting with 'C'? The export is known to contain some rows twice; count each distinct row once. Answer in GBP and note what you found about the duplication.",
+      "answer_type": "number",
+      "expected": 821452.7299999999,
+      "tolerance": {
+        "rel": 0.002,
+        "abs": null
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "duplicates",
+        "sum"
+      ],
+      "notes": "Requires de-duplicating the doubled 1-9 Dec 2010 rows before summing."
+    },
+    {
+      "id": "orii-l3-03",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "What was net revenue for 1 January to 9 December 2011, treating cancellation invoices (negative quantities) as reductions? Sum quantity times price over all rows in the period, with no other exclusions. Answer in GBP.",
+      "answer_type": "number",
+      "expected": 8998808.914,
+      "tolerance": {
+        "rel": 0.002,
+        "abs": null
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "signs",
+        "sum"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l3-04",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "How many lines between 1 January and 9 December 2011 have a stock code that contains no digit at all (these are postage, manual entries, fees and adjustments rather than products)?",
+      "answer_type": "number",
+      "expected": 2614.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "rows",
+      "answerable": true,
+      "tags": [
+        "codes",
+        "discovery"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l3-05",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "What share of lines between 1 January and 9 December 2011 have no customer id? Answer as a fraction between 0 and 1.",
+      "answer_type": "number",
+      "expected": 0.23917113343438207,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "share",
+      "answerable": true,
+      "tags": [
+        "nulls",
+        "ratio"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l3-06",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "How many distinct stock codes have more than one distinct non-null description between 1 January and 9 December 2011?",
+      "answer_type": "number",
+      "expected": 622.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "stock codes",
+      "answerable": true,
+      "tags": [
+        "text-quality",
+        "count-distinct"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l3-07",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "What was revenue from product sales between 1 January and 9 December 2011 after cleaning: exclude invoices starting with 'C', lines with a non-positive price or quantity, and stock codes containing no digit? Revenue is quantity times price. Answer in GBP.",
+      "answer_type": "number",
+      "expected": 9500266.530000001,
+      "tolerance": {
+        "rel": 0.002,
+        "abs": null
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "cleaning",
+        "sum"
+      ],
+      "notes": null
+    },
+    {
+      "id": "orii-l3-08",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "What was the gross profit margin on sales in 2011?",
+      "answer_type": "number",
+      "expected": null,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "share",
+      "answerable": false,
+      "tags": [
+        "unanswerable",
+        "missing-cost"
+      ],
+      "notes": "No cost data exists; the right answer is cannot_answer."
+    },
+    {
+      "id": "orii-l3-09",
+      "dataset": "online_retail_ii",
+      "level": 3,
+      "question": "How many customers in 2011 were first-time buyers acquired through paid marketing?",
+      "answer_type": "number",
+      "expected": null,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "customers",
+      "answerable": false,
+      "tags": [
+        "unanswerable",
+        "missing-channel"
+      ],
+      "notes": "No acquisition-channel data exists; the right answer is cannot_answer."
+    }
+  ]
+}

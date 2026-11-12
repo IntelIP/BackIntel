@@ -1,0 +1,1294 @@
+{
+  "version": "acceptance-v1",
+  "dataset": "backintel_acceptance_v1_development",
+  "split": "development",
+  "reference_hash": "ed3e5f6f1b0015837ea10b3c155c102b2f3e11be01e4f21bef96e01abf8dc49a",
+  "data_hash": "0b65012dc6217c5a77b8e8b5f64f84b6ebd53b3a85e7cd73faa17da7bc60c741",
+  "review_status": "agent-reviewed; human acceptance and calibration pending",
+  "oracle": "Python integer/Decimal/date calculations, cross-checked by independent SQLite SQL",
+  "isolation": "Only each case's SQLite file is mounted; this manifest and its check SQL are not agent-visible.",
+  "worlds": {
+    "acceptance-v1-development-revenue": {
+      "store": "sqlite:bi_22a08ff78c140949",
+      "content_hash": "f876e8ffd4ed45a84a9c5c536fb6774347f67c4a21e09a31b0dbd1348db5ff57",
+      "file_sha256": "7a6de576bba07d9a6b9a544be3a2205cef83b7430484bc9da4b47baaf0223e8b"
+    },
+    "acceptance-v1-development-profit-complete": {
+      "store": "sqlite:bi_7b7ed8e8c4bea802",
+      "content_hash": "f41c5be4254f5c85a73de91c4bc08a61444c982d8cd111e9f847e74495f6c394",
+      "file_sha256": "048aa0ec2429e68dfee974308a3cfc809687403474c538d5a69118a0ed1b1b13"
+    },
+    "acceptance-v1-development-profit-missing": {
+      "store": "sqlite:bi_e82f8281462186cf",
+      "content_hash": "dceddc4379c8a81a21068d237e5b48a5e12b139509ec4cb38892478417f260ba",
+      "file_sha256": "e28cd6cc721daa9824689fa1163cd0f16858ff77d7adf9343a05eeb5ffc1f1a5"
+    },
+    "acceptance-v1-development-profit-partial": {
+      "store": "sqlite:bi_0b6bf754716d2297",
+      "content_hash": "140f130d28a48ebe9af51888fd81068580b070f25f58bc29d41337431d79c52c",
+      "file_sha256": "f8ec5f5866d95e8b8ac20b8288f81e8ac64a8f4c543c19f40e7a8c47279f8ca7"
+    },
+    "acceptance-v1-development-profit-zero": {
+      "store": "sqlite:bi_20541b825343c2ba",
+      "content_hash": "27cdf413ac33b59468a96e07743ea8e363c150461938bd2a02bf687a30691db8",
+      "file_sha256": "b9b11a017b1262a050f2dbbdf7b817e0b96ba4aec09b2216eef1db7cacbc7b15"
+    },
+    "acceptance-v1-development-revenue-duplicates": {
+      "store": "sqlite:bi_bb00290d18feec21",
+      "content_hash": "870f2ee15bbba0666dd5c0e9e6f3c5691a5f63020337a1d897a819e3ed021248",
+      "file_sha256": "65812fd3e41f0e41ae5d015d6a372e87f93655d5f064b0334fd9683d1d8b0acd"
+    },
+    "acceptance-v1-development-delivery-report": {
+      "store": "sqlite:bi_ad07513f193955a6",
+      "content_hash": "ce7a202afac8b8cceb2b25b89d59e7e17a3df10b2a1d4f0053809a61aa076465",
+      "file_sha256": "9a6eca54474ff17d9d0ed2391ac5bb2ca49b0d8de55d4d02d62b0a85687e1950"
+    },
+    "acceptance-v1-development-repeat-report": {
+      "store": "sqlite:bi_91ef2051272d24e5",
+      "content_hash": "ce7a202afac8b8cceb2b25b89d59e7e17a3df10b2a1d4f0053809a61aa076465",
+      "file_sha256": "9a6eca54474ff17d9d0ed2391ac5bb2ca49b0d8de55d4d02d62b0a85687e1950"
+    },
+    "acceptance-v1-development-delivery-causality": {
+      "store": "sqlite:bi_8a5ee5c4f909346d",
+      "content_hash": "ce7a202afac8b8cceb2b25b89d59e7e17a3df10b2a1d4f0053809a61aa076465",
+      "file_sha256": "9a6eca54474ff17d9d0ed2391ac5bb2ca49b0d8de55d4d02d62b0a85687e1950"
+    },
+    "acceptance-v1-development-replay-stable": {
+      "store": "sqlite:bi_c02b205849918a99",
+      "content_hash": "8537c46c39df61b9820c6efd68c160d05ffd851322cc00ad1490a79acfebbdcc",
+      "file_sha256": "be7f82dd2b74b6b87bec2ceaae4a274b7c86d06392f1b5b6e6dcbe1e61a60770"
+    },
+    "acceptance-v1-development-replay-shift": {
+      "store": "sqlite:bi_71872f221417d61d",
+      "content_hash": "e7b7cb5cf8790f8fe25f4e32592daecdd38cc916d96bf5bb762cea88e89eb7a5",
+      "file_sha256": "73ea6eedb14c534b7dab5a7c8c434ae85dc918b022cf04e0242f6e2bb71b641b"
+    },
+    "acceptance-v1-development-replay-late-observations": {
+      "store": "sqlite:bi_ff111a04d0c45a22",
+      "content_hash": "55db249983ba716bf9d8abeef1839e040cbe2a0fb63092f798ef3664adb183a0",
+      "file_sha256": "dfb39ccbb3974e5355130f0e81c7338b122fab251cea042d347651597b2c713e"
+    },
+    "acceptance-v1-development-replay-late-observations-followup": {
+      "store": "sqlite:bi_58e4cc5eba305103",
+      "content_hash": "6a7de142e345767b8e1614c204bafb095333b636a7edc8d6afd00196f86e41a2",
+      "file_sha256": "7f114686e995e1d3edd5311e4083b6911500bcc8967c8035dcf96134834d04f6"
+    },
+    "acceptance-v1-development-replay-duplicate-export": {
+      "store": "sqlite:bi_6b13ae8be046c177",
+      "content_hash": "95527a3a49a3b703c740aa55548bf0efbe71cf357229794ff76cf5a977170376",
+      "file_sha256": "91ce21d1e57b52d0cd2995d35d04bf09cde79bacc7ef5bcd2d1cd11087148224"
+    },
+    "acceptance-v1-development-replay-unobserved-period": {
+      "store": "sqlite:bi_58becaae4a9a60d4",
+      "content_hash": "acdbf1b6dd19efa049cbe576107ea4dcdd74fc93fe53bd5f9245f57f9bd83338",
+      "file_sha256": "8dd6367790a14664c778ddd932ad81acb4846de1cf0c6a5e96d30f5842eb5b69"
+    },
+    "acceptance-v1-development-replay-price-mix-only": {
+      "store": "sqlite:bi_daacfdc14c1c1b08",
+      "content_hash": "febc35c7141aa02643c0f5d5d7733029673613631ade52352388a0c5349d8e89",
+      "file_sha256": "e6ff3520013cc6203ab87d508b9d88a9f0681a640527c9178d2ec0b6c4050f4b"
+    },
+    "acceptance-v1-development-replay-price-shift": {
+      "store": "sqlite:bi_419f41beeaf769c9",
+      "content_hash": "8f163655063aa282813f2fcc529a9c95097b0f3235c78dce8872bcd05ce2f82f",
+      "file_sha256": "987c50470085d59abf1ee5b3acea413638b0d14a4b6c5917f6252827abea6789"
+    }
+  },
+  "scenarios": [
+    {
+      "id": "acceptance-v1-development-revenue",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 3,
+      "question": "What was net sales revenue in 2024-03, in GBP? Sum signed posted sales amounts, including refunds as reductions. Amounts are stored in minor currency units (100 per GBP).",
+      "answer_type": "number",
+      "expected": 235.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.005
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "answerable-control",
+        "refunds"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_22a08ff78c140949"
+    },
+    {
+      "id": "acceptance-v1-development-profit-complete",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 3,
+      "question": "What was net profit in 2024-03, in GBP? For this accounting extract, net profit is signed posted sales revenue minus all posted expenses; the coverage table specifies whether each ledger covers the full period. Use minor units consistently.",
+      "answer_type": "number",
+      "expected": 94.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.005
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "answerable-control",
+        "profit"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_7b7ed8e8c4bea802"
+    },
+    {
+      "id": "acceptance-v1-development-profit-missing",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 3,
+      "question": "What was net profit in 2024-03, in GBP? For this accounting extract, net profit is signed posted sales revenue minus all posted expenses; the coverage table specifies whether each ledger covers the full period. Use minor units consistently.",
+      "answer_type": "number",
+      "expected": null,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.005
+      },
+      "unit": "GBP",
+      "answerable": false,
+      "tags": [
+        "acceptance",
+        "development",
+        "missing-data",
+        "profit"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_e82f8281462186cf"
+    },
+    {
+      "id": "acceptance-v1-development-profit-partial",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 3,
+      "question": "What was net profit in 2024-03, in GBP? For this accounting extract, net profit is signed posted sales revenue minus all posted expenses; the coverage table specifies whether each ledger covers the full period. Use minor units consistently.",
+      "answer_type": "number",
+      "expected": null,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.005
+      },
+      "unit": "GBP",
+      "answerable": false,
+      "tags": [
+        "acceptance",
+        "development",
+        "missing-data",
+        "coverage"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_0b6bf754716d2297"
+    },
+    {
+      "id": "acceptance-v1-development-profit-zero",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 3,
+      "question": "What was net profit in 2024-03, in GBP? For this accounting extract, net profit is signed posted sales revenue minus all posted expenses; the coverage table specifies whether each ledger covers the full period. Use minor units consistently.",
+      "answer_type": "number",
+      "expected": 0.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.005
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "answerable-control",
+        "zero"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_20541b825343c2ba"
+    },
+    {
+      "id": "acceptance-v1-development-revenue-duplicates",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 3,
+      "question": "What was net sales revenue in 2024-03, in GBP? This export can repeat identical rows. Count each entry_id once, include signed refunds, and convert minor currency units to GBP (100 per GBP).",
+      "answer_type": "number",
+      "expected": 235.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.005
+      },
+      "unit": "GBP",
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "data-quality",
+        "duplicates"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_bb00290d18feec21"
+    },
+    {
+      "id": "acceptance-v1-development-delivery-report",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 5,
+      "question": "Report delivery performance and satisfaction. Include only status delivered with a non-null delivered_at. Delivery duration is fractional days from purchased_at to delivered_at; late is strictly after estimated_at. Average review scores over joined review rows, not one review per order. Return exactly one metric/value/unit row for each: eligible_orders, avg_delivery_days, late_share, avg_review_late, avg_review_on_time. Explain the association without claiming causality.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "eligible_orders",
+          "value": 5,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "avg_delivery_days",
+          "value": 5.6,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "late_share",
+          "value": 0.4,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "avg_review_late",
+          "value": 2.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "avg_review_on_time",
+          "value": 4.666666666666667,
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "evidence",
+        "report",
+        "review-grain"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_ad07513f193955a6"
+    },
+    {
+      "id": "acceptance-v1-development-repeat-report",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 5,
+      "question": "Report repeat purchasing across all orders regardless of status. A person is customer_person_id; count each order_id once. Return one row per metric: people (distinct people), repeat_share (fraction of people with more than one order), orders_per_person (mean orders per person). State the identity and population used.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "people",
+          "value": 5,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "repeat_share",
+          "value": 0.4,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "orders_per_person",
+          "value": 1.4,
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "report",
+        "identity-grain"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_91ef2051272d24e5"
+    },
+    {
+      "id": "acceptance-v1-development-delivery-causality",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 3,
+      "question": "How many review-score points would making every late delivery on time causally improve in this dataset? Give the causal effect, not the observed difference between groups.",
+      "answer_type": "number",
+      "expected": null,
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": false,
+      "tags": [
+        "acceptance",
+        "development",
+        "missing-data",
+        "causality"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_8a5ee5c4f909346d"
+    },
+    {
+      "id": "acceptance-v1-development-replay-stable",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 6,
+      "question": "This extract is a snapshot as of 2024-07-01 exclusive. Compare orders purchased in 2024-06 with 2024-05. Count each order_id once; an order without an observed delivered_at is pending and contributes no delivery duration. Compare mean fractional days from purchase to delivery among observed orders. A material change is abs(relative_change)>0.25; equality is no change. Return one row each for avg_days_previous, avg_days_current, relative_change, eligible_previous, eligible_current, pending_current, and status (CHANGE_DETECTED or NO_CHANGE). Explain observation coverage. If a period has no observed deliveries, explain why the comparison cannot be calculated.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "avg_days_previous",
+          "value": 4.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "avg_days_current",
+          "value": 4.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "relative_change",
+          "value": 0.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "eligible_previous",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "eligible_current",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "pending_current",
+          "value": 0,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "status",
+          "value": "NO_CHANGE",
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "temporal",
+        "change-detection"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_c02b205849918a99"
+    },
+    {
+      "id": "acceptance-v1-development-replay-shift",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 6,
+      "question": "This extract is a snapshot as of 2024-07-01 exclusive. Compare orders purchased in 2024-06 with 2024-05. Count each order_id once; an order without an observed delivered_at is pending and contributes no delivery duration. Compare mean fractional days from purchase to delivery among observed orders. A material change is abs(relative_change)>0.25; equality is no change. Return one row each for avg_days_previous, avg_days_current, relative_change, eligible_previous, eligible_current, pending_current, and status (CHANGE_DETECTED or NO_CHANGE). Explain observation coverage. If a period has no observed deliveries, explain why the comparison cannot be calculated.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "avg_days_previous",
+          "value": 4.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "avg_days_current",
+          "value": 7.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "relative_change",
+          "value": 0.75,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "eligible_previous",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "eligible_current",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "pending_current",
+          "value": 0,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "temporal",
+        "change-detection"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_71872f221417d61d"
+    },
+    {
+      "id": "acceptance-v1-development-replay-late-observations",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 6,
+      "question": "This extract is a snapshot as of 2024-07-01 exclusive. Compare orders purchased in 2024-06 with 2024-05. Count each order_id once; an order without an observed delivered_at is pending and contributes no delivery duration. Compare mean fractional days from purchase to delivery among observed orders. A material change is abs(relative_change)>0.25; equality is no change. Return one row each for avg_days_previous, avg_days_current, relative_change, eligible_previous, eligible_current, pending_current, and status (CHANGE_DETECTED or NO_CHANGE). Explain observation coverage. If a period has no observed deliveries, explain why the comparison cannot be calculated.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "avg_days_previous",
+          "value": 4.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "avg_days_current",
+          "value": 3.5,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "relative_change",
+          "value": -0.125,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "eligible_previous",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "eligible_current",
+          "value": 2,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "pending_current",
+          "value": 2,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "status",
+          "value": "NO_CHANGE",
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "temporal",
+        "data-quality"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_ff111a04d0c45a22"
+    },
+    {
+      "id": "acceptance-v1-development-replay-late-observations-followup",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 6,
+      "question": "This extract is a snapshot as of 2024-07-08 exclusive. Compare orders purchased in 2024-06 with 2024-05. Count each order_id once; an order without an observed delivered_at is pending and contributes no delivery duration. Compare mean fractional days from purchase to delivery among observed orders. A material change is abs(relative_change)>0.25; equality is no change. Return one row each for avg_days_previous, avg_days_current, relative_change, eligible_previous, eligible_current, pending_current, and status (CHANGE_DETECTED or NO_CHANGE). Explain observation coverage. If a period has no observed deliveries, explain why the comparison cannot be calculated.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "avg_days_previous",
+          "value": 4.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "avg_days_current",
+          "value": 17.25,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "relative_change",
+          "value": 3.3125,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "eligible_previous",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "eligible_current",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "pending_current",
+          "value": 0,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "temporal",
+        "data-quality"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_58e4cc5eba305103"
+    },
+    {
+      "id": "acceptance-v1-development-replay-duplicate-export",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 6,
+      "question": "This extract is a snapshot as of 2024-07-01 exclusive. Compare orders purchased in 2024-06 with 2024-05. Count each order_id once; an order without an observed delivered_at is pending and contributes no delivery duration. Compare mean fractional days from purchase to delivery among observed orders. A material change is abs(relative_change)>0.25; equality is no change. Return one row each for avg_days_previous, avg_days_current, relative_change, eligible_previous, eligible_current, pending_current, and status (CHANGE_DETECTED or NO_CHANGE). Explain observation coverage. If a period has no observed deliveries, explain why the comparison cannot be calculated.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "avg_days_previous",
+          "value": 4.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "avg_days_current",
+          "value": 4.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "relative_change",
+          "value": 0.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "eligible_previous",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "eligible_current",
+          "value": 4,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "pending_current",
+          "value": 0,
+          "abs": 0,
+          "rel": null
+        },
+        {
+          "name": "status",
+          "value": "NO_CHANGE",
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "temporal",
+        "data-quality"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_6b13ae8be046c177"
+    },
+    {
+      "id": "acceptance-v1-development-replay-unobserved-period",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 6,
+      "question": "This extract is a snapshot as of 2024-07-01 exclusive. Compare orders purchased in 2024-06 with 2024-05. Count each order_id once; an order without an observed delivered_at is pending and contributes no delivery duration. Compare mean fractional days from purchase to delivery among observed orders. A material change is abs(relative_change)>0.25; equality is no change. Return one row each for avg_days_previous, avg_days_current, relative_change, eligible_previous, eligible_current, pending_current, and status (CHANGE_DETECTED or NO_CHANGE). Explain observation coverage. If a period has no observed deliveries, explain why the comparison cannot be calculated.",
+      "answer_type": "report",
+      "expected": null,
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": false,
+      "tags": [
+        "acceptance",
+        "development",
+        "temporal",
+        "data-quality"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_58becaae4a9a60d4"
+    },
+    {
+      "id": "acceptance-v1-development-replay-price-mix-only",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 6,
+      "question": "Compare unit prices in 2024-06 against 2024-05 for SKUs P11 and P92. Each SKU has one posted unit price in each month. Compute each SKU's relative price change (current/previous - 1) and their equal-weight mean; do not weight by units sold. Flag a material change only when the absolute mean exceeds 0.25. Return exactly one metric/value/unit row each for relative_price_change_P11, relative_price_change_P92, mean_relative_price_change, and status (CHANGE_DETECTED or NO_CHANGE). Explain whether a changed sales mix alone would justify a price-change alert.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "relative_price_change_P11",
+          "value": 0.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "relative_price_change_P92",
+          "value": 0.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "mean_relative_price_change",
+          "value": 0.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "status",
+          "value": "NO_CHANGE",
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "temporal",
+        "price-change",
+        "mix-confounding"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_daacfdc14c1c1b08"
+    },
+    {
+      "id": "acceptance-v1-development-replay-price-shift",
+      "dataset": "backintel_acceptance_v1_development",
+      "level": 6,
+      "question": "Compare unit prices in 2024-06 against 2024-05 for SKUs P11 and P92. Each SKU has one posted unit price in each month. Compute each SKU's relative price change (current/previous - 1) and their equal-weight mean; do not weight by units sold. Flag a material change only when the absolute mean exceeds 0.25. Return exactly one metric/value/unit row each for relative_price_change_P11, relative_price_change_P92, mean_relative_price_change, and status (CHANGE_DETECTED or NO_CHANGE). Explain whether a changed sales mix alone would justify a price-change alert.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "relative_price_change_P11",
+          "value": 0.6,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "relative_price_change_P92",
+          "value": 0.0,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "mean_relative_price_change",
+          "value": 0.3,
+          "abs": 1e-06,
+          "rel": null
+        },
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "abs": 1e-06,
+          "rel": null
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 1e-06
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "acceptance",
+        "development",
+        "temporal",
+        "price-change",
+        "mix-confounding"
+      ],
+      "notes": "Synthetic capability case; agent-authored reference, pending owner review.",
+      "store": "sqlite:bi_419f41beeaf769c9"
+    }
+  ],
+  "reference_checks": [
+    {
+      "case": "revenue",
+      "sql": "SELECT SUM(amount_minor)/100.0 FROM sales_lines WHERE booked_date >= '2024-03-01' AND booked_date < '2024-04-01' AND currency='GBP'",
+      "matches": true,
+      "observed": 235.0
+    },
+    {
+      "case": "profit-complete",
+      "sql": "SELECT (SELECT SUM(amount_minor)/100.0 FROM sales_lines WHERE booked_date >= '2024-03-01' AND booked_date < '2024-04-01' AND currency='GBP') - (SELECT SUM(amount_minor)/100.0 FROM expense_lines WHERE booked_date >= '2024-03-01' AND booked_date < '2024-04-01' AND currency='GBP')",
+      "matches": true,
+      "observed": 94.0
+    },
+    {
+      "case": "profit-zero",
+      "sql": "SELECT (SELECT SUM(amount_minor)/100.0 FROM sales_lines WHERE booked_date >= '2024-03-01' AND booked_date < '2024-04-01' AND currency='GBP') - (SELECT SUM(amount_minor)/100.0 FROM expense_lines WHERE booked_date >= '2024-03-01' AND booked_date < '2024-04-01' AND currency='GBP')",
+      "matches": true,
+      "observed": 0.0
+    },
+    {
+      "case": "revenue-duplicates",
+      "sql": "SELECT SUM(amount_minor)/100.0 FROM (SELECT DISTINCT * FROM sales_lines) WHERE booked_date >= '2024-03-01' AND booked_date < '2024-04-01' AND currency='GBP'",
+      "matches": true,
+      "observed": 235.0
+    },
+    {
+      "case": "delivery-report",
+      "sql": "WITH eligible AS (SELECT * FROM orders WHERE status='delivered' AND delivered_at IS NOT NULL) SELECT 'eligible_orders',COUNT(*) FROM eligible UNION ALL SELECT 'avg_delivery_days',AVG(julianday(delivered_at)-julianday(purchased_at)) FROM eligible UNION ALL SELECT 'late_share',AVG(CASE WHEN delivered_at>estimated_at THEN 1.0 ELSE 0 END) FROM eligible UNION ALL SELECT 'avg_review_late',AVG(r.score) FROM eligible o JOIN reviews r USING(order_id) WHERE o.delivered_at>o.estimated_at UNION ALL SELECT 'avg_review_on_time',AVG(r.score) FROM eligible o JOIN reviews r USING(order_id) WHERE o.delivered_at<=o.estimated_at",
+      "matches": true,
+      "observed": {
+        "eligible_orders": 5,
+        "avg_delivery_days": 5.6,
+        "late_share": 0.4,
+        "avg_review_late": 2.0,
+        "avg_review_on_time": 4.666666666666667
+      }
+    },
+    {
+      "case": "repeat-report",
+      "sql": "WITH counts AS (SELECT customer_person_id,COUNT(DISTINCT order_id) n FROM orders GROUP BY customer_person_id) SELECT 'people',COUNT(*) FROM counts UNION ALL SELECT 'repeat_share',AVG(CASE WHEN n>1 THEN 1.0 ELSE 0 END) FROM counts UNION ALL SELECT 'orders_per_person',AVG(n) FROM counts",
+      "matches": true,
+      "observed": {
+        "people": 5,
+        "repeat_share": 0.4,
+        "orders_per_person": 1.4
+      }
+    },
+    {
+      "case": "replay-stable",
+      "sql": "WITH unique_orders AS (SELECT DISTINCT * FROM shipments), stats AS (SELECT AVG(CASE WHEN purchased_at LIKE '2024-05%' THEN julianday(delivered_at)-julianday(purchased_at) END) a, AVG(CASE WHEN purchased_at LIKE '2024-06%' THEN julianday(delivered_at)-julianday(purchased_at) END) c, SUM(purchased_at LIKE '2024-05%' AND delivered_at IS NOT NULL) n0, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NOT NULL) n1, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NULL) pending FROM unique_orders) SELECT 'avg_days_previous',a FROM stats UNION ALL SELECT 'avg_days_current',c FROM stats UNION ALL SELECT 'relative_change',(c-a)/a FROM stats UNION ALL SELECT 'eligible_previous',n0 FROM stats UNION ALL SELECT 'eligible_current',n1 FROM stats UNION ALL SELECT 'pending_current',pending FROM stats UNION ALL SELECT 'status',CASE WHEN ABS((c-a)/a)>0.25 THEN 'CHANGE_DETECTED' ELSE 'NO_CHANGE' END FROM stats",
+      "matches": true,
+      "observed": {
+        "avg_days_previous": 4.0,
+        "avg_days_current": 4.0,
+        "relative_change": 0.0,
+        "eligible_previous": 4,
+        "eligible_current": 4,
+        "pending_current": 0,
+        "status": "NO_CHANGE"
+      }
+    },
+    {
+      "case": "replay-shift",
+      "sql": "WITH unique_orders AS (SELECT DISTINCT * FROM shipments), stats AS (SELECT AVG(CASE WHEN purchased_at LIKE '2024-05%' THEN julianday(delivered_at)-julianday(purchased_at) END) a, AVG(CASE WHEN purchased_at LIKE '2024-06%' THEN julianday(delivered_at)-julianday(purchased_at) END) c, SUM(purchased_at LIKE '2024-05%' AND delivered_at IS NOT NULL) n0, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NOT NULL) n1, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NULL) pending FROM unique_orders) SELECT 'avg_days_previous',a FROM stats UNION ALL SELECT 'avg_days_current',c FROM stats UNION ALL SELECT 'relative_change',(c-a)/a FROM stats UNION ALL SELECT 'eligible_previous',n0 FROM stats UNION ALL SELECT 'eligible_current',n1 FROM stats UNION ALL SELECT 'pending_current',pending FROM stats UNION ALL SELECT 'status',CASE WHEN ABS((c-a)/a)>0.25 THEN 'CHANGE_DETECTED' ELSE 'NO_CHANGE' END FROM stats",
+      "matches": true,
+      "observed": {
+        "avg_days_previous": 4.0,
+        "avg_days_current": 7.0,
+        "relative_change": 0.75,
+        "eligible_previous": 4,
+        "eligible_current": 4,
+        "pending_current": 0,
+        "status": "CHANGE_DETECTED"
+      }
+    },
+    {
+      "case": "replay-late-observations",
+      "sql": "WITH unique_orders AS (SELECT DISTINCT * FROM shipments), stats AS (SELECT AVG(CASE WHEN purchased_at LIKE '2024-05%' THEN julianday(delivered_at)-julianday(purchased_at) END) a, AVG(CASE WHEN purchased_at LIKE '2024-06%' THEN julianday(delivered_at)-julianday(purchased_at) END) c, SUM(purchased_at LIKE '2024-05%' AND delivered_at IS NOT NULL) n0, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NOT NULL) n1, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NULL) pending FROM unique_orders) SELECT 'avg_days_previous',a FROM stats UNION ALL SELECT 'avg_days_current',c FROM stats UNION ALL SELECT 'relative_change',(c-a)/a FROM stats UNION ALL SELECT 'eligible_previous',n0 FROM stats UNION ALL SELECT 'eligible_current',n1 FROM stats UNION ALL SELECT 'pending_current',pending FROM stats UNION ALL SELECT 'status',CASE WHEN ABS((c-a)/a)>0.25 THEN 'CHANGE_DETECTED' ELSE 'NO_CHANGE' END FROM stats",
+      "matches": true,
+      "observed": {
+        "avg_days_previous": 4.0,
+        "avg_days_current": 3.5,
+        "relative_change": -0.125,
+        "eligible_previous": 4,
+        "eligible_current": 2,
+        "pending_current": 2,
+        "status": "NO_CHANGE"
+      }
+    },
+    {
+      "case": "replay-late-observations-followup",
+      "sql": "WITH unique_orders AS (SELECT DISTINCT * FROM shipments), stats AS (SELECT AVG(CASE WHEN purchased_at LIKE '2024-05%' THEN julianday(delivered_at)-julianday(purchased_at) END) a, AVG(CASE WHEN purchased_at LIKE '2024-06%' THEN julianday(delivered_at)-julianday(purchased_at) END) c, SUM(purchased_at LIKE '2024-05%' AND delivered_at IS NOT NULL) n0, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NOT NULL) n1, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NULL) pending FROM unique_orders) SELECT 'avg_days_previous',a FROM stats UNION ALL SELECT 'avg_days_current',c FROM stats UNION ALL SELECT 'relative_change',(c-a)/a FROM stats UNION ALL SELECT 'eligible_previous',n0 FROM stats UNION ALL SELECT 'eligible_current',n1 FROM stats UNION ALL SELECT 'pending_current',pending FROM stats UNION ALL SELECT 'status',CASE WHEN ABS((c-a)/a)>0.25 THEN 'CHANGE_DETECTED' ELSE 'NO_CHANGE' END FROM stats",
+      "matches": true,
+      "observed": {
+        "avg_days_previous": 4.0,
+        "avg_days_current": 17.25,
+        "relative_change": 3.3125,
+        "eligible_previous": 4,
+        "eligible_current": 4,
+        "pending_current": 0,
+        "status": "CHANGE_DETECTED"
+      }
+    },
+    {
+      "case": "replay-duplicate-export",
+      "sql": "WITH unique_orders AS (SELECT DISTINCT * FROM shipments), stats AS (SELECT AVG(CASE WHEN purchased_at LIKE '2024-05%' THEN julianday(delivered_at)-julianday(purchased_at) END) a, AVG(CASE WHEN purchased_at LIKE '2024-06%' THEN julianday(delivered_at)-julianday(purchased_at) END) c, SUM(purchased_at LIKE '2024-05%' AND delivered_at IS NOT NULL) n0, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NOT NULL) n1, SUM(purchased_at LIKE '2024-06%' AND delivered_at IS NULL) pending FROM unique_orders) SELECT 'avg_days_previous',a FROM stats UNION ALL SELECT 'avg_days_current',c FROM stats UNION ALL SELECT 'relative_change',(c-a)/a FROM stats UNION ALL SELECT 'eligible_previous',n0 FROM stats UNION ALL SELECT 'eligible_current',n1 FROM stats UNION ALL SELECT 'pending_current',pending FROM stats UNION ALL SELECT 'status',CASE WHEN ABS((c-a)/a)>0.25 THEN 'CHANGE_DETECTED' ELSE 'NO_CHANGE' END FROM stats",
+      "matches": true,
+      "observed": {
+        "avg_days_previous": 4.0,
+        "avg_days_current": 4.0,
+        "relative_change": 0.0,
+        "eligible_previous": 4,
+        "eligible_current": 4,
+        "pending_current": 0,
+        "status": "NO_CHANGE"
+      }
+    },
+    {
+      "case": "replay-price-mix-only",
+      "sql": "WITH comparisons AS (SELECT sku, MAX(CASE WHEN booked_date LIKE '2024-06%' THEN unit_price_minor END)*1.0/MAX(CASE WHEN booked_date LIKE '2024-05%' THEN unit_price_minor END)-1 change FROM line_items GROUP BY sku) SELECT 'relative_price_change_'||sku,change FROM comparisons UNION ALL SELECT 'mean_relative_price_change',AVG(change) FROM comparisons UNION ALL SELECT 'status',CASE WHEN ABS(AVG(change))>0.25 THEN 'CHANGE_DETECTED' ELSE 'NO_CHANGE' END FROM comparisons",
+      "matches": true,
+      "observed": {
+        "relative_price_change_P11": 0.0,
+        "relative_price_change_P92": 0.0,
+        "mean_relative_price_change": 0.0,
+        "status": "NO_CHANGE"
+      }
+    },
+    {
+      "case": "replay-price-shift",
+      "sql": "WITH comparisons AS (SELECT sku, MAX(CASE WHEN booked_date LIKE '2024-06%' THEN unit_price_minor END)*1.0/MAX(CASE WHEN booked_date LIKE '2024-05%' THEN unit_price_minor END)-1 change FROM line_items GROUP BY sku) SELECT 'relative_price_change_'||sku,change FROM comparisons UNION ALL SELECT 'mean_relative_price_change',AVG(change) FROM comparisons UNION ALL SELECT 'status',CASE WHEN ABS(AVG(change))>0.25 THEN 'CHANGE_DETECTED' ELSE 'NO_CHANGE' END FROM comparisons",
+      "matches": true,
+      "observed": {
+        "relative_price_change_P11": 0.6000000000000001,
+        "relative_price_change_P92": 0.0,
+        "mean_relative_price_change": 0.30000000000000004,
+        "status": "CHANGE_DETECTED"
+      }
+    }
+  ],
+  "planted_changes": {
+    "acceptance-v1-development-profit-missing": {
+      "required_data": "full-period expenses",
+      "absence": "no expense ledger"
+    },
+    "acceptance-v1-development-profit-partial": {
+      "required_data": "full-period expenses",
+      "absence": "expense coverage ends mid-period"
+    },
+    "acceptance-v1-development-delivery-causality": {
+      "absence": "No randomized assignment or defensible causal identification is supplied."
+    },
+    "acceptance-v1-development-replay-stable": {
+      "cutoff_exclusive": "2024-07-01T00:00:00",
+      "sequence": "stable",
+      "current_period_added_days": 0,
+      "duplicate_rows_added": 0,
+      "delayed_delivery_observations": "none",
+      "raw_future_observations": [
+        [
+          "A541",
+          "2024-05-02T00:00:00",
+          "2024-05-05T00:00:00",
+          "2024-05-10T00:00:00"
+        ],
+        [
+          "A542",
+          "2024-05-03T00:00:00",
+          "2024-05-07T00:00:00",
+          "2024-05-11T00:00:00"
+        ],
+        [
+          "A543",
+          "2024-05-04T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-12T00:00:00"
+        ],
+        [
+          "A544",
+          "2024-05-05T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-13T00:00:00"
+        ],
+        [
+          "A641",
+          "2024-06-02T00:00:00",
+          "2024-06-05T00:00:00",
+          "2024-06-10T00:00:00"
+        ],
+        [
+          "A642",
+          "2024-06-03T00:00:00",
+          "2024-06-07T00:00:00",
+          "2024-06-11T00:00:00"
+        ],
+        [
+          "A643",
+          "2024-06-04T00:00:00",
+          "2024-06-09T00:00:00",
+          "2024-06-12T00:00:00"
+        ],
+        [
+          "A644",
+          "2024-06-05T00:00:00",
+          "2024-06-09T00:00:00",
+          "2024-06-13T00:00:00"
+        ]
+      ]
+    },
+    "acceptance-v1-development-replay-shift": {
+      "cutoff_exclusive": "2024-07-01T00:00:00",
+      "sequence": "shift",
+      "current_period_added_days": 3,
+      "duplicate_rows_added": 0,
+      "delayed_delivery_observations": "none",
+      "raw_future_observations": [
+        [
+          "A541",
+          "2024-05-02T00:00:00",
+          "2024-05-05T00:00:00",
+          "2024-05-10T00:00:00"
+        ],
+        [
+          "A542",
+          "2024-05-03T00:00:00",
+          "2024-05-07T00:00:00",
+          "2024-05-11T00:00:00"
+        ],
+        [
+          "A543",
+          "2024-05-04T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-12T00:00:00"
+        ],
+        [
+          "A544",
+          "2024-05-05T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-13T00:00:00"
+        ],
+        [
+          "A641",
+          "2024-06-02T00:00:00",
+          "2024-06-08T00:00:00",
+          "2024-06-10T00:00:00"
+        ],
+        [
+          "A642",
+          "2024-06-03T00:00:00",
+          "2024-06-10T00:00:00",
+          "2024-06-11T00:00:00"
+        ],
+        [
+          "A643",
+          "2024-06-04T00:00:00",
+          "2024-06-12T00:00:00",
+          "2024-06-12T00:00:00"
+        ],
+        [
+          "A644",
+          "2024-06-05T00:00:00",
+          "2024-06-12T00:00:00",
+          "2024-06-13T00:00:00"
+        ]
+      ]
+    },
+    "acceptance-v1-development-replay-late-observations": {
+      "cutoff_exclusive": "2024-07-01T00:00:00",
+      "sequence": "delayed-arrivals",
+      "current_period_added_days": 0,
+      "duplicate_rows_added": 0,
+      "delayed_delivery_observations": "some",
+      "raw_future_observations": [
+        [
+          "A541",
+          "2024-05-02T00:00:00",
+          "2024-05-05T00:00:00",
+          "2024-05-10T00:00:00"
+        ],
+        [
+          "A542",
+          "2024-05-03T00:00:00",
+          "2024-05-07T00:00:00",
+          "2024-05-11T00:00:00"
+        ],
+        [
+          "A543",
+          "2024-05-04T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-12T00:00:00"
+        ],
+        [
+          "A544",
+          "2024-05-05T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-13T00:00:00"
+        ],
+        [
+          "A641",
+          "2024-06-02T00:00:00",
+          "2024-06-05T00:00:00",
+          "2024-06-10T00:00:00"
+        ],
+        [
+          "A642",
+          "2024-06-03T00:00:00",
+          "2024-06-07T00:00:00",
+          "2024-06-11T00:00:00"
+        ],
+        [
+          "A643",
+          "2024-06-04T00:00:00",
+          "2024-07-05T00:00:00",
+          "2024-06-12T00:00:00"
+        ],
+        [
+          "A644",
+          "2024-06-05T00:00:00",
+          "2024-07-06T00:00:00",
+          "2024-06-13T00:00:00"
+        ]
+      ]
+    },
+    "acceptance-v1-development-replay-late-observations-followup": {
+      "cutoff_exclusive": "2024-07-08T00:00:00",
+      "sequence": "delayed-arrivals",
+      "current_period_added_days": 0,
+      "duplicate_rows_added": 0,
+      "delayed_delivery_observations": "some",
+      "raw_future_observations": [
+        [
+          "A541",
+          "2024-05-02T00:00:00",
+          "2024-05-05T00:00:00",
+          "2024-05-10T00:00:00"
+        ],
+        [
+          "A542",
+          "2024-05-03T00:00:00",
+          "2024-05-07T00:00:00",
+          "2024-05-11T00:00:00"
+        ],
+        [
+          "A543",
+          "2024-05-04T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-12T00:00:00"
+        ],
+        [
+          "A544",
+          "2024-05-05T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-13T00:00:00"
+        ],
+        [
+          "A641",
+          "2024-06-02T00:00:00",
+          "2024-06-05T00:00:00",
+          "2024-06-10T00:00:00"
+        ],
+        [
+          "A642",
+          "2024-06-03T00:00:00",
+          "2024-06-07T00:00:00",
+          "2024-06-11T00:00:00"
+        ],
+        [
+          "A643",
+          "2024-06-04T00:00:00",
+          "2024-07-05T00:00:00",
+          "2024-06-12T00:00:00"
+        ],
+        [
+          "A644",
+          "2024-06-05T00:00:00",
+          "2024-07-06T00:00:00",
+          "2024-06-13T00:00:00"
+        ]
+      ]
+    },
+    "acceptance-v1-development-replay-duplicate-export": {
+      "cutoff_exclusive": "2024-07-01T00:00:00",
+      "sequence": "duplicate-export",
+      "current_period_added_days": 0,
+      "duplicate_rows_added": 2,
+      "delayed_delivery_observations": "none",
+      "raw_future_observations": [
+        [
+          "A541",
+          "2024-05-02T00:00:00",
+          "2024-05-05T00:00:00",
+          "2024-05-10T00:00:00"
+        ],
+        [
+          "A542",
+          "2024-05-03T00:00:00",
+          "2024-05-07T00:00:00",
+          "2024-05-11T00:00:00"
+        ],
+        [
+          "A543",
+          "2024-05-04T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-12T00:00:00"
+        ],
+        [
+          "A544",
+          "2024-05-05T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-13T00:00:00"
+        ],
+        [
+          "A641",
+          "2024-06-02T00:00:00",
+          "2024-06-05T00:00:00",
+          "2024-06-10T00:00:00"
+        ],
+        [
+          "A642",
+          "2024-06-03T00:00:00",
+          "2024-06-07T00:00:00",
+          "2024-06-11T00:00:00"
+        ],
+        [
+          "A643",
+          "2024-06-04T00:00:00",
+          "2024-06-09T00:00:00",
+          "2024-06-12T00:00:00"
+        ],
+        [
+          "A644",
+          "2024-06-05T00:00:00",
+          "2024-06-09T00:00:00",
+          "2024-06-13T00:00:00"
+        ]
+      ]
+    },
+    "acceptance-v1-development-replay-unobserved-period": {
+      "cutoff_exclusive": "2024-07-01T00:00:00",
+      "sequence": "unobserved-period",
+      "current_period_added_days": 0,
+      "duplicate_rows_added": 0,
+      "delayed_delivery_observations": "all",
+      "raw_future_observations": [
+        [
+          "A541",
+          "2024-05-02T00:00:00",
+          "2024-05-05T00:00:00",
+          "2024-05-10T00:00:00"
+        ],
+        [
+          "A542",
+          "2024-05-03T00:00:00",
+          "2024-05-07T00:00:00",
+          "2024-05-11T00:00:00"
+        ],
+        [
+          "A543",
+          "2024-05-04T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-12T00:00:00"
+        ],
+        [
+          "A544",
+          "2024-05-05T00:00:00",
+          "2024-05-09T00:00:00",
+          "2024-05-13T00:00:00"
+        ],
+        [
+          "A641",
+          "2024-06-02T00:00:00",
+          "2024-07-03T00:00:00",
+          "2024-06-10T00:00:00"
+        ],
+        [
+          "A642",
+          "2024-06-03T00:00:00",
+          "2024-07-04T00:00:00",
+          "2024-06-11T00:00:00"
+        ],
+        [
+          "A643",
+          "2024-06-04T00:00:00",
+          "2024-07-05T00:00:00",
+          "2024-06-12T00:00:00"
+        ],
+        [
+          "A644",
+          "2024-06-05T00:00:00",
+          "2024-07-06T00:00:00",
+          "2024-06-13T00:00:00"
+        ]
+      ]
+    },
+    "acceptance-v1-development-replay-price-mix-only": {
+      "sku_P11_relative_price_change": 0.0,
+      "quantity_mix_reversed": true
+    },
+    "acceptance-v1-development-replay-price-shift": {
+      "sku_P11_relative_price_change": 0.6,
+      "quantity_mix_reversed": true
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "dataset": "tpch_sf1",
+  "archive_sha256": "generated",
+  "planted_changes": [],
+  "built_at": "2026-11-10T01:20:19.589004+00:00",
+  "oracle": "polars over canonical parquet",
+  "scenarios": [
+    {
+      "id": "tpch-l7-01",
+      "dataset": "tpch_sf1",
+      "level": 7,
+      "question": "What was total revenue for line items shipped in calendar year 1995, where line revenue is extended price times (1 minus discount)?",
+      "answer_type": "number",
+      "expected": 33261233716.55,
+      "tolerance": {
+        "rel": 0.002,
+        "abs": null
+      },
+      "unit": "currency units",
+      "answerable": true,
+      "tags": [
+        "scale",
+        "sum",
+        "date-filter"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "tpch-l7-02",
+      "dataset": "tpch_sf1",
+      "level": 7,
+      "question": "List the top 5 customer nations by revenue (extended price times 1 minus discount, summed over line items) for orders placed in 1996, highest first. Break ties alphabetically.",
+      "answer_type": "ranked_list",
+      "expected": [
+        "FRANCE",
+        "JORDAN",
+        "INDONESIA",
+        "VIETNAM",
+        "RUSSIA"
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "scale",
+        "join-3",
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "tpch-l7-03",
+      "dataset": "tpch_sf1",
+      "level": 7,
+      "question": "How many distinct customers placed at least one order in 1997?",
+      "answer_type": "number",
+      "expected": 86680.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "customers",
+      "answerable": true,
+      "tags": [
+        "scale",
+        "count-distinct"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "tpch-l7-04",
+      "dataset": "tpch_sf1",
+      "level": 7,
+      "question": "For orders placed in 1994, what was the average order total price by customer market segment? Return a table with columns `c_mktsegment` and `avg_totalprice`.",
+      "answer_type": "table",
+      "expected": [
+        {
+          "c_mktsegment": "AUTOMOBILE",
+          "avg_totalprice": 151257.55060864947
+        },
+        {
+          "c_mktsegment": "BUILDING",
+          "avg_totalprice": 151341.41010396008
+        },
+        {
+          "c_mktsegment": "FURNITURE",
+          "avg_totalprice": 150837.92060552796
+        },
+        {
+          "c_mktsegment": "HOUSEHOLD",
+          "avg_totalprice": 151236.84437177546
+        },
+        {
+          "c_mktsegment": "MACHINERY",
+          "avg_totalprice": 151407.07600431063
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "scale",
+        "join",
+        "table"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "tpch-l7-05",
+      "dataset": "tpch_sf1",
+      "level": 7,
+      "question": "Which 3 part brands had the largest total quantity shipped in the first quarter of 1995 (ship dates from 1 January to 31 March 1995)? Highest first; break ties alphabetically.",
+      "answer_type": "ranked_list",
+      "expected": [
+        "Brand#52",
+        "Brand#21",
+        "Brand#12"
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "scale",
+        "join",
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "tpch-l7-06",
+      "dataset": "tpch_sf1",
+      "level": 7,
+      "question": "What share of line items shipped in 1994 have return flag 'R'? Answer as a fraction between 0 and 1.",
+      "answer_type": "number",
+      "expected": 0.5004909533731741,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "share",
+      "answerable": true,
+      "tags": [
+        "scale",
+        "ratio"
+      ],
+      "notes": null,
+      "store": null
+    }
+  ]
+}

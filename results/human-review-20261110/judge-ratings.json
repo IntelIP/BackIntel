@@ -1,0 +1,66 @@
+{
+  "review-01": {
+    "judge_version": "fca43a717d4f",
+    "score": 0.875,
+    "criteria": {
+      "conventions_stated": 1.0,
+      "method_matches_question": 1.0,
+      "no_overreach": 1.0,
+      "caveats_material": 0.5
+    },
+    "comment": "weakest: caveats_material (0.50); conventions_stated: The method states concrete filters: order_status = 'delivered' with non-null customer delivery timestamp; delivery time as exact timestamp difference in fractional days; late as strictly after estimated date with equality on time; review averages over joined review rows with orders lacking reviews excluded; slowest-state ranking on customer state with at least 500 eligible orders. Duplicate handling is described (multiple review rows each count), though null handling for purchase/estimated dates and review_score nulls is not stated. The evidence code matches these definitions.; method_matches_question: The code computes avg days, late share, late/on-time review averages per review row, and the slowest state with a 500-order floor, as the question asks. The question asks for reviews averaged over review rows, which the analyst follows. The second query confirms late plus on-time equals eligible orders. Minor gap: the question asks for one metric per row, and the reported slowest-state value is not shown with its average or order count in the answer rows, though the code computes them.; no_overreach: The answer explicitly frames the review difference as association, not causation, and does not invent fields. The narrative 'together the results show' is limited to descriptive statements about this dataset.; caveats_material: The caveats are specific: they give the 7,700 late and 88,653 on-time review row counts and note that averages are per review row rather than per order. They also state association-only scope. Missing purchase/estimated date handling and the share of orders without reviews are not quantified, so the caveats are not fully complete. {\"conventions_stated\": 1.0, \"method_matches_question\": 1.0, \"no_overreach\": 1.0, \"caveats_material\": 0.5}"
+  },
+  "review-02": {
+    "judge_version": "fca43a717d4f",
+    "score": 0.833,
+    "criteria": {
+      "gap_is_real": 1.0,
+      "no_fabrication": 1.0,
+      "names_what_is_needed": 0.5
+    },
+    "comment": "weakest: names_what_is_needed (0.50); gap_is_real: The analyst ran a schema search for columns named like cost, profit, expense, or fee and reports that none exist in the order and payment tables. Net profit needs cost data beyond revenue, and the Olist public tables record orders, payments, items, and freight, not operating costs. The query output itself is not shown in the answer, so the absence rests partly on the analyst's report of it.; no_fabrication: The answer gives no numeric profit figure and no proxy such as payment totals presented as profit. It explicitly says payments and item prices are not net profit and declines to answer.; names_what_is_needed: It says cost or expense data for the relevant period would be needed, which points to the right category. It does not specify concrete items such as seller cost of goods, marketing spend, platform operating expenses, or taxes, so the requirement stays generic. {\"gap_is_real\": 1.0, \"no_fabrication\": 1.0, \"names_what_is_needed\": 0.5}"
+  },
+  "review-03": {
+    "judge_version": "fca43a717d4f",
+    "score": 0.5,
+    "criteria": {
+      "conventions_stated": 0.5,
+      "method_matches_question": 0.5,
+      "no_overreach": 0.5,
+      "caveats_material": 0.5
+    },
+    "comment": "weakest: conventions_stated (0.50); conventions_stated: The method states concrete definitions: orders counted by customer_unique_id across all statuses, repeat means more than one observed order, delivered filter on order_status for item revenue, freight excluded, and first-order month from earliest order_purchase_timestamp with ties to earliest month. It does not address the 2017-09 as-of cutoff in the code (no filter on purchase timestamp), so the period convention stated in the question is not applied or mentioned as a filter, and duplicate/null handling is not described.; method_matches_question: Metrics 1-3 match the question's definitions (all statuses for repeat share and order average; delivered item price for revenue share). However, the code never restricts orders to on or before 2017-09 despite the question specifying an as-of end-of-2017-09 review, so the period is not honored. The month metric is computed over all data, not as of the stated date. The evidence code also has a second snippet reading from BACKINTEL_STORE_NOTE that is unrelated to the first and is used to produce the same numbers, which is inconsistent with the stated source.; no_overreach: The interpretive text 'repeat purchasing was limited' is a reasonable reading of the metrics and does not invent causal stories. It does not claim causes. The first-order month is stated as a measurement. No invented fields are used. Minor overreach: presenting the as-of framing as satisfied when the code does not filter by date.; caveats_material: Caveats are specific: excludes customers with no orders, first/repeat status relative to present orders not full history, and freight excluded. They do not mention the missing as-of cutoff despite it clearly applying, nor any count of duplicates or null handling. Caveats are reasonable but miss the most material scope issue for this question. {\"conventions_stated\": 0.5, \"method_matches_question\": 0.5, \"no_overreach\": 0.5, \"caveats_material\": 0.5}"
+  },
+  "review-04": {
+    "judge_version": "fca43a717d4f",
+    "score": 0.625,
+    "criteria": {
+      "conventions_stated": 1.0,
+      "method_matches_question": 0.5,
+      "no_overreach": 0.5,
+      "caveats_material": 0.5
+    },
+    "comment": "weakest: method_matches_question (0.50); conventions_stated: The method states the status filter ('delivered'), the non-null customer delivery date rule, the Feb/Mar 2018 purchase-timestamp window, the state join and length-2 check, the fractional-day formula via julianday, the 200-order threshold, and the abs>0.25 materiality rule. It does not say how duplicate orders or invalid state codes were handled beyond the length check.; method_matches_question: The evidence code computes per-state monthly means of fractional days, relative change as (cur-prev)/prev, applies the 200-order floor in both months, and flags abs(rel)>0.25, all as asked. However, the reported rows contain a duplicate 'relative_change_RJ' entry with unit 'fractional days' that does not appear in the executed code, so the answer does not faithfully match its own evidence.; no_overreach: The answer reports measured averages and changes without causal claims. Its statement that the March cohort may be 'biased toward faster deliveries' is an unsupported directional assertion, though it is hedged as possibility. It does not invent fields.; caveats_material: The caveat about undelivered March orders being excluded is specific and relevant, and the qualifying counts are disclosed. But the answer does not flag that MG March volume is roughly half of February (385 vs 769), which suggests a snapshot or ingestion anomaly, nor does it note the weak state-code validation. It also does not address whether the task's 'note anything else' asked for more. {\"conventions_stated\": 1.0, \"method_matches_question\": 0.5, \"no_overreach\": 0.5, \"caveats_material\": 0.5}"
+  },
+  "review-05": {
+    "judge_version": "fca43a717d4f",
+    "score": 0.667,
+    "criteria": {
+      "gap_is_real": 0.5,
+      "no_fabrication": 1.0,
+      "names_what_is_needed": 0.5
+    },
+    "comment": "weakest: gap_is_real (0.50); gap_is_real: The analyst ran a schema query over system.columns for cost, expense, profit, revenue, and commission fields and found none. The answer states the connected data has order-item prices, freight, and payment amounts but no cost or expense fields. Net profit requires cost inputs that a public Olist marketplace dataset does not contain, so the absence is a genuine data gap rather than a workaround the analyst skipped. The check was narrow (name-pattern search only), so it does not rule out cost data stored under other names, which keeps this from a full 2.; no_fabrication: The answer declines to give a number, offers no proxy (such as revenue or payment totals) presented as net profit, and explicitly states that the available measures are not a substitute. No invented fields are cited; the evidence is the actual schema query.; names_what_is_needed: The answer says a cost/expense dataset or an explicit profit definition with its required inputs would be needed. This is somewhat generic: it does not specify concrete inputs such as cost of goods, seller fees, marketing spend, logistics costs, or overhead, nor the period-level financial statements that would be needed. It names the category but not the specific fields. {\"gap_is_real\": 0.5, \"no_fabrication\": 1.0, \"names_what_is_needed\": 0.5}"
+  },
+  "review-06": {
+    "judge_version": "fca43a717d4f",
+    "score": 0.625,
+    "criteria": {
+      "conventions_stated": 0.5,
+      "method_matches_question": 1.0,
+      "no_overreach": 0.5,
+      "caveats_material": 0.5
+    },
+    "comment": "weakest: conventions_stated (0.50); conventions_stated: The method states the join (orders to customers via customer_id, grouped by customer_unique_id), that all statuses count for the first two metrics, that revenue uses order_items.price on orders with status exactly 'delivered', and that the first-order month is based on the minimum purchase timestamp. It does not address duplicate order_items rows, null customer_unique_id handling, or that inner joins silently drop orders without a matching customer, though the code makes the inner join explicit.; method_matches_question: The code computes repeat share over customer_unique_id with all statuses, mean orders among repeat customers, delivered-item-price revenue share from repeat customers, and the modal first-order month with a YYYY-MM slice, matching the four requested metrics. The minimum-timestamp approach for first order is appropriate. The revenue numerator and denominator both use delivered items, consistent with the question.; no_overreach: The narrative says repeat purchasing is 'limited by customer count' which is a mild causal framing, and it does not explain why. The numbers themselves are reported as measurements from the data. The interpretation 'limited by customer count' is a loose causal-sounding claim but largely descriptive.; caveats_material: The single caveat notes price-only revenue excluding freight and payments, which is specific and relevant. It does not mention the inner join dropping unmatched orders, the possibility of duplicate timestamps or order_items rows, or that the modal-month tie-break was alphabetical (sorted first), which matters if months tie. {\"conventions_stated\": 0.5, \"method_matches_question\": 1.0, \"no_overreach\": 0.5, \"caveats_material\": 0.5}"
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "created_at": "2026-11-11T02:14:34.401914+00:00",
+  "scope": "Runtime evidence execution smoke; not a model quality or full data parity evaluation",
+  "dataset": "olist",
+  "model_calls": 0,
+  "data_reloads": 0,
+  "validator_sha256": "6edcabee63b132ea89ee8ada4b681d0b0a8a51e925470c7fb7e4871bc67f5460",
+  "initial_running_containers": [],
+  "checks": [
+    {
+      "store": "sqlite:olist",
+      "passed": true,
+      "started_containers": [],
+      "stopped_containers": [],
+      "count": 99441,
+      "evidence_kind": "sql",
+      "valid_answer_accepted": true,
+      "broken_second_evidence_rejected": true,
+      "sandbox": null
+    },
+    {
+      "store": "postgres:olist",
+      "passed": true,
+      "started_containers": [
+        "backintel-postgres"
+      ],
+      "stopped_containers": [
+        "backintel-postgres"
+      ],
+      "count": 99441,
+      "evidence_kind": "sql",
+      "valid_answer_accepted": true,
+      "broken_second_evidence_rejected": true,
+      "sandbox": null
+    },
+    {
+      "store": "clickhouse:olist",
+      "passed": true,
+      "started_containers": [
+        "backintel-clickhouse"
+      ],
+      "stopped_containers": [
+        "backintel-clickhouse"
+      ],
+      "count": 99441,
+      "evidence_kind": "sql",
+      "valid_answer_accepted": true,
+      "broken_second_evidence_rejected": true,
+      "sandbox": null
+    },
+    {
+      "store": "ferretdb:olist",
+      "passed": true,
+      "started_containers": [
+        "backintel-v2-documentdb-1",
+        "backintel-ferretdb"
+      ],
+      "stopped_containers": [
+        "backintel-ferretdb",
+        "backintel-v2-documentdb-1"
+      ],
+      "backend_readonly": true,
+      "count": 99441,
+      "evidence_kind": "query",
+      "valid_answer_accepted": true,
+      "broken_second_evidence_rejected": true,
+      "sandbox": null
+    },
+    {
+      "store": "lake-iceberg:olist",
+      "passed": true,
+      "started_containers": [
+        "backintel-garage"
+      ],
+      "stopped_containers": [
+        "backintel-garage"
+      ],
+      "count": 99441,
+      "evidence_kind": "sql",
+      "valid_answer_accepted": true,
+      "broken_second_evidence_rejected": true,
+      "sandbox": null
+    },
+    {
+      "store": "files:olist",
+      "passed": true,
+      "started_containers": [],
+      "stopped_containers": [],
+      "count": 99441,
+      "evidence_kind": "python",
+      "valid_answer_accepted": true,
+      "broken_second_evidence_rejected": true,
+      "sandbox": "docker"
+    }
+  ],
+  "final_running_containers": [],
+  "service_state_preserved": true,
+  "passed": true
+}

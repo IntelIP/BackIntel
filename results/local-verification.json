@@ -1,0 +1,12 @@
+{
+  "base_git_sha": "c6de6ae",
+  "source_version": "193fe413afe52651",
+  "working_tree": true,
+  "pytest": "28 passed",
+  "ruff": "passed, src/tests/scripts",
+  "vulture": "passed, pinned 2.14",
+  "gitleaks": "8.30.1, candidate files, no leaks",
+  "native_parity": "16/16 on both datasets",
+  "sandbox_timeout": "1 second timeout returned in 1.18 seconds, no owned container remains",
+  "hosted_ci": "requires owner approval to commit/push"
+}

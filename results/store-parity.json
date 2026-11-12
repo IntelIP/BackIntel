@@ -1,0 +1,98 @@
+[
+  {
+    "store": "sqlite:olist",
+    "rows": 99441,
+    "total": 16008872.12,
+    "passed": true
+  },
+  {
+    "store": "sqlite:online_retail_ii",
+    "rows": 1067371,
+    "total": 19287250.568,
+    "passed": true
+  },
+  {
+    "store": "postgres:olist",
+    "rows": 99441,
+    "total": 16008872.119998766,
+    "passed": true
+  },
+  {
+    "store": "postgres:online_retail_ii",
+    "rows": 1067371,
+    "total": 19287250.568005368,
+    "passed": true
+  },
+  {
+    "store": "lake-parquet:olist",
+    "rows": 99441,
+    "total": 16008872.119998764,
+    "passed": true
+  },
+  {
+    "store": "lake-parquet:online_retail_ii",
+    "rows": 1067371,
+    "total": 19287250.567997634,
+    "passed": true
+  },
+  {
+    "store": "files:olist",
+    "rows": 99441,
+    "total": 16008872.120000001,
+    "passed": true
+  },
+  {
+    "store": "files:online_retail_ii",
+    "rows": 1067371,
+    "total": 19287250.568,
+    "passed": true
+  },
+  {
+    "store": "files-mixed:olist",
+    "rows": 99441,
+    "total": 16008872.120000001,
+    "passed": true
+  },
+  {
+    "store": "files-mixed:online_retail_ii",
+    "rows": 1067371,
+    "total": 19287250.568,
+    "passed": true
+  },
+  {
+    "store": "clickhouse:olist",
+    "rows": 99441,
+    "total": 16008872.120000022,
+    "passed": true
+  },
+  {
+    "store": "clickhouse:online_retail_ii",
+    "rows": 1067371,
+    "total": 19287250.56799999,
+    "passed": true
+  },
+  {
+    "store": "ferretdb:olist",
+    "rows": 99441,
+    "total": 16008872.119998764,
+    "passed": true
+  },
+  {
+    "store": "ferretdb:online_retail_ii",
+    "rows": 1067371,
+    "total": 19287250.567992434,
+    "passed": true
+  },
+  {
+    "store": "lake-iceberg:olist",
+    "rows": 99441,
+    "total": 16008872.119998764,
+    "passed": true
+  },
+  {
+    "store": "lake-iceberg:online_retail_ii",
+    "rows": 1067371,
+    "total": 19287250.56799452,
+    "passed": true
+  }
+]

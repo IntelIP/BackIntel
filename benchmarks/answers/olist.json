@@ -1,0 +1,2029 @@
+{
+  "dataset": "olist",
+  "archive_sha256": "967e41e04fc306fe604e2a693f488995a8b41e5047418f8a5c8e4abd6deca784",
+  "planted_changes": [
+    {
+      "periods": [
+        "2018-01",
+        "2018-02",
+        "2018-03",
+        "2018-04",
+        "2018-05",
+        "2018-06",
+        "2018-07",
+        "2018-08"
+      ],
+      "min_orders": 200,
+      "material_change": 0.25,
+      "changes": [
+        {
+          "id": "sp-delivery-plus-7d",
+          "kind": "delivery_shift",
+          "customer_state": "SP",
+          "from": "2018-05-01",
+          "days": 7,
+          "description": "order_delivered_customer_date += 7 days for SP customers' orders purchased on or after 2018-05-01 (persistent step change)"
+        }
+      ]
+    }
+  ],
+  "built_at": "2026-11-10T01:51:01.932663+00:00",
+  "oracle": "polars over canonical parquet",
+  "scenarios": [
+    {
+      "id": "olist-l1-01",
+      "dataset": "olist",
+      "level": 1,
+      "question": "How many orders have the status 'delivered'?",
+      "answer_type": "number",
+      "expected": 96478.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "orders",
+      "answerable": true,
+      "tags": [
+        "count",
+        "filter"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l1-02",
+      "dataset": "olist",
+      "level": 1,
+      "question": "How many distinct people are in the customers table? Use customer_unique_id, which identifies a person across orders.",
+      "answer_type": "number",
+      "expected": 96096.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "customers",
+      "answerable": true,
+      "tags": [
+        "count-distinct"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l1-03",
+      "dataset": "olist",
+      "level": 1,
+      "question": "Which payment type appears most often in the order payments table?",
+      "answer_type": "text",
+      "expected": "credit_card",
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ranking",
+        "text-answer"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l1-04",
+      "dataset": "olist",
+      "level": 1,
+      "question": "What is the average review score across all rows of the order reviews table?",
+      "answer_type": "number",
+      "expected": 4.08642062404257,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "score",
+      "answerable": true,
+      "tags": [
+        "mean"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l1-05",
+      "dataset": "olist",
+      "level": 1,
+      "question": "List the top 3 customer states by number of rows in the customers table, highest first (two-letter state codes). Break ties alphabetically.",
+      "answer_type": "ranked_list",
+      "expected": [
+        "SP",
+        "RJ",
+        "MG"
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l1-06",
+      "dataset": "olist",
+      "level": 1,
+      "question": "What is the total freight value summed over all order items? Answer in BRL.",
+      "answer_type": "number",
+      "expected": 2251909.54,
+      "tolerance": {
+        "rel": 0.002,
+        "abs": null
+      },
+      "unit": "BRL",
+      "answerable": true,
+      "tags": [
+        "sum"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l1-07",
+      "dataset": "olist",
+      "level": 1,
+      "question": "How many orders were purchased in calendar year 2017, by order purchase timestamp?",
+      "answer_type": "number",
+      "expected": 45101.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "orders",
+      "answerable": true,
+      "tags": [
+        "count",
+        "date-filter"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l1-08",
+      "dataset": "olist",
+      "level": 1,
+      "question": "How many orders are there per order status? Return a table with columns `order_status` and `orders`, one row per status.",
+      "answer_type": "table",
+      "expected": [
+        {
+          "order_status": "approved",
+          "orders": 2.0
+        },
+        {
+          "order_status": "canceled",
+          "orders": 625.0
+        },
+        {
+          "order_status": "created",
+          "orders": 5.0
+        },
+        {
+          "order_status": "delivered",
+          "orders": 96478.0
+        },
+        {
+          "order_status": "invoiced",
+          "orders": 314.0
+        },
+        {
+          "order_status": "processing",
+          "orders": 301.0
+        },
+        {
+          "order_status": "shipped",
+          "orders": 1107.0
+        },
+        {
+          "order_status": "unavailable",
+          "orders": 609.0
+        }
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "orders",
+      "answerable": true,
+      "tags": [
+        "table",
+        "group-by"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l2-01",
+      "dataset": "olist",
+      "level": 2,
+      "question": "Which product category, by its English name, had the highest total item revenue (sum of item price, excluding freight) across orders with status 'delivered'? Ignore categories without an English translation.",
+      "answer_type": "text",
+      "expected": "health_beauty",
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "join-3",
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l2-02",
+      "dataset": "olist",
+      "level": 2,
+      "question": "What was the average delivery time in days for orders with status 'delivered' that have a customer delivery date: the time from order purchase timestamp to delivered customer date, averaged as a fractional number of days?",
+      "answer_type": "number",
+      "expected": 12.558217098051975,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "days",
+      "answerable": true,
+      "tags": [
+        "dates",
+        "mean",
+        "nulls"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l2-03",
+      "dataset": "olist",
+      "level": 2,
+      "question": "List the top 5 seller states by total item revenue (sum of item price) across orders with status 'delivered', highest first (two-letter codes). Break ties alphabetically.",
+      "answer_type": "ranked_list",
+      "expected": [
+        "SP",
+        "PR",
+        "MG",
+        "RJ",
+        "SC"
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "join",
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l2-04",
+      "dataset": "olist",
+      "level": 2,
+      "question": "What was the average review score of orders with status 'delivered' whose customer delivery date is later than the estimated delivery date? Average over review rows.",
+      "answer_type": "number",
+      "expected": 2.5664935064935066,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "score",
+      "answerable": true,
+      "tags": [
+        "join",
+        "dates",
+        "mean"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l2-05",
+      "dataset": "olist",
+      "level": 2,
+      "question": "What share of orders with status 'delivered' have at least one payment record of type 'boleto'? Answer as a fraction between 0 and 1.",
+      "answer_type": "number",
+      "expected": 0.198915815004457,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "share",
+      "answerable": true,
+      "tags": [
+        "join",
+        "ratio",
+        "exists"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l2-06",
+      "dataset": "olist",
+      "level": 2,
+      "question": "For customer states SP, RJ and MG, how many orders with status 'delivered' and a customer delivery date are there, and what is their average delivery time in fractional days from purchase to customer delivery? Return a table with columns `customer_state`, `orders`, `avg_delivery_days`.",
+      "answer_type": "table",
+      "expected": [
+        {
+          "customer_state": "MG",
+          "orders": 11354.0,
+          "avg_delivery_days": 12.008665646060452
+        },
+        {
+          "customer_state": "RJ",
+          "orders": 12350.0,
+          "avg_delivery_days": 15.30943754217274
+        },
+        {
+          "customer_state": "SP",
+          "orders": 40494.0,
+          "avg_delivery_days": 8.761385996084924
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "table",
+        "join",
+        "dates"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l2-07",
+      "dataset": "olist",
+      "level": 2,
+      "question": "What share of people (customer_unique_id) placed more than one order, across all orders regardless of status? Answer as a fraction between 0 and 1.",
+      "answer_type": "number",
+      "expected": 0.031187562437562436,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "share",
+      "answerable": true,
+      "tags": [
+        "join",
+        "ratio",
+        "identity"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l2-08",
+      "dataset": "olist",
+      "level": 2,
+      "question": "Which seller_id had the highest total item revenue (sum of item price) across orders with status 'delivered'? Answer with the seller_id.",
+      "answer_type": "text",
+      "expected": "4869f7a5dfa277a7dca6462dcf3b52b2",
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "join",
+        "ranking",
+        "text-answer"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l3-01",
+      "dataset": "olist",
+      "level": 3,
+      "question": "How many orders have the status 'delivered' but no customer delivery date?",
+      "answer_type": "number",
+      "expected": 8.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "orders",
+      "answerable": true,
+      "tags": [
+        "nulls",
+        "discovery"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l3-02",
+      "dataset": "olist",
+      "level": 3,
+      "question": "How many distinct non-null product category names in the products table have no English translation in the translation table?",
+      "answer_type": "number",
+      "expected": 2.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "categories",
+      "answerable": true,
+      "tags": [
+        "anti-join",
+        "discovery"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l3-03",
+      "dataset": "olist",
+      "level": 3,
+      "question": "How many orders have more than one row in the order payments table?",
+      "answer_type": "number",
+      "expected": 2961.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "orders",
+      "answerable": true,
+      "tags": [
+        "duplicates",
+        "grain"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l3-04",
+      "dataset": "olist",
+      "level": 3,
+      "question": "How many rows in the order reviews table share a review_id with another row, counting every copy beyond the first?",
+      "answer_type": "number",
+      "expected": 814.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "rows",
+      "answerable": true,
+      "tags": [
+        "duplicates",
+        "discovery"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l3-05",
+      "dataset": "olist",
+      "level": 3,
+      "question": "Among orders with status 'delivered' that have both items and payments, what share have a total payment value that differs from the sum of item prices plus freight by more than 1 BRL in absolute terms? Answer as a fraction between 0 and 1.",
+      "answer_type": "number",
+      "expected": 0.0025498305295562672,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "share",
+      "answerable": true,
+      "tags": [
+        "reconciliation",
+        "grain",
+        "ratio"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l3-06",
+      "dataset": "olist",
+      "level": 3,
+      "question": "How many products have no category name?",
+      "answer_type": "number",
+      "expected": 610.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "products",
+      "answerable": true,
+      "tags": [
+        "nulls"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l3-07",
+      "dataset": "olist",
+      "level": 3,
+      "question": "What was Olist's net profit in 2017?",
+      "answer_type": "number",
+      "expected": null,
+      "tolerance": {
+        "rel": 0.002,
+        "abs": null
+      },
+      "unit": "BRL",
+      "answerable": false,
+      "tags": [
+        "unanswerable",
+        "missing-cost"
+      ],
+      "notes": "No cost or margin data exists; the right answer is cannot_answer.",
+      "store": null
+    },
+    {
+      "id": "olist-l3-08",
+      "dataset": "olist",
+      "level": 3,
+      "question": "What was the average age of customers who received a delivered order?",
+      "answer_type": "number",
+      "expected": null,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "years",
+      "answerable": false,
+      "tags": [
+        "unanswerable",
+        "missing-field"
+      ],
+      "notes": "No customer age exists; the right answer is cannot_answer.",
+      "store": null
+    },
+    {
+      "id": "olist-l4-01",
+      "dataset": "olist",
+      "level": 4,
+      "question": "Which product category, by its English name, had the highest total item revenue (sum of item price, excluding freight) across orders with status 'delivered'? Ignore categories without an English translation.",
+      "answer_type": "text",
+      "expected": "health_beauty",
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "cross-store",
+        "join",
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l4-02",
+      "dataset": "olist",
+      "level": 4,
+      "question": "List the top 5 seller states by total item revenue (sum of item price) across orders with status 'delivered', highest first (two-letter codes). Break ties alphabetically.",
+      "answer_type": "ranked_list",
+      "expected": [
+        "SP",
+        "PR",
+        "MG",
+        "RJ",
+        "SC"
+      ],
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "cross-store",
+        "join",
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l4-03",
+      "dataset": "olist",
+      "level": 4,
+      "question": "Which seller_id had the highest total item revenue (sum of item price) across orders with status 'delivered'? Answer with the seller_id.",
+      "answer_type": "text",
+      "expected": "4869f7a5dfa277a7dca6462dcf3b52b2",
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "cross-store",
+        "join",
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l4-04",
+      "dataset": "olist",
+      "level": 4,
+      "question": "Among orders with status 'delivered' that have both items and payments, what share have a total payment value that differs from the sum of item prices plus freight by more than 1 BRL in absolute terms? Answer as a fraction between 0 and 1.",
+      "answer_type": "number",
+      "expected": 0.0025498305295562672,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "share",
+      "answerable": true,
+      "tags": [
+        "cross-store",
+        "reconciliation",
+        "ratio"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l4-05",
+      "dataset": "olist",
+      "level": 4,
+      "question": "What is the average item price (simple mean over order item rows) for orders with status 'delivered' that have at least one payment of type 'boleto'? Answer in BRL.",
+      "answer_type": "number",
+      "expected": 104.18601377336552,
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": "BRL",
+      "answerable": true,
+      "tags": [
+        "cross-store",
+        "join",
+        "mean"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l4-06",
+      "dataset": "olist",
+      "level": 4,
+      "question": "How many distinct orders with status 'delivered' contain at least one item whose product category name is 'cama_mesa_banho'?",
+      "answer_type": "number",
+      "expected": 9272.0,
+      "tolerance": {
+        "rel": null,
+        "abs": 0.0
+      },
+      "unit": "orders",
+      "answerable": true,
+      "tags": [
+        "cross-store",
+        "join",
+        "count-distinct"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l5-01",
+      "dataset": "olist",
+      "level": 5,
+      "question": "Standing problem: how healthy is repeat purchasing? Report one metric per row: (1) the share of people (customer_unique_id) with more than one order, across all orders regardless of status; (2) the average number of orders among those repeat customers; (3) the share of item revenue (sum of item price over orders with status 'delivered') that came from repeat customers' orders; (4) the calendar month (YYYY-MM) in which the most people placed their first order. Then say what the numbers mean together. Use these metric identifiers in rows: repeat_customer_share, avg_orders_per_repeat_customer, repeat_revenue_share, month_most_first_orders.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "repeat_customer_share",
+          "value": 0.031187562437562436,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "avg_orders_per_repeat_customer",
+          "value": 2.116116116116116,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "repeat_revenue_share",
+          "value": 0.057510718806130824,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "month_most_first_orders",
+          "value": "2017-11",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "standing-problem",
+        "identity",
+        "cohort"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l5-02",
+      "dataset": "olist",
+      "level": 5,
+      "question": "Standing problem: how do delivery performance and customer satisfaction relate? Over orders with status 'delivered' that have a customer delivery date, report one metric per row: (1) the average delivery time in fractional days from purchase to customer delivery; (2) the share of those orders delivered after the estimated delivery date; (3) the average review score of late orders and (4) of on-time orders, averaging over review rows; (5) the customer state (two-letter code) with the longest average delivery time among states with at least 500 such orders. Then say what the numbers mean together, without claiming causes the data cannot show. Use these metric identifiers in rows: avg_delivery_days, late_share, avg_review_score_late, avg_review_score_on_time, slowest_state_500_plus.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "avg_delivery_days",
+          "value": 12.558217098051975,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "late_share",
+          "value": 0.08112366538820359,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "avg_review_score_late",
+          "value": 2.5664935064935066,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "avg_review_score_on_time",
+          "value": 4.2937182046856845,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "slowest_state_500_plus",
+          "value": "PA",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "standing-problem",
+        "dates",
+        "join"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l5-03",
+      "dataset": "olist",
+      "level": 5,
+      "question": "Standing problem: which categories and sellers drive performance? Over orders with status 'delivered', report one metric per row: (1) the product category (English name) with the highest item revenue (sum of item price) and (2) that revenue in BRL; (3) the share of item revenue earned by the top 10 sellers; (4) the number of sellers with at least 100 delivered items; (5) the category (English name) with the lowest average review score among categories with at least 500 reviewed delivered orders, counting each order once per category. Then say what the numbers mean together. Use these metric identifiers in rows: top_category_english, top_category_revenue, top10_seller_revenue_share, sellers_with_100_plus_delivered_items, lowest_score_category_500_plus.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "top_category_english",
+          "value": "health_beauty",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "top_category_revenue",
+          "value": 1233131.72,
+          "rel": 0.002,
+          "abs": null
+        },
+        {
+          "name": "top10_seller_revenue_share",
+          "value": 0.13272323494663346,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "sellers_with_100_plus_delivered_items",
+          "value": 236.0,
+          "rel": null,
+          "abs": 0
+        },
+        {
+          "name": "lowest_score_category_500_plus",
+          "value": "office_furniture",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "standing-problem",
+        "join",
+        "ranking"
+      ],
+      "notes": null,
+      "store": null
+    },
+    {
+      "id": "olist-l6-2018-01",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-01 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-01 with orders purchased in 2017-12, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "changed_state_MG",
+          "value": "MG",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 10.288272044825197,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 14.283496397243105,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.2797091301251028,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_PR_current",
+          "value": 10.889717949550015,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_PR_previous",
+          "value": 14.49216210008647,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_PR",
+          "value": -0.2485787921537919,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_RJ",
+          "value": "RJ",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 11.97416246047877,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 20.41838978317578,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.41355990420237904,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 8.047129296562748,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 10.111359076420237,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": -0.20414958703932182,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-01"
+    },
+    {
+      "id": "olist-l6-2018-02",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-02 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-02 with orders purchased in 2018-01, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "NO_CHANGE",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 12.223488933915212,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 12.381211622807015,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.01273887352036436,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 12.537464653145209,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 16.115640436921293,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.22203124956662618,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 8.699851970705422,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 9.587972360279629,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": -0.09262859301237127,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-02"
+    },
+    {
+      "id": "olist-l6-2018-03",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-03 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-03 with orders purchased in 2018-02, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 12.241424543049542,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 15.007036209242397,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.1842876653079304,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_RJ",
+          "value": "RJ",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 12.632831920169231,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 18.436029736228864,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.3147748131831063,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_SP",
+          "value": "SP",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 8.069247442977355,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 10.956142073318503,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": -0.26349554533174624,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-03"
+    },
+    {
+      "id": "olist-l6-2018-04",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-04 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-04 with orders purchased in 2018-03, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "changed_state_MG",
+          "value": "MG",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 9.907351661392404,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 16.412985865144954,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.3963711573997078,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_PR",
+          "value": "PR",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_PR_current",
+          "value": 9.018512230242054,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_PR_previous",
+          "value": 14.557557806601366,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_PR",
+          "value": -0.3804927756390251,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_RJ",
+          "value": "RJ",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 10.802268490629185,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 21.79950592440609,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.5044718661015486,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_SP",
+          "value": "SP",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 6.364998597081929,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 10.203875753606036,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": -0.3762175519598476,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-04"
+    },
+    {
+      "id": "olist-l6-2018-05",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-05 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-05 with orders purchased in 2018-04, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 8.29430019574944,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 11.023805961244749,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.24760103498656905,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_RJ",
+          "value": "RJ",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 9.66145621883903,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 13.732215687299597,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.2964386491704654,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RS_current",
+          "value": 10.108415493688755,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RS_previous",
+          "value": 13.195295526940935,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RS",
+          "value": -0.2339379233265124,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_SP",
+          "value": "SP",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 12.790427640437333,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 7.16505952877978,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": 0.7851111479342532,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-05"
+    },
+    {
+      "id": "olist-l6-2018-06",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-06 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-06 with orders purchased in 2018-05, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "CHANGE_DETECTED",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "changed_state_MG",
+          "value": "MG",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 7.9291783072584066,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 11.974768225308644,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.33784285774315803,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_PR",
+          "value": "PR",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_PR_current",
+          "value": 8.553323330400536,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_PR_previous",
+          "value": 12.314088992604615,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_PR",
+          "value": -0.30540348250387467,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "changed_state_RJ",
+          "value": "RJ",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 8.985262602377327,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 12.960224788212996,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.3067047254805949,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 12.731459662100931,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 14.93826497234055,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": -0.1477283549545883,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-06"
+    },
+    {
+      "id": "olist-l6-2018-07",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-07 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-07 with orders purchased in 2018-06, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "NO_CHANGE",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 7.27307019479755,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 8.47923796166433,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.14224954793343592,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_PR_current",
+          "value": 7.761255787037038,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_PR_previous",
+          "value": 8.83755268851368,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_PR",
+          "value": -0.12178675923205803,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 8.185553745513136,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 10.27107347063944,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.20304788307550356,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RS_current",
+          "value": 9.26691996527778,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RS_previous",
+          "value": 11.487380555555553,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RS",
+          "value": -0.1932956412072472,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 12.686220566593082,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 13.44893837642567,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": -0.05671212020493285,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-07"
+    },
+    {
+      "id": "olist-l6-2018-08",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Standing question for the 2018-08 run: did delivery performance change materially by customer state? Compare orders purchased in 2018-08 with orders purchased in 2018-07, using orders with status 'delivered' that have a customer delivery date, and the average delivery time in fractional days from purchase to customer delivery. Consider only states (two-letter codes) with at least 200 such orders in both months; a material change is a relative change of more than 25% in the average. Return a report with metric/value/unit rows: avg_days_STATE_current, avg_days_STATE_previous, and relative_change_STATE for every considered state, replacing STATE with its code; then a row with metric 'status' and value CHANGE_DETECTED or NO_CHANGE, and one row with metric 'changed_state_STATE' per state that changed materially (value = the state code). Note anything else in the data that affects the reading.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "status",
+          "value": "NO_CHANGE",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "avg_days_MG_current",
+          "value": 7.507760805780745,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_MG_previous",
+          "value": 8.095943078739927,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_MG",
+          "value": -0.07265148324767227,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_PR_current",
+          "value": 7.946473504273504,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_PR_previous",
+          "value": 8.642989244220335,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_PR",
+          "value": -0.08058736627638391,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_current",
+          "value": 8.041513103215417,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RJ_previous",
+          "value": 9.518590244471088,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RJ",
+          "value": -0.15517814122880622,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RS_current",
+          "value": 9.781640575283186,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_RS_previous",
+          "value": 10.215628732356137,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_RS",
+          "value": -0.04248276522602796,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_current",
+          "value": 12.893928218454954,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "avg_days_SP_previous",
+          "value": 13.609230777791474,
+          "rel": 0.01,
+          "abs": 0.0001
+        },
+        {
+          "name": "relative_change_SP",
+          "value": -0.05256010211126716,
+          "rel": 0.01,
+          "abs": 0.0001
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "planted-change",
+        "dates"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-08"
+    },
+    {
+      "id": "olist-l6-repeat-2017-09",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Simulated quarterly review as of the end of 2017-09. Standing problem: how healthy is repeat purchasing? Report one metric per row: (1) the share of people (customer_unique_id) with more than one order, across all orders regardless of status; (2) the average number of orders among those repeat customers; (3) the share of item revenue (sum of item price over orders with status 'delivered') that came from repeat customers' orders; (4) the calendar month (YYYY-MM) in which the most people placed their first order. Then say what the numbers mean together. Use these metric identifiers in rows: repeat_customer_share, avg_orders_per_repeat_customer, repeat_revenue_share, month_most_first_orders.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "repeat_customer_share",
+          "value": 0.027378328913457588,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "avg_orders_per_repeat_customer",
+          "value": 2.1036834924965895,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "repeat_revenue_share",
+          "value": 0.05067740121206707,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "month_most_first_orders",
+          "value": "2017-08",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "quarterly",
+        "repeat"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2017-09"
+    },
+    {
+      "id": "olist-l6-repeat-2017-12",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Simulated quarterly review as of the end of 2017-12. Standing problem: how healthy is repeat purchasing? Report one metric per row: (1) the share of people (customer_unique_id) with more than one order, across all orders regardless of status; (2) the average number of orders among those repeat customers; (3) the share of item revenue (sum of item price over orders with status 'delivered') that came from repeat customers' orders; (4) the calendar month (YYYY-MM) in which the most people placed their first order. Then say what the numbers mean together. Use these metric identifiers in rows: repeat_customer_share, avg_orders_per_repeat_customer, repeat_revenue_share, month_most_first_orders.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "repeat_customer_share",
+          "value": 0.028705091520188946,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "avg_orders_per_repeat_customer",
+          "value": 2.1044303797468356,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "repeat_revenue_share",
+          "value": 0.05388561470197584,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "month_most_first_orders",
+          "value": "2017-11",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "quarterly",
+        "repeat"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2017-12"
+    },
+    {
+      "id": "olist-l6-repeat-2018-03",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Simulated quarterly review as of the end of 2018-03. Standing problem: how healthy is repeat purchasing? Report one metric per row: (1) the share of people (customer_unique_id) with more than one order, across all orders regardless of status; (2) the average number of orders among those repeat customers; (3) the share of item revenue (sum of item price over orders with status 'delivered') that came from repeat customers' orders; (4) the calendar month (YYYY-MM) in which the most people placed their first order. Then say what the numbers mean together. Use these metric identifiers in rows: repeat_customer_share, avg_orders_per_repeat_customer, repeat_revenue_share, month_most_first_orders.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "repeat_customer_share",
+          "value": 0.030275300504071345,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "avg_orders_per_repeat_customer",
+          "value": 2.108094262295082,
+          "rel": 0.005,
+          "abs": null
+        },
+        {
+          "name": "repeat_revenue_share",
+          "value": 0.05733068875931199,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "month_most_first_orders",
+          "value": "2017-11",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "quarterly",
+        "repeat"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-03"
+    },
+    {
+      "id": "olist-l6-category-2018-06-07",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Simulated weekly review as of the end of 2018-06-07. Standing problem: which categories and sellers drive performance? Over orders with status 'delivered', report one metric per row: (1) the product category (English name) with the highest item revenue (sum of item price) and (2) that revenue in BRL; (3) the share of item revenue earned by the top 10 sellers; (4) the number of sellers with at least 100 delivered items; (5) the category (English name) with the lowest average review score among categories with at least 500 reviewed delivered orders, counting each order once per category. Then say what the numbers mean together. Use these metric identifiers in rows: top_category_english, top_category_revenue, top10_seller_revenue_share, sellers_with_100_plus_delivered_items, lowest_score_category_500_plus.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "top_category_english",
+          "value": "watches_gifts",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "top_category_revenue",
+          "value": 888894.32,
+          "rel": 0.002,
+          "abs": null
+        },
+        {
+          "name": "top10_seller_revenue_share",
+          "value": 0.14718721758122752,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "sellers_with_100_plus_delivered_items",
+          "value": 197.0,
+          "rel": null,
+          "abs": 0
+        },
+        {
+          "name": "lowest_score_category_500_plus",
+          "value": "office_furniture",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "weekly",
+        "category"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-06-07"
+    },
+    {
+      "id": "olist-l6-category-2018-06-14",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Simulated weekly review as of the end of 2018-06-14. Standing problem: which categories and sellers drive performance? Over orders with status 'delivered', report one metric per row: (1) the product category (English name) with the highest item revenue (sum of item price) and (2) that revenue in BRL; (3) the share of item revenue earned by the top 10 sellers; (4) the number of sellers with at least 100 delivered items; (5) the category (English name) with the lowest average review score among categories with at least 500 reviewed delivered orders, counting each order once per category. Then say what the numbers mean together. Use these metric identifiers in rows: top_category_english, top_category_revenue, top10_seller_revenue_share, sellers_with_100_plus_delivered_items, lowest_score_category_500_plus.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "top_category_english",
+          "value": "watches_gifts",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "top_category_revenue",
+          "value": 911965.66,
+          "rel": 0.002,
+          "abs": null
+        },
+        {
+          "name": "top10_seller_revenue_share",
+          "value": 0.14529730150177061,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "sellers_with_100_plus_delivered_items",
+          "value": 203.0,
+          "rel": null,
+          "abs": 0
+        },
+        {
+          "name": "lowest_score_category_500_plus",
+          "value": "office_furniture",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "weekly",
+        "category"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-06-14"
+    },
+    {
+      "id": "olist-l6-category-2018-06-21",
+      "dataset": "olist",
+      "level": 6,
+      "question": "Simulated weekly review as of the end of 2018-06-21. Standing problem: which categories and sellers drive performance? Over orders with status 'delivered', report one metric per row: (1) the product category (English name) with the highest item revenue (sum of item price) and (2) that revenue in BRL; (3) the share of item revenue earned by the top 10 sellers; (4) the number of sellers with at least 100 delivered items; (5) the category (English name) with the lowest average review score among categories with at least 500 reviewed delivered orders, counting each order once per category. Then say what the numbers mean together. Use these metric identifiers in rows: top_category_english, top_category_revenue, top10_seller_revenue_share, sellers_with_100_plus_delivered_items, lowest_score_category_500_plus.",
+      "answer_type": "report",
+      "expected": [
+        {
+          "name": "top_category_english",
+          "value": "health_beauty",
+          "rel": null,
+          "abs": null
+        },
+        {
+          "name": "top_category_revenue",
+          "value": 940423.77,
+          "rel": 0.002,
+          "abs": null
+        },
+        {
+          "name": "top10_seller_revenue_share",
+          "value": 0.14412671655487136,
+          "rel": 0.01,
+          "abs": null
+        },
+        {
+          "name": "sellers_with_100_plus_delivered_items",
+          "value": 205.0,
+          "rel": null,
+          "abs": 0
+        },
+        {
+          "name": "lowest_score_category_500_plus",
+          "value": "office_furniture",
+          "rel": null,
+          "abs": null
+        }
+      ],
+      "tolerance": {
+        "rel": 0.005,
+        "abs": null
+      },
+      "unit": null,
+      "answerable": true,
+      "tags": [
+        "ambient-replay",
+        "weekly",
+        "category"
+      ],
+      "notes": null,
+      "store": "sqlite:olist_asof_2018-06-21"
+    }
+  ]
+}
