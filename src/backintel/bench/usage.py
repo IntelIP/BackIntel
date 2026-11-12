@@ -14,6 +14,8 @@ from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
 
+from backintel.models import message_token_usage, normalize_token_usage
+
 
 class BudgetExceeded(RuntimeError):
     pass
@@ -59,7 +61,12 @@ class RunBudget:
 
     def settle(self, cost: float | None) -> None:
         with self._lock:
-            if cost is None or not math.isfinite(cost) or cost < 0:
+            if (
+                isinstance(cost, bool)
+                or not isinstance(cost, (int, float))
+                or not math.isfinite(cost)
+                or cost < 0
+            ):
                 self.uncertain = True
                 return  # Keep the reservation; unknown charges are never treated as free.
             self.reserved_usd -= self.reservation_usd
@@ -80,13 +87,51 @@ class RunBudget:
         }
 
 
+@dataclass
+class PlanRunBudget:
+    """Bound subscription work by calls; never manufacture a dollar charge."""
+
+    max_calls: int
+    calls: int = 0
+    stopped_reason: str | None = None
+    _lock: Lock = field(default_factory=Lock, repr=False)
+
+    def __post_init__(self):
+        if isinstance(self.max_calls, bool) or not isinstance(self.max_calls, int) or self.max_calls < 1:
+            raise ValueError("max_calls must be a positive integer")
+
+    def can_admit(self) -> bool:
+        with self._lock:
+            return self.stopped_reason is None and self.calls < self.max_calls
+
+    def reserve(self) -> None:
+        with self._lock:
+            if self.stopped_reason is not None or self.calls >= self.max_calls:
+                raise BudgetExceeded("ChatGPT subscription call admission stopped")
+            self.calls += 1
+
+    def settle(self, usage: dict | None) -> None:
+        if not usage or not all(key in usage for key in ("prompt_tokens", "completion_tokens")):
+            with self._lock:
+                self.stopped_reason = "A request failed or did not report complete token usage."
+
+    def report(self) -> dict:
+        return {
+            "billing_mode": "chatgpt_plan",
+            "max_calls": self.max_calls,
+            "calls": self.calls,
+            "stopped_reason": self.stopped_reason,
+            "scope": "application call limit; subscription availability is enforced by OpenAI",
+        }
+
+
 class UsageTracker(BaseCallbackHandler):
     """Use one tracker per answer/judge call; optional shared budget spans the experiment."""
 
     raise_error = True
     run_inline = True
 
-    def __init__(self, budget: RunBudget | None = None):
+    def __init__(self, budget: RunBudget | PlanRunBudget | None = None):
         self.budget = budget
         self.started: set[UUID] = set()
         self.finished: dict[UUID, dict | None] = {}
@@ -101,18 +146,19 @@ class UsageTracker(BaseCallbackHandler):
                 self.started.add(run_id)
 
     def on_llm_end(self, response, *, run_id, **kwargs):
-        value = (response.llm_output or {}).get("token_usage")
-        if value is None:
-            for generations in response.generations:
-                for generation in generations:
-                    message = getattr(generation, "message", None)
-                    meta = getattr(message, "response_metadata", {}) or {}
-                    value = meta.get("token_usage")
-                    if value is not None:
-                        break
-                if value is not None:
+        value = normalize_token_usage((response.llm_output or {}).get("token_usage"))
+        for generations in response.generations:
+            for generation in generations:
+                message = getattr(generation, "message", None)
+                reported = message_token_usage(message)
+                if reported:
+                    # LLM output may be empty for Responses or omit standard token counts.
+                    # Combine metadata once; never sum duplicate representations of one call.
+                    value = {**reported, **value}
                     break
-        self._finish(run_id, value)
+            if value:
+                break
+        self._finish(run_id, value or None)
 
     def on_llm_error(self, error, *, run_id, **kwargs):
         del error  # Error text may contain sensitive provider details; usage remains unknown.
@@ -124,14 +170,20 @@ class UsageTracker(BaseCallbackHandler):
                 return
             self.finished[run_id] = value
             if self.budget and run_id in self.started:
-                self.budget.settle(value.get("cost") if value else None)
+                self.budget.settle(
+                    value if isinstance(self.budget, PlanRunBudget) else value.get("cost") if value else None
+                )
 
     def report(self) -> dict:
         values = [v for v in self.finished.values() if v is not None]
         costs = [v.get("cost") for v in values]
-        priced = [float(c) for c in costs if isinstance(c, (int, float)) and math.isfinite(c) and c >= 0]
+        priced = [
+            float(c)
+            for c in costs
+            if not isinstance(c, bool) and isinstance(c, (int, float)) and math.isfinite(c) and c >= 0
+        ]
         incomplete = self.started - self.finished.keys()
-        return {
+        report = {
             "llm_calls": len(self.started | self.finished.keys()),
             "input_tokens": sum(v.get("prompt_tokens", 0) for v in values),
             "output_tokens": sum(v.get("completion_tokens", 0) for v in values),
@@ -145,3 +197,12 @@ class UsageTracker(BaseCallbackHandler):
             "cost_complete": not incomplete and len(priced) == len(self.started | self.finished.keys()),
             "scope": "provider-reported API usage; failed unreported requests remain unknown",
         }
+        if isinstance(self.budget, PlanRunBudget):
+            report.update(
+                billing_mode="chatgpt_plan",
+                cost_usd=None,
+                cost_complete=False,
+                cost_applicable=False,
+                scope="ChatGPT subscription token usage; no per-request dollar charge reported",
+            )
+        return report

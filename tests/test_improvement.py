@@ -130,6 +130,35 @@ def test_usage_deduplicates_metadata_and_counts_completed_calls_before_graph_fai
     assert result["metrics"]["cost_complete"] is True  # Known LLM usage despite a graph failure.
 
 
+@pytest.mark.parametrize("reported", [{}, {"cost": 0.005}])
+def test_usage_retains_standard_message_tokens_when_llm_output_has_no_counts(reported):
+    budget = RunBudget(limit_usd=0.1, reservation_usd=0.01, max_calls=3)
+    tracker = UsageTracker(budget)
+    run_id = uuid4()
+    tracker.on_chat_model_start({}, [], run_id=run_id)
+    tracker.on_llm_end(
+        LLMResult(
+            generations=[
+                [
+                    ChatGeneration(
+                        message=AIMessage(
+                            content="done",
+                            usage_metadata={"input_tokens": 75, "output_tokens": 12, "total_tokens": 87},
+                        )
+                    )
+                ]
+            ],
+            llm_output={"token_usage": reported},
+        ),
+        run_id=run_id,
+    )
+    assert tracker.report()["input_tokens"] == 75
+    assert tracker.report()["output_tokens"] == 12
+    assert tracker.report()["usage_complete"]
+    assert tracker.report()["cost_usd"] == reported.get("cost")
+    assert budget.can_admit() is bool(reported)
+
+
 def test_budget_admission_unknown_usage_and_reservation_breach_stop_new_calls():
     budget = RunBudget(limit_usd=0.03, reservation_usd=0.01, max_calls=2)
     tracker = UsageTracker(budget)

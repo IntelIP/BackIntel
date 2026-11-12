@@ -17,6 +17,7 @@ from deepagents import (
 )
 from deepagents._models import get_model_identifier, get_model_provider
 from deepagents.backends import FilesystemBackend
+from deepagents.middleware.filesystem import FilesystemMiddleware
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel
 
@@ -27,7 +28,7 @@ from backintel.tools import build_tools
 
 AGENT_FILES = Path(__file__).resolve().parent / "agent_files"
 # Built-ins the analyst does not need: it cannot write files, has no shell, and has no subagents.
-EXCLUDED_BUILTINS = frozenset({"execute", "write_file", "edit_file", "task"})
+EXCLUDED_BUILTINS = frozenset({"execute", "write_file", "edit_file", "delete", "task"})
 # Skill directories: common skills plus the one matching the store kind.
 STORE_SKILLS = {
     "sqlite": "sqlite",
@@ -63,14 +64,18 @@ def build_agent(model: BaseChatModel, store: Store, sandbox: PythonSandbox, *, r
     key = f"{provider}:{identifier}" if provider and identifier else identifier
     if key:
         register_harness_profile(key, HarnessProfile(excluded_tools=EXCLUDED_BUILTINS))
+    backend = FilesystemBackend(root_dir=root, virtual_mode=True)
     return create_deep_agent(
         model=model,
         tools=build_tools(store, sandbox),
         system_prompt=system_prompt(store, root),
-        backend=FilesystemBackend(root_dir=root, virtual_mode=True),
+        backend=backend,
         skills=["/skills/common/", *skill_sources(store)],
         permissions=[FilesystemPermission(operations=["write"], paths=["/**"], mode="deny")],
         response_format=ToolStrategy(answer_schema(store, sandbox)),
-        middleware=[FinishRepeatedReadMiddleware()],
+        middleware=[
+            FilesystemMiddleware(backend=backend, tools=["ls", "read_file", "glob", "grep"]),
+            FinishRepeatedReadMiddleware(),
+        ],
         name="backintel-analyst",
     )

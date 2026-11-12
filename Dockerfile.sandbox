@@ -1,9 +1,25 @@
-# The analyst's Python sandbox image: a plain interpreter with the data libraries it may use.
+# Analysis dependencies are prepared here; runtime networking/package downloads are disabled.
 # Build: docker build -f Dockerfile.sandbox -t backintel-sandbox:py312 .
-FROM python:3.12-slim
-RUN pip install --no-cache-dir polars==2.1.0 pandas==3.1.1 numpy scipy connectorx duckdb==2.0.0 \
-    "psycopg[binary]==3.3.8" pymongo clickhouse-connect \
+# Python 3.12.16, multiarchitecture manifest pinned on 2026-11-12.
+FROM python:3.12-slim-bookworm@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash ripgrep grep findutils coreutils file fonts-dejavu-core \
+ && rm -rf /var/lib/apt/lists/* \
  && useradd -m -u 10001 analyst
+COPY sandbox/requirements.txt /opt/backintel/requirements.txt
+RUN pip install --no-cache-dir --only-binary=:all: --require-hashes -r /opt/backintel/requirements.txt \
+ && pip check \
+ && pip freeze > /opt/backintel/package-versions.txt \
+ && dpkg-query -W > /opt/backintel/system-packages.txt
+COPY sandbox/docs /opt/backintel/docs
+COPY src/backintel/agent_files/docs /opt/backintel/docs
+# Install only the pure artifact helper, never host orchestration or provider credentials.
+COPY src/backintel/artifacts.py /usr/local/lib/python3.12/site-packages/backintel/artifacts.py
+RUN touch /usr/local/lib/python3.12/site-packages/backintel/__init__.py \
+ && ln -s /opt/backintel/docs /docs
+ENV MPLBACKEND=Agg MPLCONFIGDIR=/tmp/matplotlib PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_INDEX=1 PIP_DISABLE_PIP_VERSION_CHECK=1 OPENBLAS_NUM_THREADS=2 \
+    OMP_NUM_THREADS=2 HOME=/home/analyst
 USER analyst
 RUN python -c "import duckdb; c=duckdb.connect(); c.execute('INSTALL httpfs'); c.execute('INSTALL avro'); c.execute('INSTALL iceberg'); c.execute('LOAD iceberg')"
 WORKDIR /work

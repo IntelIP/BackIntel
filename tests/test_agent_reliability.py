@@ -89,6 +89,15 @@ class ScriptedModel(FakeMessagesListChatModel):
         return self
 
 
+def test_read_only_analyst_exposes_no_mutating_filesystem_or_host_shell(store):
+    model = ScriptedModel(responses=[tool_call("VerifiedAnalystAnswer", response(), 0)])
+    graph = build_agent(model, store, PythonSandbox("subprocess"))
+    graph.invoke({"messages": [HumanMessage(content="Total sales?")]})
+    exposed = set(model.bindings[0])
+    assert {"list_tables", "describe_table", "run_sql", "run_python", "read_file"} <= exposed
+    assert not exposed & {"delete", "execute", "write_file", "edit_file", "task"}
+
+
 @pytest.mark.parametrize("decline", [False, True])
 def test_real_agent_finalizes_repeat_loop_without_deciding_answerability(store, decline):
     query = "SELECT SUM(amount) FROM sales"

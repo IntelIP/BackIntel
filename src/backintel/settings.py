@@ -8,6 +8,7 @@ from pathlib import Path
 
 DEFAULT_MODEL = "openrouter/openai/gpt-6-luna"
 DEFAULT_JUDGE_MODEL = "openrouter/anthropic/claude-haiku-5.5"
+DEFAULT_ANALYSIS_MODEL = "chatgpt-plan/gpt-6.1-sol"
 
 
 def repo_root() -> Path:
@@ -22,6 +23,7 @@ class Settings:
     sandbox: str  # "docker" or "subprocess"
     langsmith_project: str
     extra: dict[str, str] = field(default_factory=dict)
+    analysis_model: str = DEFAULT_ANALYSIS_MODEL
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -32,6 +34,7 @@ class Settings:
             judge_model=env.get("BACKINTEL_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
             sandbox=env.get("BACKINTEL_SANDBOX") or "docker",
             langsmith_project=env.get("LANGSMITH_PROJECT") or "backintel-v2-dev",
+            analysis_model=env.get("BACKINTEL_ANALYSIS_MODEL") or DEFAULT_ANALYSIS_MODEL,
         )
 
     @property

@@ -159,6 +159,8 @@ def cmd_chatgpt(args, settings):
     credentials = PlanCredentials()
     if args.action == "status":
         print(json.dumps(credentials.status(), indent=2))
+    elif args.action == "models":
+        print(json.dumps(credentials.models(), indent=2))
     elif args.action == "logout":
         print(
             "revoked"
@@ -191,6 +193,61 @@ def cmd_sandbox(args, settings):
         mounts={},
     )
     print(json.dumps(result.to_dict(), indent=2))
+
+
+def cmd_analyze(args, settings):
+    import asyncio
+    from pathlib import Path
+
+    from backintel.analysis import AnalysisBrief, run_analysis
+    from backintel.bench.usage import PlanRunBudget, RunBudget
+    from backintel.models import build_model
+    from backintel.stores import open_store
+
+    if settings.sandbox != "docker":
+        raise ValueError("The analysis specialist requires Docker; host subprocess mode is not allowed.")
+    model_id = args.model or settings.analysis_model
+    plan = model_id.startswith("chatgpt-plan/")
+    if plan:
+        if args.max_cost_usd is not None or args.reservation_usd is not None:
+            raise ValueError("ChatGPT subscription usage uses call limits, not API dollar reservations.")
+        budget = PlanRunBudget(args.max_model_calls)
+    elif model_id.startswith("openrouter/"):
+        if args.max_cost_usd is None or args.reservation_usd is None:
+            raise ValueError("OpenRouter requires --max-cost-usd and --reservation-usd.")
+        budget = RunBudget(args.max_cost_usd, args.max_model_calls, args.reservation_usd)
+    else:
+        raise ValueError("Analysis supports explicit openrouter/ or chatgpt-plan/ models.")
+    brief = AnalysisBrief.model_validate_json(Path(args.brief).read_text())
+    model = build_model(
+        model_id,
+        max_retries=0,
+        reasoning_effort=args.reasoning,
+        responses_api=args.responses_api,
+        first_party_only=not plan,
+        timeout_s=min(args.timeout, 300),
+    )
+    store = open_store(args.store, settings)
+    try:
+        record = asyncio.run(
+            run_analysis(
+                brief,
+                model=model,
+                model_id=model_id,
+                store=store,
+                output=Path(args.output),
+                profile=args.profile,
+                budget=budget,
+                max_model_calls=args.max_model_calls,
+                max_tool_calls=args.max_tool_calls,
+                timeout_s=args.timeout,
+            )
+        )
+    finally:
+        store.close()
+    print(json.dumps({k: v for k, v in record.items() if k != "messages"}, indent=2))
+    if record["status"] == "failed":
+        raise SystemExit(1)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -254,7 +311,7 @@ def main(argv: list[str] | None = None) -> None:
     chatgpt = sub.add_parser(
         "chatgpt", help="sign in with ChatGPT to bill model calls to the operator's plan"
     )
-    chatgpt.add_argument("action", choices=("login", "status", "logout"))
+    chatgpt.add_argument("action", choices=("login", "status", "models", "logout"))
     chatgpt.add_argument(
         "--no-browser", action="store_true", help="print the link instead of opening a browser"
     )
@@ -263,6 +320,33 @@ def main(argv: list[str] | None = None) -> None:
     sandbox = sub.add_parser("sandbox", help="check the Python sandbox backend")
     sandbox.add_argument("action", choices=("check",))
     sandbox.set_defaults(func=cmd_sandbox)
+
+    analyze = sub.add_parser("analyze", help="run the opt-in Docker analysis/report specialist")
+    analyze.add_argument("--brief", required=True, help="business brief JSON; see docs/specialist-default.md")
+    analyze.add_argument("--store", required=True)
+    analyze.add_argument(
+        "--model", help="override BACKINTEL_ANALYSIS_MODEL (default: chatgpt-plan/gpt-6.1-sol)"
+    )
+    analyze.add_argument(
+        "--reasoning", choices=("none", "minimal", "low", "medium", "high", "xhigh"), default="medium"
+    )
+    analyze.add_argument(
+        "--responses-api", action="store_true", help="use the model's supported Responses path"
+    )
+    analyze.add_argument("--output", required=True, help="new directory for run record and artifact bundle")
+    analyze.add_argument("--profile", choices=("analysis", "large"), default="analysis")
+    analyze.add_argument("--timeout", type=int, default=900)
+    analyze.add_argument("--max-model-calls", type=int, default=24)
+    analyze.add_argument("--max-tool-calls", type=int, default=50)
+    analyze.add_argument(
+        "--max-cost-usd", type=float, help="approved API admission budget; required for OpenRouter"
+    )
+    analyze.add_argument(
+        "--reservation-usd",
+        type=float,
+        help="OpenRouter per-call reservation; use provider key limits for a hard spend cap",
+    )
+    analyze.set_defaults(func=cmd_analyze)
 
     from backintel.bench.commands import add_commands
 

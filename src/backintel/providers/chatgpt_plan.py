@@ -39,11 +39,11 @@ from pydantic import PrivateAttr
 
 ISSUER = "https://auth.openai.com"
 DISCOVERY_URL = ISSUER + "/.well-known/openid-configuration"
-AUTHORIZE_URL = ISSUER + "/oauth/authorize"
-TOKEN_URL = ISSUER + "/oauth/token"
+AUTHORIZE_URL = ISSUER + "/api/accounts/authorize"
+TOKEN_URL = ISSUER + "/api/accounts/oauth/token"
 RESOURCE = "https://api.openai.com/v1"
-PLAN_SCOPE = "subscription.sharing"
-SCOPES = "openid profile email offline_access " + PLAN_SCOPE
+PLAN_SCOPE = "chatgpt.tokens.use.direct"
+SCOPES = "openid profile email offline_access resource.invoke " + PLAN_SCOPE
 USAGE_URL = "https://chatgpt.com/settings/connected-apps"
 AGENT_NAME = "BackIntel"
 CALLBACK_PORT = 1456
@@ -184,6 +184,20 @@ class PlanCredentials:
                 return record["access_token"]
             return self._refresh(record, now)["access_token"]
 
+    def models(self) -> list[dict]:
+        """Read the selected account's catalog without making an inference request."""
+        with httpx.Client(timeout=30, trust_env=False) as client:
+            response = client.get(
+                RESOURCE + "/models", headers={"Authorization": "Bearer " + self.access_token()}
+            )
+            if response.status_code != 200:
+                raise PlanUsageStopped(_error_code(response), f"Model catalog HTTP {response.status_code}")
+            return [
+                {"slug": item["slug"], "display_name": item["display_name"]}
+                for item in response.json()["models"]
+                if item.get("visibility") == "list"
+            ]
+
     def _refresh(self, record: dict, now: Callable[[], float]) -> dict:
         with httpx.Client(timeout=30, trust_env=False) as client:
             response = client.post(
@@ -288,6 +302,8 @@ def complete_sign_in(credentials: PlanCredentials, attempt: dict, callback: dict
         client_id = callback.get("client_id") or ""
         if not client_id or client_id == "dynamic_agent_client":
             raise SignInRequired("Registration did not return an issued client ID.")
+    elif callback.get("client_id", client_id) != client_id:
+        raise SignInRequired("The callback changed the selected client registration.")
     with httpx.Client(timeout=30, trust_env=False) as client:
         response = client.post(
             TOKEN_URL,
@@ -411,19 +427,20 @@ class PlanChatOpenAI(ChatOpenAI):
         return payload
 
     def _stream_once(self, payload: dict):
+        timeout_s = float(self.request_timeout)
         client = OpenAI(
             api_key=self._credentials.access_token(),
             base_url=RESOURCE,
             max_retries=0,
-            timeout=httpx.Timeout(STREAM_TOTAL_SECONDS, read=STREAM_IDLE_SECONDS, connect=15),
+            timeout=httpx.Timeout(timeout_s, read=min(timeout_s, STREAM_IDLE_SECONDS), connect=15),
         )
-        deadline = time.monotonic() + STREAM_TOTAL_SECONDS
+        deadline = time.monotonic() + timeout_s
         try:
             with client.responses.create(**payload) as stream:
                 items = {}
                 for event in stream:
                     if time.monotonic() > deadline:
-                        return None, ("transport_error", f"stream exceeded {STREAM_TOTAL_SECONDS}s")
+                        return None, ("transport_error", f"stream exceeded {timeout_s}s")
                     if event.type == "response.output_item.done":
                         items[event.output_index] = event.item
                     if event.type == "response.completed":
@@ -453,20 +470,24 @@ class PlanChatOpenAI(ChatOpenAI):
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
         payload = self._get_request_payload(messages, stop=stop, **kwargs)
-        for delay in (*BACKOFF_SECONDS, None):
+        for attempt in range(self.max_retries + 1):
             response, failure = self._stream_once(payload)
             if response is not None:
-                result = _construct_lc_result_from_responses_api(response, output_version="responses/v1")
                 usage = response.usage.model_dump(exclude_none=True) if response.usage else {}
+                result = _construct_lc_result_from_responses_api(
+                    response,
+                    metadata={"billing_mode": "chatgpt_plan", "token_usage": usage},
+                    output_version="responses/v1",
+                )
                 result.llm_output = {
                     "token_usage": usage,
-                    "model_name": self.model_name,
+                    "model_name": response.model,
                     "billing": "chatgpt_plan",
                 }
                 return result
             code, detail = failure
-            if (code in TRANSIENT or code.startswith("http_5")) and delay is not None:
-                time.sleep(delay)
+            if (code in TRANSIENT or code.startswith("http_5")) and attempt < self.max_retries:
+                time.sleep(BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)])
                 continue
             raise PlanUsageStopped(code, detail)
         raise AssertionError("unreachable")
@@ -478,17 +499,26 @@ class PlanChatOpenAI(ChatOpenAI):
 
 
 def plan_model(
-    model: str, credentials: PlanCredentials | None = None, *, reasoning_effort: str = "medium"
+    model: str,
+    credentials: PlanCredentials | None = None,
+    *,
+    reasoning_effort: str = "medium",
+    max_retries: int = 0,
+    timeout_s: float = STREAM_TOTAL_SECONDS,
 ) -> PlanChatOpenAI:
     credentials = credentials or PlanCredentials()
-    if credentials.load() is None:
+    if not credentials.status().get("signed_in"):
         raise SignInRequired("Run `backintel chatgpt login` before using the chatgpt-plan provider.")
+    if not credentials.status().get("plan_usage"):
+        raise SignInRequired("Sign in again and grant ChatGPT plan usage to BackIntel.")
+    if max_retries < 0 or timeout_s <= 0:
+        raise ValueError("Retries must be nonnegative and timeout must be positive.")
     chat = PlanChatOpenAI(
         model=model,
         api_key="chatgpt-plan-token-supplied-per-request",
         base_url=RESOURCE,
-        max_retries=0,
-        timeout=300,
+        max_retries=max_retries,
+        timeout=timeout_s,
         disable_streaming=True,
         use_responses_api=True,
         store=False,

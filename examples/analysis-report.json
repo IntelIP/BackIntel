@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "run_id": "synthetic-example",
+  "title": "Monthly revenue and service mix",
+  "summary": "This synthetic example demonstrates a reusable report bundle. October has the highest revenue among the four supplied months; the figures do not describe a real business.",
+  "findings": [
+    "Revenue increases from 12,000 USD in July to 14,850 USD in October, with a decline in September."
+  ],
+  "caveats": [
+    "Synthetic demonstration data only.",
+    "Four monthly observations do not establish a forecast or a causal explanation."
+  ],
+  "sources": [
+    {
+      "id": "demo",
+      "snapshot": "synthetic-example-v1",
+      "description": "Explicitly fictional monthly revenue fixture embedded in the reproducible Python example."
+    }
+  ],
+  "evidence": [
+    {
+      "id": "monthly-calc",
+      "kind": "python",
+      "code": "import json\ncolumns = ['Month', 'Revenue']\nrows = [['2026-07-01', 12000], ['2026-08-01', 13500], ['2026-09-01', 12750], ['2026-10-01', 14850]]\nprint(json.dumps({'columns': columns, 'rows': rows}))",
+      "source_ids": [
+        "demo"
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "id": "monthly",
+      "title": "Monthly revenue",
+      "columns": [
+        "Month",
+        "Revenue"
+      ],
+      "rows": [
+        [
+          "2026-07-01",
+          12000
+        ],
+        [
+          "2026-08-01",
+          13500
+        ],
+        [
+          "2026-09-01",
+          12750
+        ],
+        [
+          "2026-10-01",
+          14850
+        ]
+      ],
+      "units": {
+        "Revenue": "USD"
+      },
+      "evidence_ids": [
+        "monthly-calc"
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "id": "latest-revenue",
+      "label": "October revenue",
+      "table": "monthly",
+      "row": 3,
+      "column": "Revenue",
+      "definition": "Revenue in the latest supplied complete month; synthetic example."
+    }
+  ],
+  "charts": [
+    {
+      "id": "revenue-trend",
+      "title": "Revenue across the four supplied months",
+      "kind": "line",
+      "table": "monthly",
+      "x": "Month",
+      "y": "Revenue"
+    }
+  ]
+}
