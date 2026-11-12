@@ -20,7 +20,7 @@ infrastructure last. The agent's value is measured, not asserted.
   experiment improves the score; keep it only if the score stays better. Number checking is
   code, never another model.
 - Tools (`tools.py`): `list_tables`, `describe_table`, `run_sql` or `run_query` (read-only, 200-row cap),
-  `run_python` (Docker sandbox, no network, read-only data mount). Skills in `agent_files/skills`
+  `run_python` (SmolVM sandbox, no network, read-only data mount). Skills in `agent_files/skills`
   are loaded on demand through the Deep Agents skills middleware; `agent_files/lead.md` is the
   system prompt.
 - Contract (`contracts.py`): the analyst returns an `AnalystAnswer` with `evidence` (the exact

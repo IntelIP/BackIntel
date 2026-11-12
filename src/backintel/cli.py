@@ -205,8 +205,8 @@ def cmd_analyze(args, settings):
     from backintel.models import build_model
     from backintel.stores import open_store
 
-    if settings.sandbox != "docker":
-        raise ValueError("The analysis specialist requires Docker; host subprocess mode is not allowed.")
+    if settings.sandbox != "smolvm":
+        raise ValueError("The analysis specialist requires SmolVM; host subprocess mode is not allowed.")
     model_id = args.model or settings.analysis_model
     plan = model_id.startswith("chatgpt-plan/")
     if plan:
@@ -322,7 +322,7 @@ def main(argv: list[str] | None = None) -> None:
     sandbox.add_argument("action", choices=("check",))
     sandbox.set_defaults(func=cmd_sandbox)
 
-    analyze = sub.add_parser("analyze", help="run the opt-in Docker analysis/report specialist")
+    analyze = sub.add_parser("analyze", help="run the opt-in SmolVM analysis/report specialist")
     analyze.add_argument("--brief", required=True, help="business brief JSON; see docs/specialist-default.md")
     analyze.add_argument("--store", required=True)
     analyze.add_argument(

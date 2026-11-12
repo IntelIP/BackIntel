@@ -142,6 +142,6 @@ def test_local_experiments_are_unique_and_explicit_names_cannot_append(tmp_path)
 
 def test_host_python_backend_is_rejected_before_code_execution(tmp_path):
     marker = tmp_path / "must-not-exist"
-    with pytest.raises(ValueError, match="Docker"):
+    with pytest.raises(ValueError, match="SmolVM"):
         PythonSandbox("subprocess").run(f"open({str(marker)!r}, 'w').write('escaped')", env={}, mounts={})
     assert not marker.exists()

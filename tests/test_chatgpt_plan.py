@@ -96,7 +96,7 @@ def test_analysis_cli_selects_subscription_budget_without_api_credentials(tmp_pa
     monkeypatch.setattr(backintel.models, "build_model", model)
     monkeypatch.setattr(backintel.analysis, "run_analysis", run)
     monkeypatch.setattr(backintel.stores, "open_store", lambda *args: SimpleNamespace(close=lambda: None))
-    monkeypatch.setenv("BACKINTEL_SANDBOX", "docker")
+    monkeypatch.setenv("BACKINTEL_SANDBOX", "smolvm")
     monkeypatch.setenv("BACKINTEL_MODEL", "openrouter/openai/gpt-6-luna")
     monkeypatch.delenv("BACKINTEL_ANALYSIS_MODEL", raising=False)
     args = ["analyze", "--brief", str(brief_path), "--store", "test", "--output", str(tmp_path / "out")]

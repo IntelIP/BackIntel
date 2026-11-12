@@ -26,4 +26,5 @@ done
 uv run backintel tpch generate --sf 1
 uv run backintel oracle build tpch_sf1
 docker build -f Dockerfile.sandbox -t backintel-sandbox:py312 .
+uv run python -m scripts.prepare_smolvm
 uv run backintel sandbox check

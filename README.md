@@ -10,16 +10,20 @@ Python and storage skills, and an answer contract whose numbers are re-checked b
 uv sync
 doppler run -p backintel -c dev -- uv run backintel data build all      # download + canonical + SQLite
 doppler run -p backintel -c dev -- uv run backintel oracle build all    # reference answers
-docker build -f Dockerfile.sandbox -t backintel-sandbox:py312 .         # the Python sandbox
+docker build -f Dockerfile.sandbox -t backintel-sandbox:py312 .         # prepare the OCI image
+uv run python -m scripts.prepare_smolvm                            # export and pin for SmolVM
 doppler run -p backintel -c dev -- uv run backintel sandbox check
 doppler run -p backintel -c dev -- uv run backintel ask --store sqlite:olist "How many orders were delivered?"
 doppler run -p backintel -c dev -- uv run backintel bench run --dataset olist --levels 1,2,3
 doppler run -p backintel -c dev -- uv run backintel bench scorecard
 ```
 
+The execution backend is local SmolVM 1.31.1 on macOS ARM64. Docker is used for image
+preparation and optional database services. See [sandbox setup](docs/sandbox-environment.md).
+
 Environment (from Doppler): `OPENROUTER_API_KEY`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`,
 `LANGSMITH_TRACING`, optional `BACKINTEL_MODEL`, `BACKINTEL_JUDGE_MODEL`,
-`BACKINTEL_SANDBOX` (`docker` only), `BACKINTEL_DATA_DIR`. Kaggle downloads read
+`BACKINTEL_SANDBOX` (`smolvm` only), `BACKINTEL_DATA_DIR`. Kaggle downloads read
 `~/.kaggle/access_token` or `KAGGLE_API_TOKEN`.
 
 ## Datasets

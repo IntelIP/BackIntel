@@ -1,7 +1,7 @@
 """Opt-in analytical coding specialist; the benchmark analyst remains independent.
 
 The orchestrator owns the brief, sources, model and limits. The specialist can revise
-programs and artifacts inside one Docker workspace, never its own runtime or release.
+programs and artifacts inside one SmolVM workspace, never its own runtime or release.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ class AnalysisCompletion(BaseModel):
 
 
 def _safe_text(text: str, env: dict[str, str]) -> str:
-    # Source access stays inside Docker; do not return connection secrets in tool traces.
+    # Source access stays inside SmolVM; do not return connection secrets in tool traces.
     for key, value in env.items():
         if len(value) >= 8 and any(
             part in key.upper() for part in ("PASSWORD", "TOKEN", "SECRET", "DSN", "URI")
@@ -164,7 +164,7 @@ def build_analysis_tools(store: Store, sandbox: AnalysisSandbox, identity: dict,
 
     @tool
     def run_python(code: str) -> str:
-        """Run Python in the persistent Docker workspace with assigned read-only sources.
+        """Run Python in the persistent SmolVM workspace with assigned read-only sources.
 
         Use installed analytical/plotting packages. Save programs in /workspace; save
         final outputs through render_report. Print bounded results, not entire raw datasets.
@@ -240,7 +240,7 @@ def build_analysis_tools(store: Store, sandbox: AnalysisSandbox, identity: dict,
         return execute(result)
 
     # Reuse native read-only schema/query tools; replace the old ephemeral Python tool.
-    domain = [t for t in build_tools(store, PythonSandbox("docker")) if t.name != "run_python"]
+    domain = [t for t in build_tools(store, PythonSandbox("smolvm")) if t.name != "run_python"]
     selected = [
         *domain,
         run_shell,

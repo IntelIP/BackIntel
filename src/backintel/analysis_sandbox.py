@@ -1,6 +1,6 @@
-"""A Docker-only, per-run coding workspace with bounded persistent outputs.
+"""A SmolVM-only, per-run coding workspace with bounded persistent outputs.
 
-The workspace persists between commands, not across container failures. Only explicitly
+The workspace persists between commands, not across VM failures. Only explicitly
 exported regular artifact files survive close/cancellation. No writable host mount is used.
 """
 
@@ -12,6 +12,7 @@ import selectors
 import shutil
 import subprocess
 import tarfile
+import tempfile
 import threading
 import time
 import uuid
@@ -19,7 +20,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-from backintel.sandbox import DOCKER_IMAGE, MAX_OUTPUT_CHARS, SandboxResult
+from backintel.sandbox import MAX_OUTPUT_CHARS, SandboxResult
+from backintel.smol_runtime import capacity, host_environment, image_archive, image_staging_lock, runtime
+from backintel.smol_services import ServiceBridges
 
 
 @dataclass(frozen=True)
@@ -56,27 +59,12 @@ RESOURCE_PROFILES = {
 }
 
 
-def _checked(command: list[str], *, timeout: float = 20) -> str:
-    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
-    if result.returncode:
-        # Do not echo command arguments: store credentials may be among them.
-        raise RuntimeError(f"Docker operation failed: {result.stderr[:1000]}")
-    return result.stdout
-
-
-def docker_capacity() -> dict:
-    """Only capacity fields, never Docker configuration or credentials."""
-    raw = _checked(["docker", "info", "--format", "{{json .MemTotal}} {{json .NCPU}}"])
-    memory, cpus = raw.split()
-    return {"memory_bytes": int(memory), "cpus": int(cpus)}
-
-
 class AnalysisSandbox:
     """One isolated analytical run. Use as a context manager and export before close.
 
     `env` and `mounts` come from a trusted Store, never directly from a model. Optional
-    `network` identifies internal store infrastructure. Only assigned endpoints are attached
-    to a fresh internal run network; their backend peers remain on the infrastructure network.
+    `network` identifies internal store infrastructure. Assigned endpoints are bridged through
+    individual Unix sockets. The VM has no outbound network or general host access.
     """
 
     def __init__(
@@ -87,7 +75,7 @@ class AnalysisSandbox:
         network: str | None = None,
         allowed_hosts: set[str] | None = None,
         profile: str | ResourceProfile = "analysis",
-        image: str = DOCKER_IMAGE,
+        image: str | Path | None = None,
         timeout_s: int | None = None,
         max_commands: int | None = None,
     ):
@@ -112,8 +100,10 @@ class AnalysisSandbox:
                     if self.env.get(key) == inside:
                         self.env[key] = target
         self.network = network
-        self._owned_network: str | None = None
-        self._source_peers: list[str] = []
+        self._services: ServiceBridges | None = None
+        self._staging: tempfile.TemporaryDirectory | None = None
+        self.engine: str | None = None
+        self._created = False
         self.allowed_hosts = set(allowed_hosts or ())
         for key in ("BACKINTEL_POSTGRES_DSN", "BACKINTEL_MONGO_URI", "BACKINTEL_CH_URL"):
             if key in self.env and (host := urlsplit(self.env[key]).hostname):
@@ -134,7 +124,7 @@ class AnalysisSandbox:
 
     @property
     def label(self) -> str:
-        return "docker"
+        return "smolvm"
 
     def __enter__(self):
         return self.start()
@@ -142,97 +132,170 @@ class AnalysisSandbox:
     def __exit__(self, *_):
         self.close()
 
+    def _checked(self, arguments, *, timeout=30):
+        result = subprocess.run(
+            [self.engine, *arguments], capture_output=True, text=True, timeout=timeout, env=host_environment()
+        )
+        if result.returncode:
+            # Never echo arguments: explicitly assigned store credentials may be present.
+            raise RuntimeError(f"SmolVM operation failed: {result.stderr[:1000]}")
+        return result.stdout
+
+    def _exec_command(self, arguments, *, input_data=False, timeout=30):
+        return [
+            self.engine,
+            "machine",
+            "exec",
+            "--name",
+            self.name,
+            "--user",
+            "0",
+            "--workdir",
+            "/workspace",
+            "--timeout",
+            f"{max(1, int(timeout))}s",
+            *(["-i"] if input_data else ["--stream"]),
+            "--",
+            "python",
+            "-I",
+            "/opt/backintel/runtime/execute.py",
+            json.dumps(asdict(self.profile)),
+            *arguments,
+        ]
+
     def start(self):
         if self.closed:
             raise RuntimeError("A closed sandbox cannot be restarted; create a new run.")
         if self.started_at is not None:
             return self
-        if shutil.which("docker") is None:
-            raise RuntimeError("Analysis requires Docker; there is no host subprocess fallback.")
-        capacity = docker_capacity()
-        if self.profile.memory_mib * 1024**2 > capacity["memory_bytes"] * 0.85:
-            raise RuntimeError("Requested profile leaves insufficient Docker VM memory headroom.")
-        if self.profile.cpus > capacity["cpus"]:
-            raise RuntimeError("Requested profile exceeds available Docker CPUs.")
-        self.image_id = _checked(
-            ["docker", "inspect", "--type=image", self.image, "--format", "{{.Id}}"]
-        ).strip()
+        self.engine = runtime()
+        available = capacity()
+        if self.profile.memory_mib * 1024**2 > available["memory_bytes"] * 0.85:
+            raise RuntimeError("Requested profile leaves insufficient host memory headroom.")
+        if self.profile.cpus > available["cpus"] or int(self.profile.cpus) != self.profile.cpus:
+            raise ValueError("SmolVM requires whole CPUs within available host capacity.")
+        archive, self._image_receipt = image_archive(self.image)
+        self.image_id = self._image_receipt["image_id"]
         p = self.profile
         command = [
-            "docker",
-            "run",
-            "--detach",
-            "--rm",
+            "machine",
+            "create",
             "--name",
             self.name,
             "--label",
-            "backintel.analysis=true",
-            "--network",
-            self.network or "none",
-            "--dns",
-            "127.0.0.1",  # Keep Docker's peer-name resolution; disable external DNS forwarding.
-            "--read-only",
-            "--user",
-            "10001:10001",
-            "--memory",
-            f"{p.memory_mib}m",
-            "--memory-swap",
-            f"{p.memory_mib}m",
+            "owner=backintel",
+            "--image",
+            str(archive),
             "--cpus",
-            str(p.cpus),
-            "--pids-limit",
-            str(p.pids),
-            "--cap-drop",
-            "ALL",
-            "--security-opt",
-            "no-new-privileges",
-            "--init",
-            "--ulimit",
-            "nofile=1024:1024",
-            "--workdir",
-            "/workspace",
+            str(int(p.cpus)),
+            "--mem",
+            str(p.memory_mib),
+            "--storage",
+            "3",
+            "--overlay",
+            "1",
+            "--shm-size",
+            f"{p.temporary_mib}m",
+            "--user",
+            "0",
+            "--stop-on-exit",
+            "--stop-timeout",
+            "1",
+            "--volume",
+            f"{Path(__file__).parent / 'smol_guest'}:/opt/backintel/runtime:ro",
         ]
-        for path, mib in [
-            ("/workspace", p.workspace_mib),
-            ("/artifacts", p.artifacts_mib),
-            ("/tmp", p.temporary_mib),
-        ]:
-            command += ["--tmpfs", f"{path}:rw,nosuid,nodev,size={mib}m,uid=10001,gid=10001,mode=0700"]
-        protected = (
-            "/workspace",
-            "/artifacts",
-            "/tmp",
-            "/opt",
-            "/usr",
-            "/bin",
-            "/etc",
-            "/proc",
-            "/sys",
-            "/dev",
-        )
-        for host, inside in self.mounts.items():
-            source = Path(host).resolve(strict=True)
-            target = PurePosixPath(inside)
-            if not target.is_absolute() or ".." in target.parts or str(target) == "/":
-                raise ValueError("Source mounts require an absolute, non-root container path.")
-            if any(str(target) == part or str(target).startswith(part + "/") for part in protected):
-                raise ValueError("Source mounts cannot replace runtime or output directories.")
-            if source in {Path("/"), Path.home(), Path.home().parent} or "," in str(source):
-                raise ValueError("Refusing an overly broad or malformed source mount.")
-            if "," in str(target):
-                raise ValueError("Malformed source mount target.")
-            command += ["--mount", f"type=bind,src={source},dst={target},readonly"]
-        for key, value in self.env.items():
-            if not key.startswith("BACKINTEL_") or not key.replace("_", "").isalnum():
-                raise ValueError("Only explicit BACKINTEL_ store context can enter the analysis sandbox.")
-            command += ["--env", f"{key}={value}"]
-        # The container expires even if the host process is killed before its watchdog runs.
-        command += [self.image_id, "sleep", str(p.run_timeout_s)]
+        self._staging = tempfile.TemporaryDirectory(prefix="backintel-sources-")
+        file_directories = {}
         try:
+            for host, inside in self.mounts.items():
+                source, target = Path(host).resolve(strict=True), PurePosixPath(inside)
+                protected = (
+                    "/workspace",
+                    "/artifacts",
+                    "/tmp",
+                    "/opt",
+                    "/usr",
+                    "/bin",
+                    "/etc",
+                    "/proc",
+                    "/sys",
+                    "/dev",
+                    "/run",
+                    "/backintel-sockets",
+                )
+                if (
+                    not target.is_absolute()
+                    or ".." in target.parts
+                    or str(target) == "/"
+                    or any(target == PurePosixPath(part) or target.is_relative_to(part) for part in protected)
+                ):
+                    raise ValueError("Source mounts cannot replace runtime or output directories.")
+                if source in {Path("/"), Path.home(), Path.home().parent} or ":" in str(source) + str(target):
+                    raise ValueError("Refusing an overly broad or malformed source mount.")
+                if source.is_dir():
+                    command += ["--volume", f"{source}:{target}:ro"]
+                elif source.is_file() and str(target.parent) != "/":
+                    directory = file_directories.setdefault(
+                        str(target.parent), Path(self._staging.name) / str(len(file_directories))
+                    )
+                    directory.mkdir(exist_ok=True)
+                    shutil.copyfile(source, directory / target.name)
+                else:
+                    raise ValueError("Sources must be regular files or directories.")
+            for target, source in file_directories.items():
+                command += ["--volume", f"{source}:{target}:ro"]
+            for key, value in self.env.items():
+                if not key.startswith("BACKINTEL_") or not key.replace("_", "").isalnum():
+                    raise ValueError("Only explicit BACKINTEL_ store context can enter the analysis sandbox.")
+                command += ["--env", f"{key}={value}"]
+            services = []
             if self.network:
-                self._isolate_network()
-                command[command.index("--network") + 1] = self.network
-            _checked(command, timeout=45)
+                self._services = ServiceBridges(self.network, self.env, self.allowed_hosts)
+                services = self._services.services
+                for service in services:
+                    command += ["--mount-socket", f"{service['host_socket']}:{service['socket']}"]
+            command += [
+                "--",
+                "python",
+                "-I",
+                "/opt/backintel/runtime/boot.py",
+                json.dumps(asdict(p)),
+                json.dumps(
+                    [{k: v for k, v in item.items() if k in {"host", "port", "socket"}} for item in services]
+                ),
+            ]
+            self._created = True
+            # SmolVM 1.31.1's concurrent cold-cache staging can copy onto a hardlink
+            # of its input, truncating both. Serialize staging, not VM execution.
+            with image_staging_lock():
+                self._checked(command, timeout=120)
+            self._checked(["machine", "start", "--name", self.name], timeout=120)
+            deadline = time.monotonic() + 15
+            while True:
+                ready = subprocess.run(
+                    [
+                        self.engine,
+                        "machine",
+                        "exec",
+                        "--name",
+                        self.name,
+                        "--timeout",
+                        "2s",
+                        "--",
+                        "test",
+                        "-f",
+                        "/run/backintel-ready",
+                    ],
+                    capture_output=True,
+                    timeout=5,
+                    env=host_environment(),
+                )
+                if ready.returncode == 0:
+                    break
+                if time.monotonic() >= deadline:
+                    logs = self._checked(["machine", "logs", "--name", self.name])
+                    raise RuntimeError(f"SmolVM workspace setup failed: {logs[-1500:]}")
+                time.sleep(0.1)
             self.started_at = time.monotonic()
             self._watchdog = threading.Timer(p.run_timeout_s, self.cancel)
             self._watchdog.daemon = True
@@ -242,91 +305,31 @@ class AnalysisSandbox:
             raise
         return self
 
-    def _isolate_network(self):
-        """Attach only selected source endpoints; never modify their existing connections."""
-        details = json.loads(
-            _checked(["docker", "network", "inspect", self.network, "--format", "{{json .}}"])
-        )
-        if not details.get("Internal") or not self.allowed_hosts:
-            raise ValueError("Networked analysis requires an internal network and assigned source hosts.")
-        selected, found = {}, set()
-        for container_id, peer in details.get("Containers", {}).items():
-            networks = json.loads(
-                _checked(
-                    ["docker", "inspect", container_id, "--format", "{{json .NetworkSettings.Networks}}"]
-                )
-            )
-            names = {peer.get("Name"), *(networks.get(self.network, {}).get("Aliases") or [])}
-            authorized = names & self.allowed_hosts
-            if found & authorized:
-                raise ValueError("Assigned source hostname resolves to more than one container.")
-            if authorized:
-                selected[container_id] = authorized
-                found.update(authorized)
-        if found != self.allowed_hosts:
-            raise ValueError("Not all assigned source hosts exist on the selected internal network.")
-        private = f"{self.name}-net"
-        _checked(["docker", "network", "create", "--internal", "--label", "backintel.analysis=true", private])
-        self._owned_network = self.network = private
-        for container_id, names in selected.items():
-            # Track before connecting so even an interrupted Docker response gets cleaned up.
-            self._source_peers.append(container_id)
-            aliases = [arg for name in sorted(names) for arg in ("--alias", name)]
-            _checked(["docker", "network", "connect", *aliases, private, container_id])
-        self._validate_network()
-
-    def _validate_network(self):
-        details = json.loads(
-            _checked(["docker", "network", "inspect", self.network, "--format", "{{json .}}"])
-        )
-        if not details.get("Internal"):
-            raise ValueError("Analysis may join only an explicitly internal Docker network.")
-        if not self.allowed_hosts:
-            raise ValueError("Networked analysis requires explicit assigned source hostnames.")
-        found = set()
-        for container_id, peer in details.get("Containers", {}).items():
-            if peer.get("Name") == self.name:
-                continue
-            networks = json.loads(
-                _checked(
-                    ["docker", "inspect", container_id, "--format", "{{json .NetworkSettings.Networks}}"]
-                )
-            )
-            endpoint = networks.get(self.network, {})
-            names = {peer.get("Name"), *(endpoint.get("Aliases") or [])}
-            authorized = names & self.allowed_hosts
-            if not authorized:
-                raise ValueError(
-                    "Shared network includes an unassigned peer; use a source-only internal network."
-                )
-            found.update(authorized)
-        if found != self.allowed_hosts:
-            raise ValueError("Not all assigned source hosts exist on the selected internal network.")
-
     def _execute(self, arguments: list[str], *, input_data: bytes | None = None) -> SandboxResult:
         with self._command_lock:
             if self.started_at is None:
                 self.start()
             if self.closed:
-                return SandboxResult("", "Sandbox is closed or cancelled.", -1, 0, "docker")
+                return SandboxResult("", "Sandbox is closed or cancelled.", -1, 0, "smolvm")
             if self.network:
                 try:
-                    self._validate_network()
+                    self._services.validate()
                 except (ValueError, RuntimeError):
                     self.cancel()
                     raise
             remaining = self.profile.run_timeout_s - (time.monotonic() - self.started_at)
             if self.commands >= self.profile.max_commands or remaining <= 0:
                 self.cancel()
-                return SandboxResult("", "Whole-run command/time budget exhausted.", -1, 0, "docker", True)
+                return SandboxResult("", "Whole-run command/time budget exhausted.", -1, 0, "smolvm", True)
             self.commands += 1
             timeout = min(self.profile.command_timeout_s, remaining)
             started = time.monotonic()
             proc = subprocess.Popen(
-                ["docker", "exec", *(["-i"] if input_data is not None else []), self.name, *arguments],
+                self._exec_command(arguments, input_data=input_data is not None, timeout=timeout),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.PIPE if input_data is not None else None,
+                env=host_environment(),
             )
             writer = None
             if input_data is not None:
@@ -387,7 +390,7 @@ class AnalysisSandbox:
                 outputs["stderr"],
                 -1 if timed_out else proc.returncode,
                 int((time.monotonic() - started) * 1000),
-                "docker",
+                "smolvm",
                 timed_out,
             )
 
@@ -434,18 +437,10 @@ class AnalysisSandbox:
                 raise RuntimeError("Read from an active sandbox before closing it.")
             source_path = PurePosixPath(path)
             proc = subprocess.Popen(
-                [
-                    "docker",
-                    "exec",
-                    self.name,
-                    "tar",
-                    "-C",
-                    str(source_path.parent),
-                    "-cf",
-                    "-",
-                    "--",
-                    source_path.name,
-                ],
+                self._exec_command(
+                    ["tar", "-C", str(source_path.parent), "-cf", "-", "--", source_path.name]
+                ),
+                env=host_environment(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
@@ -473,23 +468,23 @@ class AnalysisSandbox:
     def resource_usage(self) -> dict:
         if self.started_at is not None and not self.closed:
             try:
-                result = subprocess.run(
-                    ["docker", "exec", self.name, "cat", "/sys/fs/cgroup/memory.peak"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
+                stats = json.loads(
+                    self._checked(["machine", "stats", "--name", self.name, "--json"], timeout=10)
                 )
-                if result.returncode == 0 and result.stdout.strip().isdigit():
-                    self._peak_memory_bytes = max(self._peak_memory_bytes, int(result.stdout.strip()))
-            except subprocess.TimeoutExpired:
-                pass  # Observability must not turn a completed command into a failed analysis.
+                self._peak_memory_bytes = max(self._peak_memory_bytes, stats["memory"]["used_bytes"])
+            except (subprocess.TimeoutExpired, RuntimeError, KeyError, ValueError):
+                pass
         return {
+            "backend": "smolvm",
+            "runtime_version": "1.31.1",
             "peak_memory_bytes": self._peak_memory_bytes,
+            "memory_measurement": "sampled VM used memory; includes guest runtime",
             "commands": self.commands,
             "elapsed_ms": int(((self.finished_at or time.monotonic()) - self.started_at) * 1000)
             if self.started_at
             else 0,
             "image_id": self.image_id,
+            "image_archive_sha256": getattr(self, "_image_receipt", {}).get("archive_sha256"),
             "profile": asdict(self.profile),
             "cancelled": self.cancelled,
         }
@@ -509,7 +504,8 @@ class AnalysisSandbox:
             output.mkdir(parents=True, exist_ok=True)
             output = output.resolve()
             proc = subprocess.Popen(
-                ["docker", "exec", self.name, "tar", "-C", "/artifacts", "-cf", "-", "."],
+                self._exec_command(["tar", "-C", "/artifacts", "-cf", "-", "."], timeout=60),
+                env=host_environment(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
@@ -566,38 +562,44 @@ class AnalysisSandbox:
         self.finished_at = time.monotonic()
         if self._watchdog:
             self._watchdog.cancel()
-        if shutil.which("docker"):
-            try:
-                subprocess.run(["docker", "rm", "--force", self.name], capture_output=True, timeout=15)
-            finally:
-                if self._owned_network:
-                    # Even an unassigned peer that triggered cancellation must be detached
-                    # from our disposable network. Its other networks/container stay intact.
-                    peers = set(self._source_peers)
-                    inspected = subprocess.run(
+        try:
+            if self.engine and self._created:
+                try:
+                    subprocess.run(
+                        [self.engine, "machine", "stop", "--name", self.name],
+                        capture_output=True,
+                        timeout=20,
+                        env=host_environment(),
+                    )
+                finally:
+                    deleted = subprocess.run(
                         [
-                            "docker",
-                            "network",
-                            "inspect",
-                            self._owned_network,
-                            "--format",
-                            "{{json .Containers}}",
+                            self.engine,
+                            "machine",
+                            "delete",
+                            "--name",
+                            self.name,
+                            "--force",
+                            "--error-format",
+                            "json",
                         ],
                         capture_output=True,
                         text=True,
-                        timeout=15,
+                        timeout=30,
+                        env=host_environment(),
                     )
-                    if inspected.returncode == 0:
-                        peers.update(json.loads(inspected.stdout) or {})
-                    for peer in peers:
-                        subprocess.run(
-                            ["docker", "network", "disconnect", "--force", self._owned_network, peer],
-                            capture_output=True,
-                            timeout=15,
-                        )
-                    subprocess.run(
-                        ["docker", "network", "rm", self._owned_network], capture_output=True, timeout=15
-                    )
+                    if deleted.returncode:
+                        try:
+                            missing = json.loads(deleted.stderr)["error"]["code"] == "NOT_FOUND"
+                        except (ValueError, KeyError):
+                            missing = False
+                        if not missing:
+                            raise RuntimeError(f"SmolVM cleanup failed for {self.name}; retain its identity.")
+        finally:
+            if self._services:
+                self._services.close()
+            if self._staging:
+                self._staging.cleanup()
 
     def cancel(self):
         self.cancelled = True

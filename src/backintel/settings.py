@@ -20,7 +20,7 @@ class Settings:
     data_dir: Path
     model: str
     judge_model: str
-    sandbox: str  # Docker only; the runtime rejects other backends.
+    sandbox: str  # SmolVM only; the runtime rejects other backends.
     langsmith_project: str
     extra: dict[str, str] = field(default_factory=dict)
     analysis_model: str = DEFAULT_ANALYSIS_MODEL
@@ -32,7 +32,7 @@ class Settings:
             data_dir=Path(env.get("BACKINTEL_DATA_DIR") or repo_root() / "data").resolve(),
             model=env.get("BACKINTEL_MODEL") or DEFAULT_MODEL,
             judge_model=env.get("BACKINTEL_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
-            sandbox=env.get("BACKINTEL_SANDBOX") or "docker",
+            sandbox=env.get("BACKINTEL_SANDBOX") or "smolvm",
             langsmith_project=env.get("LANGSMITH_PROJECT") or "backintel-v2-dev",
             analysis_model=env.get("BACKINTEL_ANALYSIS_MODEL") or DEFAULT_ANALYSIS_MODEL,
         )
