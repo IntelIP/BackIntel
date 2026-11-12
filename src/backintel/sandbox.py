@@ -1,10 +1,8 @@
 """Sandboxed Python for the analyst.
 
-Two backends share one contract. `docker` is the isolation boundary used for benchmark runs:
+Docker is the required isolation boundary for model-generated code:
 no network, read-only root filesystem, memory and CPU caps, the data mounted read-only, and a
-hard timeout. `subprocess` runs the same program in a separate interpreter with a cleared
-environment and a timeout; it is NOT an isolation boundary and is labelled as such in every
-result, so a scorecard can never present it as sandboxed execution.
+hard timeout. There is no host-interpreter fallback.
 """
 
 from __future__ import annotations
@@ -13,7 +11,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import uuid
 from dataclasses import dataclass
@@ -31,7 +28,7 @@ class SandboxResult:
     stderr: str
     exit_code: int
     elapsed_ms: int
-    backend: str  # "docker" or "subprocess (not isolated)"
+    backend: str
     timed_out: bool = False
 
     def to_dict(self) -> dict:
@@ -46,14 +43,14 @@ def _clip(text: str) -> str:
 
 class PythonSandbox:
     def __init__(self, backend: str = "docker", *, timeout_s: int = 120):
-        if backend not in {"docker", "subprocess"}:
-            raise ValueError("Sandbox backend must be 'docker' or 'subprocess'.")
+        if backend != "docker":
+            raise ValueError("Docker is required for model-generated Python; host execution is disabled.")
         self.backend = backend
         self.timeout_s = timeout_s
 
     @property
     def label(self) -> str:
-        return "docker" if self.backend == "docker" else "subprocess (not isolated)"
+        return "docker"
 
     def run(
         self, code: str, *, env: dict[str, str], mounts: dict[str, str], network: str | None = None
@@ -63,15 +60,13 @@ class PythonSandbox:
         `network` names an internal Docker network that reaches a store container; it never
         reaches the internet (the network is created with `--internal`).
         """
-        if self.backend == "docker":
-            return self._run_docker(code, env=env, mounts=mounts, network=network)
-        return self._run_subprocess(code, env=env)
+        return self._run_docker(code, env=env, mounts=mounts, network=network)
 
     def _run_docker(
         self, code: str, *, env: dict[str, str], mounts: dict[str, str], network: str | None
     ) -> SandboxResult:
         if shutil.which("docker") is None:
-            raise RuntimeError("Docker is not installed; set BACKINTEL_SANDBOX=subprocess to run unisolated.")
+            raise RuntimeError("Docker is required for model-generated Python; no host fallback is allowed.")
         with tempfile.TemporaryDirectory(prefix="backintel-sbx-") as tmp:
             container_name = f"backintel-sbx-{uuid.uuid4().hex}"
             script = Path(tmp) / "main.py"
@@ -113,14 +108,6 @@ class PythonSandbox:
                 # Killing a timed-out Docker CLI does not kill its container. Remove only
                 # this invocation's UUID-named container, including on a Python exception.
                 subprocess.run(["docker", "rm", "--force", container_name], capture_output=True, timeout=15)
-
-    def _run_subprocess(self, code: str, *, env: dict[str, str]) -> SandboxResult:
-        with tempfile.TemporaryDirectory(prefix="backintel-sbx-") as tmp:
-            script = Path(tmp) / "main.py"
-            script.write_text(code)
-            clean_env = {"PATH": os.environ.get("PATH", ""), "HOME": tmp, "TMPDIR": tmp, **env}
-            cmd = [sys.executable, "-I", str(script)]
-            return self._execute(cmd, label="subprocess (not isolated)", env=clean_env, cwd=tmp)
 
     def _execute(self, cmd: list[str], *, label: str, env=None, cwd=None) -> SandboxResult:
         import time

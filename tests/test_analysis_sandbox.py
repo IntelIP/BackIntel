@@ -132,8 +132,35 @@ def test_real_internal_network_allows_only_assigned_peers():
             check=True,
             capture_output=True,
         )
+        subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                extra,
+                "--network",
+                network,
+                "--read-only",
+                "--memory",
+                "32m",
+                DOCKER_IMAGE,
+                "sleep",
+                "infinity",
+            ],
+            check=True,
+            capture_output=True,
+        )
         env = {"BACKINTEL_CH_URL": f"http://{source}:8080"}
         with AnalysisSandbox(env=env, network=network) as sandbox:
+            private_network = sandbox.network
+            assert private_network != network
+            peers = json.loads(
+                subprocess.check_output(
+                    ["docker", "network", "inspect", private_network, "--format", "{{json .Containers}}"]
+                )
+            )
+            assert {peer["Name"] for peer in peers.values()} == {source, sandbox.name}
             result = sandbox.run_python(
                 f"import urllib.request; print(urllib.request.urlopen('http://{source}:8080/README.md').read(40))"
             )
@@ -145,27 +172,18 @@ def test_real_internal_network_allows_only_assigned_peers():
                 ).exit_code
                 != 0
             )
+            # A new unrelated testbed peer is harmless, but one on the private run
+            # network must still stop execution.
             subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "-d",
-                    "--name",
-                    extra,
-                    "--network",
-                    network,
-                    "--read-only",
-                    "--memory",
-                    "32m",
-                    DOCKER_IMAGE,
-                    "sleep",
-                    "infinity",
-                ],
-                check=True,
-                capture_output=True,
+                ["docker", "network", "connect", sandbox.network, extra], check=True, capture_output=True
             )
             with pytest.raises(ValueError, match="unassigned peer"):
                 sandbox.run_shell("echo must-not-execute")
+        assert (
+            subprocess.run(["docker", "network", "inspect", private_network], capture_output=True).returncode
+            != 0
+        )
+        assert subprocess.run(["docker", "inspect", source], capture_output=True).returncode == 0
     finally:
         for name in (source, extra):
             subprocess.run(["docker", "rm", "--force", name], capture_output=True)
@@ -202,3 +220,90 @@ def test_real_large_scan_with_small_memory_budget(tmp_path):
         Path(tmp_path / "scan-evidence.json").write_text(
             json.dumps({"input_bytes": source.stat().st_size, **usage})
         )
+
+
+def test_store_mounts_are_relocated_outside_protected_workspace():
+    """All local adapters publish their source through a BACKINTEL path variable."""
+    from backintel.stores.duckdb_lake import DuckDBLakeStore
+    from backintel.stores.files import FilesStore
+    from backintel.stores.sqlite import SQLiteStore
+
+    sources = [
+        (SQLiteStore, "path", "BACKINTEL_SQLITE_PATH", "sales.sqlite"),
+        (FilesStore, "dir", "BACKINTEL_FILES_DIR", "files"),
+        (DuckDBLakeStore, "dir", "BACKINTEL_PARQUET_DIR", "parquet"),
+    ]
+    for cls, attr, key, name in sources:
+        store = object.__new__(cls)
+        setattr(store, attr, Path("/workspace/BackIntel/data") / name)
+        store.files = store.tables = {}
+        env, mounts = store.python_environment(), store.python_mounts()
+        sandbox = AnalysisSandbox(env=env, mounts=mounts)
+        assert sandbox.env[key].startswith("/sources/")
+        assert sandbox.mounts[str(getattr(store, attr))] == sandbox.env[key]
+        assert env[key].startswith("/workspace/")  # Does not mutate the host-side Store context.
+
+
+@docker
+def test_real_store_path_remap_reads_sqlite_and_rejects_writes(tmp_path):
+    import sqlite3
+
+    from backintel.stores.sqlite import SQLiteStore
+
+    source = tmp_path / "sales.sqlite"
+    with sqlite3.connect(source) as conn:
+        conn.execute("CREATE TABLE sales (amount INT)")
+        conn.execute("INSERT INTO sales VALUES (42)")
+    store = SQLiteStore(source, dataset="fixture")
+    try:
+        with AnalysisSandbox(env=store.python_environment(), mounts=store.python_mounts()) as sandbox:
+            assert sandbox.env["BACKINTEL_SQLITE_PATH"].startswith("/sources/")
+            result = sandbox.run_python(
+                "import sqlite3,os; c=sqlite3.connect('file:'+os.environ['BACKINTEL_SQLITE_PATH']+'?mode=ro',uri=True); "
+                "print(c.execute('SELECT SUM(amount) FROM sales').fetchone()[0])"
+            )
+            assert result.exit_code == 0 and result.stdout.strip() == "42", result.stderr
+            assert (
+                sandbox.run_python("import os; open(os.environ['BACKINTEL_SQLITE_PATH'],'wb')").exit_code != 0
+            )
+    finally:
+        store.close()
+
+
+def test_private_network_is_cleaned_if_connect_fails(monkeypatch):
+    import backintel.analysis_sandbox as module
+
+    actions = []
+    sandbox = AnalysisSandbox(env={"BACKINTEL_CH_URL": "http://selected:8123"}, network="shared")
+    monkeypatch.setattr(module, "docker_capacity", lambda: {"memory_bytes": 8 * 1024**3, "cpus": 4})
+    monkeypatch.setattr(module.shutil, "which", lambda _: "/docker")
+
+    def checked(args, **kwargs):
+        actions.append(args)
+        if args[1:3] == ["inspect", "--type=image"]:
+            return "sha256:fixture"
+        if args[1:3] == ["network", "inspect"]:
+            return json.dumps(
+                {
+                    "Internal": True,
+                    "Containers": {"selected-id": {"Name": "selected"}, "other-id": {"Name": "other"}},
+                }
+            )
+        if args[1] == "inspect":
+            return json.dumps({"shared": {"Aliases": []}})
+        if args[1:3] == ["network", "connect"]:
+            raise RuntimeError("controlled connect failure")
+        return ""
+
+    def cleanup(args, **kwargs):
+        actions.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout="{}")
+
+    monkeypatch.setattr(module, "_checked", checked)
+    monkeypatch.setattr(module.subprocess, "run", cleanup)
+    with pytest.raises(RuntimeError, match="controlled connect failure"):
+        sandbox.start()
+    assert ["docker", "network", "rm", sandbox.network] in actions
+    assert ["docker", "network", "disconnect", "--force", sandbox.network, "selected-id"] in actions
+    assert not any(a[:3] == ["docker", "network", "connect"] and a[-1] == "other-id" for a in actions)
+    assert sandbox.closed

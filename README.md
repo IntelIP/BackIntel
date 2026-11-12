@@ -19,7 +19,7 @@ doppler run -p backintel -c dev -- uv run backintel bench scorecard
 
 Environment (from Doppler): `OPENROUTER_API_KEY`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`,
 `LANGSMITH_TRACING`, optional `BACKINTEL_MODEL`, `BACKINTEL_JUDGE_MODEL`,
-`BACKINTEL_SANDBOX` (`docker` or `subprocess`), `BACKINTEL_DATA_DIR`. Kaggle downloads read
+`BACKINTEL_SANDBOX` (`docker` only), `BACKINTEL_DATA_DIR`. Kaggle downloads read
 `~/.kaggle/access_token` or `KAGGLE_API_TOKEN`.
 
 ## Datasets

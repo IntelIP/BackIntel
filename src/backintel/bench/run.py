@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from langchain_core.messages import AIMessage, ToolMessage
 
@@ -29,6 +30,7 @@ from backintel.bench.scoring import abstention_correct, evidence_reproduces, sco
 from backintel.bench.usage import BudgetExceeded, RunBudget, UsageTracker
 from backintel.contracts import AnalystAnswer, Scenario
 from backintel.models import build_model, usage_from_message
+from backintel.providers.chatgpt_plan import PlanUsageStopped
 from backintel.sandbox import PythonSandbox
 from backintel.settings import Settings, repo_root
 from backintel.stores import open_store
@@ -230,7 +232,7 @@ class Harness:
                 "budget"
                 if isinstance(exc, BudgetExceeded)
                 else "infrastructure"
-                if isinstance(exc, (TimeoutError, ConnectionError))
+                if isinstance(exc, (TimeoutError, ConnectionError, PlanUsageStopped))
                 or type(exc).__module__.startswith(("openai", "httpx", "requests"))
                 or _provider_error_envelope(exc)
                 else "agent"
@@ -404,8 +406,8 @@ def write_records(path: Path, records: list[dict]) -> Path:
 def experiment_name(harness: Harness, levels: set[int] | None) -> str:
     model = harness.model_id.split("/")[-1]
     level_tag = "L" + "".join(str(level) for level in sorted(levels)) if levels else "Lall"
-    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
-    return f"{harness.run_metadata['dataset']}-{harness.store.kind}-{model}-{level_tag}-{stamp}"
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    return f"{harness.run_metadata['dataset']}-{harness.store.kind}-{model}-{level_tag}-{stamp}-{uuid4().hex}"
 
 
 # ---------------------------------------------------------------------- local run
@@ -418,6 +420,9 @@ def run_local(
 ) -> Path:
     name = name or experiment_name(harness, {s.level for s in scenarios})
     path = out_dir / f"{name}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x"):
+        pass  # Reserve this experiment before any model calls; never append another run.
     for index, scenario in enumerate(scenarios, 1):
         record = harness.run_scenario(scenario)
         write_records(path, [record])

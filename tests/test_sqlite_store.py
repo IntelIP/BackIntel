@@ -72,7 +72,7 @@ def test_evidence_reproduces_checks_cited_queries(store):
         method="m",
         evidence=[Evidence(kind="sql", code="SELECT SUM(amount) FROM sales WHERE country='France'")],
     )
-    sandbox = PythonSandbox("subprocess")
+    sandbox = PythonSandbox()
     assert evidence_reproduces(scenario, good, store, sandbox)["score"] == 1.0
     assert evidence_reproduces(scenario, bad, store, sandbox)["score"] == 0.0
     declined = AnalystAnswer(status="cannot_answer", method="m", reason="r")

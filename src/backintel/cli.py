@@ -102,10 +102,11 @@ def cmd_ask(args, settings):
 
     harness = Harness.build(
         settings,
-        dataset=args.store.split(":", 1)[1],
+        dataset="ad-hoc",
         store_id=args.store,
         model_id=args.model,
         judge=False,
+        scenarios=[],  # Ad-hoc stores need no evaluator-owned reference dataset.
     )
     try:
         print(json.dumps(harness.answer(args.question), indent=2, default=str))

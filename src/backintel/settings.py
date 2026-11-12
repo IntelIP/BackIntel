@@ -20,7 +20,7 @@ class Settings:
     data_dir: Path
     model: str
     judge_model: str
-    sandbox: str  # "docker" or "subprocess"
+    sandbox: str  # Docker only; the runtime rejects other backends.
     langsmith_project: str
     extra: dict[str, str] = field(default_factory=dict)
     analysis_model: str = DEFAULT_ANALYSIS_MODEL

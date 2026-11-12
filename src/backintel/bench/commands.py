@@ -53,6 +53,7 @@ def cmd_acceptance(args, settings):
             )
         )
         return
+    from backintel.bench.improvement import read_records
     from backintel.bench.run import Harness, run_langsmith, run_local, select
 
     budget = _budget(args)
@@ -69,8 +70,12 @@ def cmd_acceptance(args, settings):
         budget=budget,
     )
     reports = []
+    valid_records = 0
+    expected_ids = sorted(s.id for s in scenarios)
     try:
         for trial in range(args.trials):
+            if not budget.can_admit():
+                break
             if not verify_acceptance_data(suite, settings):
                 raise ValueError("Acceptance data changed before the trial")
             harness.run_metadata["trial"] = trial
@@ -81,13 +86,34 @@ def cmd_acceptance(args, settings):
                 reports.append({"path": str(path)})
             else:
                 reports.append(run_langsmith(harness, scenarios, max_concurrency=1))
+            path = Path(reports[-1]["path"])
+            records = read_records(path) if path.exists() else []
+            complete = sorted(r["scenario_id"] for r in records) == expected_ids and all(
+                r.get("evaluation_status") == "valid" for r in records
+            )
+            valid_records += sum(r.get("evaluation_status") == "valid" for r in records)
+            reports[-1]["status"] = "complete" if complete else "incomplete"
             if not verify_acceptance_data(suite, settings):
                 raise ValueError("Acceptance data changed during the trial; results cannot be accepted")
-            if not budget.can_admit():
+            if not complete:
                 break
     finally:
         harness.close()
-    print(json.dumps({"experiments": reports, "budget": budget.report()}, indent=2))
+    complete = len(reports) == args.trials and all(r["status"] == "complete" for r in reports)
+    print(
+        json.dumps(
+            {
+                "status": "complete" if complete else "incomplete",
+                "expected_records": len(scenarios) * args.trials,
+                "valid_records": valid_records,
+                "experiments": reports,
+                "budget": budget.report(),
+            },
+            indent=2,
+        )
+    )
+    if not complete:
+        raise SystemExit(1)
 
 
 def cmd_improve(args, settings):

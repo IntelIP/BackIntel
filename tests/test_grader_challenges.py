@@ -1,7 +1,7 @@
 """Controlled grader challenges, not model benchmarks or human calibration.
 
-Each evidence check executes against a temporary real SQLite database. The only Python
-program is a trusted failing test fixture; its subprocess runner is not an isolation claim.
+Each evidence check executes against a temporary real SQLite database. Python programs are
+fixed repository-owned fixtures; their test-only runner is not an isolation boundary.
 """
 
 import sqlite3
@@ -10,8 +10,8 @@ import pytest
 
 from backintel.bench.scoring import abstention_correct, evidence_reproduces, score_correct
 from backintel.contracts import AnalystAnswer, Evidence, Scenario, Tolerance
-from backintel.sandbox import PythonSandbox
 from backintel.stores.sqlite import SQLiteStore
+from tests.trusted_python import TrustedFixturePython
 
 UK_TOTAL = "SELECT SUM(amount) AS total FROM sales WHERE country = 'UK'"
 REPORT_TOTALS = """SELECT CASE country WHEN 'UK' THEN 'uk_sales' ELSE 'france_sales' END AS metric,
@@ -61,7 +61,7 @@ def response(*, code=UK_TOTAL, value=15.5, rows=None):
 
 
 def reproduced(store, answer, *, report=False):
-    return evidence_reproduces(question(report=report), answer, store, PythonSandbox("subprocess"))["score"]
+    return evidence_reproduces(question(report=report), answer, store, TrustedFixturePython())["score"]
 
 
 @pytest.mark.parametrize(
@@ -219,6 +219,6 @@ else:
 """
         answer.evidence = [Evidence(kind="python", code=code)]
     assert score_correct(scenario, answer)["correct"] == 1
-    grade = evidence_reproduces(scenario, answer, store, PythonSandbox("subprocess"))
+    grade = evidence_reproduces(scenario, answer, store, TrustedFixturePython())
     assert grade["score"] == 1
     assert "bindings checked for 0/1 report rows" in grade["comment"]

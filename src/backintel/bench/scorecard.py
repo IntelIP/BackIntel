@@ -52,6 +52,7 @@ def aggregate(records: list[dict]) -> list[dict]:
         ].append(record)
     rows = []
     for (experiment, dataset, store, model, level), items in sorted(groups.items()):
+        valid = [r for r in items if r.get("evaluation_status", "valid") == "valid"]
         metrics = [r["outputs"].get("metrics", {}) for r in items]
         row = {
             "recorded_at": max(r["recorded_at"] for r in items),
@@ -60,10 +61,12 @@ def aggregate(records: list[dict]) -> list[dict]:
             "store": store,
             "model": model,
             "level": level,
-            "n": len(items),
+            "n": len(valid),
+            "attempted": sum(r["outputs"].get("attempted", True) for r in items),
+            "invalid": len(items) - len(valid),
         }
         for key in SCORE_KEYS:
-            row[key] = _mean([r["scores"].get(key) for r in items])
+            row[key] = _mean([r["scores"].get(key) for r in valid])
         row["errors"] = sum(1 for r in items if r["outputs"].get("error"))
         row["median_latency_s"] = (
             round(statistics.median([m.get("latency_s", 0) for m in metrics]), 1) if metrics else None
@@ -116,6 +119,8 @@ def coverage(rows: list[dict]) -> list[dict]:
     """Latest experiment per (dataset, store kind, level): the store-by-level matrix the goal asks for."""
     latest: dict[tuple, dict] = {}
     for row in rows:
+        if not row["n"]:
+            continue
         kind = row["store"].split(":")[0]
         key = (row["dataset"], kind, row["level"])
         # A later smoke run must not replace a complete level with fewer questions.
@@ -140,6 +145,8 @@ def render_markdown(rows: list[dict], fails: list[dict], records: list[dict]) ->
         "Levels: 1 single table, 2 joins/multi-step, 3 messy data, 4 cross-store, 5 standing problems, "
         "6 ambient replay with planted changes, 7 scale. Stores named `multi:` connect two stores at once.",
         "For each level the largest observed cohort is used, then the latest such experiment. "
+        "n counts valid evaluations only; invalid evaluations never select capability coverage. "
+        "Attempted/invalid counts and costs include unsuccessful infrastructure attempts. "
         "Subset probes stay in the experiment list. Legacy and revised judges have different versions; "
         "their method scores are not directly comparable. Cost is provider-reported analyst cost only; "
         "JSON also records runs with incomplete cost telemetry. Subset probes are not full suites.",
@@ -163,13 +170,15 @@ def render_markdown(rows: list[dict], fails: list[dict], records: list[dict]) ->
         "not; `judge` is an LLM rubric on method and caveats (0–1); `fully supported` requires correct + "
         "evidence + abstention.",
         "",
-        "| experiment | level | n | correct | evidence | abstention | judge | fully supported | errors "
+        "| experiment | level | n valid | attempted | invalid | correct | evidence | abstention "
+        "| judge | fully supported | errors "
         "| median s | cost USD | tool calls |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         lines.append(
-            f"| {r['experiment']} | {r['level']} | {r['n']} | {pct(r['correct'])} | "
+            f"| {r['experiment']} | {r['level']} | {r['n']} | {r['attempted']} | {r['invalid']} | "
+            f"{pct(r['correct'])} | "
             f"{pct(r['evidence_reproduces'])} | {pct(r['abstention_correct'])} | "
             f"{r['judge_method'] if r['judge_method'] is not None else '–'} | "
             f"{pct(r['fully_supported'])} | {r['errors']} | {r['median_latency_s']} | "

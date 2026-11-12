@@ -75,8 +75,8 @@ class AnalysisSandbox:
     """One isolated analytical run. Use as a context manager and export before close.
 
     `env` and `mounts` come from a trusted Store, never directly from a model. Optional
-    `network` must be an internal Docker network; its members define the reachable local
-    services. Callers must select a network containing only authorized sources.
+    `network` identifies internal store infrastructure. Only assigned endpoints are attached
+    to a fresh internal run network; their backend peers remain on the infrastructure network.
     """
 
     def __init__(
@@ -102,7 +102,18 @@ class AnalysisSandbox:
             self.profile = ResourceProfile(**values)
         self.env = dict(env or {})
         self.mounts = dict(mounts or {})
+        # Store adapters use the same host/container path. Relocate those mounts so a
+        # checkout under /workspace (or /tmp) never overlaps our protected tmpfs roots.
+        for index, (host, inside) in enumerate(self.mounts.items()):
+            if host == inside:
+                target = f"/sources/{index}/{PurePosixPath(inside).name}"
+                self.mounts[host] = target
+                for key in ("BACKINTEL_SQLITE_PATH", "BACKINTEL_FILES_DIR", "BACKINTEL_PARQUET_DIR"):
+                    if self.env.get(key) == inside:
+                        self.env[key] = target
         self.network = network
+        self._owned_network: str | None = None
+        self._source_peers: list[str] = []
         self.allowed_hosts = set(allowed_hosts or ())
         for key in ("BACKINTEL_POSTGRES_DSN", "BACKINTEL_MONGO_URI", "BACKINTEL_CH_URL"):
             if key in self.env and (host := urlsplit(self.env[key]).hostname):
@@ -143,8 +154,6 @@ class AnalysisSandbox:
             raise RuntimeError("Requested profile leaves insufficient Docker VM memory headroom.")
         if self.profile.cpus > capacity["cpus"]:
             raise RuntimeError("Requested profile exceeds available Docker CPUs.")
-        if self.network:
-            self._validate_network()
         self.image_id = _checked(
             ["docker", "inspect", "--type=image", self.image, "--format", "{{.Id}}"]
         ).strip()
@@ -220,6 +229,9 @@ class AnalysisSandbox:
         # The container expires even if the host process is killed before its watchdog runs.
         command += [self.image_id, "sleep", str(p.run_timeout_s)]
         try:
+            if self.network:
+                self._isolate_network()
+                command[command.index("--network") + 1] = self.network
             _checked(command, timeout=45)
             self.started_at = time.monotonic()
             self._watchdog = threading.Timer(p.run_timeout_s, self.cancel)
@@ -229,6 +241,39 @@ class AnalysisSandbox:
             self.close()
             raise
         return self
+
+    def _isolate_network(self):
+        """Attach only selected source endpoints; never modify their existing connections."""
+        details = json.loads(
+            _checked(["docker", "network", "inspect", self.network, "--format", "{{json .}}"])
+        )
+        if not details.get("Internal") or not self.allowed_hosts:
+            raise ValueError("Networked analysis requires an internal network and assigned source hosts.")
+        selected, found = {}, set()
+        for container_id, peer in details.get("Containers", {}).items():
+            networks = json.loads(
+                _checked(
+                    ["docker", "inspect", container_id, "--format", "{{json .NetworkSettings.Networks}}"]
+                )
+            )
+            names = {peer.get("Name"), *(networks.get(self.network, {}).get("Aliases") or [])}
+            authorized = names & self.allowed_hosts
+            if found & authorized:
+                raise ValueError("Assigned source hostname resolves to more than one container.")
+            if authorized:
+                selected[container_id] = authorized
+                found.update(authorized)
+        if found != self.allowed_hosts:
+            raise ValueError("Not all assigned source hosts exist on the selected internal network.")
+        private = f"{self.name}-net"
+        _checked(["docker", "network", "create", "--internal", "--label", "backintel.analysis=true", private])
+        self._owned_network = self.network = private
+        for container_id, names in selected.items():
+            # Track before connecting so even an interrupted Docker response gets cleaned up.
+            self._source_peers.append(container_id)
+            aliases = [arg for name in sorted(names) for arg in ("--alias", name)]
+            _checked(["docker", "network", "connect", *aliases, private, container_id])
+        self._validate_network()
 
     def _validate_network(self):
         details = json.loads(
@@ -522,7 +567,37 @@ class AnalysisSandbox:
         if self._watchdog:
             self._watchdog.cancel()
         if shutil.which("docker"):
-            subprocess.run(["docker", "rm", "--force", self.name], capture_output=True, timeout=15)
+            try:
+                subprocess.run(["docker", "rm", "--force", self.name], capture_output=True, timeout=15)
+            finally:
+                if self._owned_network:
+                    # Even an unassigned peer that triggered cancellation must be detached
+                    # from our disposable network. Its other networks/container stay intact.
+                    peers = set(self._source_peers)
+                    inspected = subprocess.run(
+                        [
+                            "docker",
+                            "network",
+                            "inspect",
+                            self._owned_network,
+                            "--format",
+                            "{{json .Containers}}",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                    )
+                    if inspected.returncode == 0:
+                        peers.update(json.loads(inspected.stdout) or {})
+                    for peer in peers:
+                        subprocess.run(
+                            ["docker", "network", "disconnect", "--force", self._owned_network, peer],
+                            capture_output=True,
+                            timeout=15,
+                        )
+                    subprocess.run(
+                        ["docker", "network", "rm", self._owned_network], capture_output=True, timeout=15
+                    )
 
     def cancel(self):
         self.cancelled = True

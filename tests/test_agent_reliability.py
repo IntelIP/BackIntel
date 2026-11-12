@@ -18,9 +18,9 @@ from pydantic import Field, ValidationError
 from backintel.agent import build_agent
 from backintel.answer_validation import answer_schema, repeated_successful_read, validate_answer_evidence
 from backintel.contracts import AnalystAnswer
-from backintel.sandbox import PythonSandbox
 from backintel.stores.multi import MultiStore
 from backintel.stores.sqlite import SQLiteStore
+from tests.trusted_python import TrustedFixturePython
 
 
 @pytest.fixture
@@ -91,7 +91,7 @@ class ScriptedModel(FakeMessagesListChatModel):
 
 def test_read_only_analyst_exposes_no_mutating_filesystem_or_host_shell(store):
     model = ScriptedModel(responses=[tool_call("VerifiedAnalystAnswer", response(), 0)])
-    graph = build_agent(model, store, PythonSandbox("subprocess"))
+    graph = build_agent(model, store, TrustedFixturePython())
     graph.invoke({"messages": [HumanMessage(content="Total sales?")]})
     exposed = set(model.bindings[0])
     assert {"list_tables", "describe_table", "run_sql", "run_python", "read_file"} <= exposed
@@ -116,7 +116,7 @@ def test_real_agent_finalizes_repeat_loop_without_deciding_answerability(store, 
             tool_call("VerifiedAnalystAnswer", final, 3),
         ]
     )
-    graph = build_agent(model, store, PythonSandbox("subprocess"))
+    graph = build_agent(model, store, TrustedFixturePython())
     result = graph.invoke({"messages": [HumanMessage(content="Analyze the available records.")]})
     assert result["structured_response"].status == ("cannot_answer" if decline else "answered")
     assert "run_sql" in model.bindings[0]
@@ -131,7 +131,7 @@ def test_native_structured_output_retries_failed_evidence(store):
             tool_call("VerifiedAnalystAnswer", response(), 1),
         ]
     )
-    graph = build_agent(model, store, PythonSandbox("subprocess"))
+    graph = build_agent(model, store, TrustedFixturePython())
     result = graph.invoke({"messages": [HumanMessage(content="Total sales?")]})
     assert result["structured_response"].value == 10
     assert any(isinstance(m, ToolMessage) and "query failed" in m.content for m in result["messages"])
@@ -144,7 +144,7 @@ def test_failed_finalization_remains_an_execution_failure(store):
             tool_call("VerifiedAnalystAnswer", {"status": "cannot_answer", "method": "", "reason": ""}, 0),
         ]
     )
-    graph = build_agent(model, store, PythonSandbox("subprocess"))
+    graph = build_agent(model, store, TrustedFixturePython())
     with pytest.raises(GraphRecursionError):
         graph.invoke({"messages": [HumanMessage(content="Total sales?")]}, {"recursion_limit": 8})
 
@@ -156,7 +156,7 @@ def test_async_agent_uses_same_repeat_guard(store):
             tool_call("VerifiedAnalystAnswer", response(), 3),
         ]
     )
-    graph = build_agent(model, store, PythonSandbox("subprocess"))
+    graph = build_agent(model, store, TrustedFixturePython())
     result = asyncio.run(graph.ainvoke({"messages": [HumanMessage(content="Total sales?")]}))
     assert result["structured_response"].value == 10
     assert model.bindings[-1] == ["VerifiedAnalystAnswer"]
@@ -173,13 +173,13 @@ def test_duplicate_report_ids_rejected_before_finalization_but_history_remains_p
     )
     assert AnalystAnswer.model_validate(duplicate).rows  # historical failures remain gradable
     with pytest.raises(ValidationError, match="identifiers must be unique"):
-        answer_schema(store, PythonSandbox("subprocess")).model_validate(duplicate)
+        answer_schema(store, TrustedFixturePython()).model_validate(duplicate)
 
 
 def test_every_evidence_item_runs_and_broken_second_program_is_rejected(store):
     executed = []
 
-    class RecordingSandbox(PythonSandbox):
+    class RecordingSandbox(TrustedFixturePython):
         def run(self, code, **kwargs):
             executed.append(code)
             return super().run(code, **kwargs)
@@ -197,7 +197,7 @@ def test_every_evidence_item_runs_and_broken_second_program_is_rejected(store):
         )
     )
     with pytest.raises(ValueError, match="Evidence 2: program failed"):
-        validate_answer_evidence(answer, store, RecordingSandbox("subprocess"))
+        validate_answer_evidence(answer, store, RecordingSandbox())
     assert len(executed) == 3
 
 
@@ -207,7 +207,7 @@ def test_python_uses_actual_bound_store_path(store):
         "con=sqlite3.connect('file:'+os.environ['BACKINTEL_SQLITE_PATH']+'?mode=ro',uri=True)\n"
         "print(con.execute('SELECT SUM(amount) FROM sales').fetchone()[0])"
     )
-    answer_schema(store, PythonSandbox("subprocess")).model_validate(
+    answer_schema(store, TrustedFixturePython()).model_validate(
         response(evidence=[{"kind": "python", "code": program}])
     )
 
@@ -218,7 +218,7 @@ def test_multistore_evidence_requires_consistent_store_binding(store, tmp_path):
         conn.execute("CREATE TABLE catalog (name TEXT)")
     catalog = SQLiteStore(path, dataset="catalog")
     multi = MultiStore([store, catalog])
-    schema = answer_schema(multi, PythonSandbox("subprocess"))
+    schema = answer_schema(multi, TrustedFixturePython())
     schema.model_validate(
         response(
             evidence=[
@@ -257,4 +257,4 @@ def test_multistore_evidence_requires_consistent_store_binding(store, tmp_path):
 )
 def test_runtime_contract_does_not_accept_malformed_or_contradictory_answers(store, changes, problem):
     with pytest.raises(ValidationError, match=problem):
-        answer_schema(store, PythonSandbox("subprocess")).model_validate(response(**changes))
+        answer_schema(store, TrustedFixturePython()).model_validate(response(**changes))

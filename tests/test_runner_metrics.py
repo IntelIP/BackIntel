@@ -19,9 +19,7 @@ def test_failed_agent_keeps_the_usage_already_reported():
             }
             raise RuntimeError("stopped after the first call")
 
-    harness = Harness(
-        Settings.from_env(), None, PythonSandbox("subprocess"), "test", FailingAgent(), {}, False
-    )
+    harness = Harness(Settings.from_env(), None, PythonSandbox(), "test", FailingAgent(), {}, False)
     result = harness.answer("test")
     assert result["error"] == "RuntimeError: stopped after the first call"
     assert result["metrics"]["llm_calls"] == 1
