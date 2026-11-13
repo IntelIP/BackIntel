@@ -198,3 +198,28 @@ def test_verification_rejects_symlinks(tmp_path, report_spec, renderer_dependenc
     (output / "escape.csv").symlink_to(tmp_path / "outside")
     with pytest.raises(ValueError, match="unsupported entries"):
         verify_bundle(output)
+
+
+def test_percentage_heatmap_keeps_absolute_scale_and_exact_timestamps():
+    from backintel.artifacts import _heatmap_limits, _heatmap_ticks
+
+    assert _heatmap_limits("%", [[0, 25], [50, 61.6666666667]]) == {"vmin": 0, "vmax": 100}
+    assert _heatmap_limits("customers", [[0, 25]]) == {}
+    assert _heatmap_limits("%", [[-5, 125]]) == {}
+    labels = ["2026-03-15T00:00:00Z", "2026-03-15T01:00:00Z"]
+    assert _heatmap_ticks(labels) == (["00:00", "01:00"], " · 15 Mar 2026 UTC")
+    different_dates = ["2026-03-15T00:00:00Z", "2026-03-16T00:00:00Z"]
+    assert _heatmap_ticks(different_dates) == (different_dates, "")
+
+
+def test_headline_rounding_keeps_exact_metric_in_definition(report_spec):
+    from backintel.artifacts import _report_html
+
+    report = validate_report(report_spec)
+    report["metrics"][0]["value"] = 59.43396226415094
+    report["metrics"][0]["unit"] = "%"
+    page = _report_html(report)
+    assert "59.43 " in page
+    assert "Exact value: 59.43396226415094" in page
+    assert 'href="#table-' in page
+    assert 'aria-label="Report sections"' in page
