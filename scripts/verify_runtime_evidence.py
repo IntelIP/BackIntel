@@ -2,7 +2,7 @@
 
 Run with ``uv run python scripts/verify_runtime_evidence.py``. Only existing service
 containers are started; containers already running are preserved. Raw-file evidence runs
-in the normal read-only Docker Python sandbox. Results contain no connection credentials.
+in the normal read-only SmolVM Python sandbox. Results contain no connection credentials.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ from pathlib import Path
             network=store.sandbox_network(),
         )
         if result.exit_code != 0:
-            raise RuntimeError("Docker Python count failed")
+            raise RuntimeError("Sandboxed Python count failed")
         count = int(result.stdout.strip())
     else:
         kind, good = ("query", COUNT_QUERY) if store.kind == "ferretdb" else ("sql", COUNT_SQL)
@@ -143,7 +143,7 @@ from pathlib import Path
 
 def main() -> int:
     settings = Settings.from_env()
-    sandbox = PythonSandbox("docker", timeout_s=30)
+    sandbox = PythonSandbox(settings.sandbox, timeout_s=30)
     report = {
         "created_at": datetime.now(UTC).isoformat(),
         "scope": "Runtime evidence execution smoke; not a model quality or full data parity evaluation",
