@@ -447,7 +447,8 @@ def main():
         case_ids=args.case,
     )
     print(json.dumps(result, indent=2))
-    if any(not arm["summary"]["all_tasks_passed"] for arm in result["arms"]):
+    passed_key = "eligible_for_live_review" if args.model else "all_tasks_passed"
+    if any(not arm["summary"][passed_key] for arm in result["arms"]):
         raise SystemExit(1)
 
 

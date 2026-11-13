@@ -8,6 +8,29 @@ import pytest
 from scripts.run_analysis_comparison import run_suite, summarize_arm
 
 
+@pytest.mark.parametrize("model", [None, "chatgpt-plan/test", "openrouter/openai/test"])
+@pytest.mark.parametrize("all_tasks_passed,eligible", [(True, True), (True, False), (False, False)])
+def test_cli_success_requires_live_review_eligibility(monkeypatch, model, all_tasks_passed, eligible):
+    import scripts.run_analysis_comparison as suite
+
+    monkeypatch.setattr("sys.argv", ["suite", *(["--model", model] if model else [])])
+    monkeypatch.setattr(
+        suite,
+        "run_suite",
+        lambda *args, **kwargs: {
+            "arms": [
+                {"summary": {"all_tasks_passed": all_tasks_passed, "eligible_for_live_review": eligible}}
+            ]
+        },
+    )
+    if eligible if model else all_tasks_passed:
+        suite.main()
+    else:
+        with pytest.raises(SystemExit) as error:
+            suite.main()
+        assert error.value.code == 1
+
+
 def test_selected_case_keeps_frozen_suite_and_limits_subscription_calls(tmp_path, monkeypatch):
     import scripts.run_analysis_comparison as suite
 

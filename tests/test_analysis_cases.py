@@ -175,18 +175,52 @@ def test_units_population_and_chart_binding_are_required(cases):
 
 def test_missing_cost_requires_explanatory_refusal_without_substitute_report(cases):
     case = cases["missing-cost"]
-    completion = {"status": "cannot_answer", "reason": "Product costs are required to calculate profit."}
+    completion = {
+        "status": "cannot_answer",
+        "reason": "Product costs are missing; they are required for profit.",
+    }
     verify_case_completion(case, completion)
     assert reference_queries(case.case_id) == {}
     for invalid in (
         {"status": "completed", "reason": "Profit is revenue."},
         {"status": "cannot_answer", "reason": "I cannot answer."},
         {"status": "cannot_answer", "reason": "Costs are present."},
+        {"status": "cannot_answer", "reason": "Costs are not missing."},
+        {"status": "cannot_answer", "reason": "There is no cost issue."},
+        {"status": "cannot_answer", "reason": "There is no issue with costs."},
+        {"status": "cannot_answer", "reason": "Costs are missing. Costs are present."},
+        {"status": "cannot_answer", "reason": "Costs aren't unavailable."},
+        {"status": "cannot_answer", "reason": "It is not true that costs are missing."},
+        {"status": "cannot_answer", "reason": "Costs are required to calculate profit."},
     ):
         with pytest.raises(ValueError):
             verify_case_completion(case, invalid)
     with pytest.raises(ValueError, match="substitute"):
         verify_case_completion(case, completion, scripted_spec(cases["sales-refunds"]))
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "Product costs and operating expenses are unavailable.",
+        "The source lacks product costs and expense data.",
+        "No cost data is supplied.",
+        "Missing product cost inputs prevent calculating profit.",
+        "Costs are not provided in this source.",
+        "Required profit inputs are absent: cost of goods sold and applicable expenses.",
+    ],
+)
+def test_explicit_missing_cost_statements_are_accepted(cases, reason):
+    verify_case_completion(cases["missing-cost"], {"status": "cannot_answer", "reason": reason})
+
+
+@pytest.mark.parametrize("metric_id", ["arbitrary", "revenue", None])
+def test_correct_cell_with_wrong_metric_identity_is_rejected(cases, metric_id):
+    case = cases["irregular-energy"]
+    report = scripted_spec(case)
+    report["metrics"][0]["id"] = metric_id
+    with pytest.raises(ValueError, match="summary metric"):
+        verify_case_report(case, report)
 
 
 @pytest.mark.parametrize("target", ["source", "reference"])

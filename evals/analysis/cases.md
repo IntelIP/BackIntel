@@ -62,7 +62,9 @@ The independent oracle iterates deduplicated raw lines, aggregates raw refunds a
 
 **Business request:** Calculate net profit for the same delivered orders. **Expected outcome:** `cannot_answer`, with a reason identifying missing or required product costs/expenses. It must not relabel revenue as profit or deliver a substitute profit report.
 
-The same `sales.sqlite` source and its limitations are used. There is no numerical reference solution. The deterministic refusal check requires a cost/expense/COGS term and an absence/requirement term; this is a narrow machine check, not a semantic judge of every possible refusal. A helpful reason such as “Product costs are required to calculate profit” passes; a generic “I cannot answer” does not.
+The same `sales.sqlite` source and its limitations are used. There is no numerical reference solution. The deterministic refusal check requires an explicit statement that cost/expense/COGS inputs are absent. “Product costs are missing” passes; generic refusals, a requirement alone, “Costs are not missing” and “There is no cost issue” fail. This conservative language check is not a semantic judge of every possible refusal; ambiguous wording requires review.
+
+The 2026-11-13 evaluator correction also requires the declared metric ID alongside its table/row/column binding. Inputs and numerical references are unchanged. Preserve the original feedback and identify any regrade with the new case-module and runner hashes; apply the same evaluator to both comparison arms. Live CLI success additionally requires complete applicable accounting and review eligibility. Scripted checks remain integration evidence only.
 
 ## Task 3: irregular-energy
 
