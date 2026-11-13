@@ -1,7 +1,7 @@
 """LLM judge for what code cannot check: whether the method and caveats are sound.
 
-The judge is a different model family from the analyst (default Claude Haiku 5.5 via
-OpenRouter) to limit self-preference bias. It gives anchored ratings with reasons from
+The judge is a different model family from the analyst (default native Claude Haiku 5.5)
+to limit self-preference bias. It gives anchored ratings with reasons from
 the question, answer and validated source context; it never sees the reference answer, so
 it grades reasoning quality, not correctness, which the deterministic scorers own.
 Evaluator-only source profiles qualify snapshot and grain assumptions.
@@ -139,7 +139,20 @@ def judge_answer(
         + case
     )
     judge = build_model(model_id, max_retries=max_retries)
-    result = judge.with_structured_output(schema).invoke(prompt, config={"callbacks": callbacks or []})
+    # Forced tool output suppresses upfront thinking on native Haiku. Native JSON
+    # output preserves the model's adaptive thinking without changing the rubric.
+    native = model_id.startswith("anthropic/")
+    output_options = {"method": "json_schema", "include_raw": True} if native else {}
+    result = judge.with_structured_output(schema, **output_options).invoke(
+        prompt, config={"callbacks": callbacks or []}
+    )
+    if native:
+        # JSON parsers may repair partial JSON; never grade a truncated response.
+        if result["raw"].response_metadata.get("stop_reason") != "end_turn":
+            raise ValueError("Native judge did not complete its structured assessment")
+        if result["parsing_error"] is not None:
+            raise result["parsing_error"]
+        result = result["parsed"]
     criteria = {
         key: CAVEAT_SCORES[result[key]["verdict"]]
         if key == "caveats_material"

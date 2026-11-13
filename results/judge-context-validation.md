@@ -122,3 +122,34 @@ Plan, exact controls/source copies, script, full assessments, usage and read-bac
 at `data/output/judge-native-validation-20261113/` in the canonical checkout. The working
 source identity was `ac5cb1b7de4701b1` (PR8 plus native adapter/accounting integration).
 No human calibration, broad accuracy or release claim follows from this six-case check.
+
+## Native JSON-output contrast — 2026-11-13
+
+A prospective transport-only revision (`f3b3a2c216f8`) replaced native Anthropic's
+forced-tool structured output with JSON-schema output, allowing its default adaptive
+thinking. The rubric, labels, six case bytes, model, default effort, rates, 2048-token
+output cap and six-call allowance remained fixed. Incomplete native responses are rejected
+even when their JSON can be repaired. See [transport rationale](../docs/judge-native-output.md).
+
+All six requests completed. **Five of six** matched every frozen expectation, compared
+with four of six through forced-tool output. The complete pre-truncated extract now
+received full caveat credit; future leakage still failed correctly; equivalent calculations,
+flat extract totals and explicit pending-order disclosure retained their expected grades.
+The partly scoped pending-order answer still received 0 rather than the frozen 0.5.
+Its reason notes the unanswered request to explain pending orders, but does not credit the
+already-stated delivered-only population. This remaining partial-credit boundary is not
+resolved. No label is changed and no 6/6 qualification is claimed; the full campaign remains
+unstarted. One run per configuration cannot establish a general improvement rate or causality.
+
+Estimated native usage was **$0.0329345**, with complete token accounting and no reservation
+breach. Actual invoice amount remains unknown. Combined new native adapter/control checks
+cost an estimated **$0.06112375** across 13 calls. Historical reported charges and unpriced
+reservations are preserved separately. No further retries were made to seek a favorable grade.
+
+LangSmith read-back matched six runs and twelve feedback values.
+[JSON-output experiment](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/05be35c5-121a-4c1f-92a7-a83579608965).
+Plan, source copies, complete assessments and receipts are retained under
+`data/output/judge-native-jsonschema-validation-20261113/` in the canonical checkout.
+Source `f3ea32af0037c625`; scorer `47ceaa277246ba19`; context `dd44858434c4`;
+accounting `a0cc73ec381e4778`. The unchanged working-source suite passed 252 tests with
+15 optional skips; lint, formatting, Vulture and diff checks passed.
