@@ -36,6 +36,7 @@ def test_snapshot_uses_old_runtime_and_current_grader_without_host_files(
         "src/backintel/agent_files/lead.md": "current prompt",
         "src/backintel/bench/scoring.py": "current scorer",
         "src/backintel/bench/judge.py": "current judge",
+        "src/backintel/bench/judge_context.py": "current source context",
         "src/backintel/bench/run.py": "current runner",
         "src/backintel/bench/usage.py": "current usage",
         "benchmarks/answers/facts.json": "reserved data never passed to worker",

@@ -25,6 +25,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from backintel.agent import build_agent, method_version
 from backintel.bench.judge import judge_answer, judge_version
+from backintel.bench.judge_context import build_judge_context, context_version
 from backintel.bench.oracle import load_answers
 from backintel.bench.scoring import abstention_correct, evidence_reproduces, score_correct
 from backintel.bench.usage import BudgetExceeded, NativeRunBudget, RunBudget, UsageTracker
@@ -89,7 +90,14 @@ def scorer_version(root: Path | None = None) -> str:
     """Lock implementation, not merely rubric labels, when comparing candidate runs."""
     digest = hashlib.sha256()
     root = root or repo_root()
-    for relative in ("bench/scoring.py", "bench/judge.py", "bench/run.py", "bench/usage.py", "contracts.py"):
+    for relative in (
+        "bench/scoring.py",
+        "bench/judge.py",
+        "bench/judge_context.py",
+        "bench/run.py",
+        "bench/usage.py",
+        "contracts.py",
+    ):
         path = root / "src" / "backintel" / relative
         digest.update(relative.encode())
         digest.update(path.read_bytes())
@@ -169,6 +177,7 @@ class Harness:
             "model": model_id,
             "judge_model": settings.judge_model if judge else None,
             "judge_version": judge_version() if judge else None,
+            "judge_context_version": context_version() if judge else None,
             "method_version": method_version(),
             "sandbox": sandbox.label,
             "git_sha": git_sha(),
@@ -308,16 +317,19 @@ class Harness:
             judge_usage = UsageTracker(self.budget, model_id=self.settings.judge_model)
             judge_started = time.monotonic()
             try:
+                context = build_judge_context(store, scenario.id) if answer else None
                 judged = judge_answer(
                     scenario.question,
                     answer,
                     model_id=self.settings.judge_model,
                     callbacks=[judge_usage],
                     max_retries=0 if self.budget else 2,
+                    context=context,
                 )
                 scores["judge_method"] = {
                     "score": judged["score"],
                     "comment": judged["comment"] + " " + json.dumps(judged["criteria"]),
+                    "context": context,
                 }
             except Exception as exc:
                 scores["judge_method"] = {
@@ -386,6 +398,7 @@ class Harness:
                 else "valid"
             ),
             "outputs": outputs,
+            "judge_context": scores.get("judge_method", {}).get("context"),
             "scores": {k: v["score"] for k, v in scores.items()},
             "comments": {k: v["comment"] for k, v in scores.items()},
         }
