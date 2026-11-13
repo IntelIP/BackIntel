@@ -235,8 +235,26 @@ The 3/4 baseline remains unchanged: a targeted success is not a new 4/4 experime
 Historical results and failures are in the [capability report](docs/results.md) and
 [scorecard](results/scorecard.md). The [SmolVM baseline](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/datasets/d2e934c2-77e8-4926-93b3-0bcd644b200d/compare?selectedSessions=f667f6fc-4e8d-4bba-bcbf-fcde7d808d40)
 and [energy rerun](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/datasets/d2e934c2-77e8-4926-93b3-0bcd644b200d/compare?selectedSessions=ff29645c-8e96-4cd8-875c-302ae006acf8)
-are separate LangSmith experiments; workspace access may be required. Their expanded
-four-case runner remains pending publication, so it is not part of the checkout quickstart.
+are separate LangSmith experiments; workspace access may be required. The
+[four-case suite](evals/analysis/cases.md) includes fixture builders, independent references,
+wrong-answer controls and a runnable comparison harness.
+
+After preparing SmolVM, verify all four cases with scripted decisions and no model calls:
+
+```bash
+uv run python -m scripts.run_analysis_comparison
+```
+
+This exercises the actual graph, sandbox and artifact delivery; it is integration evidence,
+not a live quality score. To prepare only the fixtures without starting a VM:
+
+```bash
+uv run python -m scripts.analysis_cases data/output/my-new-analysis-fixtures
+```
+
+Use a new output directory for every run. The [evaluation guide](docs/analysis-sandbox.md)
+documents the subscription and explicitly budgeted API modes. Live comparisons require
+explicit model IDs, retain failed attempts and never promote a model automatically.
 
 ### Evaluation and data quality
 

@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-11-11T02:14:34.401914+00:00",
+  "created_at": "2026-11-13T04:37:52.302460+00:00",
   "scope": "Runtime evidence execution smoke; not a model quality or full data parity evaluation",
   "dataset": "olist",
   "model_calls": 0,
@@ -90,7 +90,7 @@
       "evidence_kind": "python",
       "valid_answer_accepted": true,
       "broken_second_evidence_rejected": true,
-      "sandbox": "docker"
+      "sandbox": "smolvm"
     }
   ],
   "final_running_containers": [],
