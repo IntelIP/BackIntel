@@ -1,5 +1,70 @@
 # Analysis sandbox implementation results
 
+## Fresh Sol guidance comparison — 2026-11-13 UTC
+
+Both versions passed **4/4** fresh live trials on SmolVM: sales/refunds, missing-cost refusal,
+irregular energy and service availability. Each arm exported three independently checked
+report/chart/CSV/XLSX bundles and one structured refusal. Both also passed the separately
+versioned evaluator correction described below. The earlier 3/4 run and selected energy
+rerun remain separate historical measurements.
+
+The candidate clarifies which tools read virtual skills versus VM files, requires a useful
+structured refusal when essential inputs are absent, and keeps temporary delivery claims
+out of completion summaries. This changes guidance and tool descriptions; source access,
+sandbox permissions, model, reasoning and output enforcement are unchanged.
+
+| Arm | Frozen commit | Method / source | Calls | Input / output tokens | Summed trial latency |
+| --- | --- | --- | ---: | ---: | ---: |
+| [Baseline](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/32ce081a-bcf3-4d2a-b7a3-f044e9c9e204) | `9b75233` | `a544130f2127` / `e903bc5341eb19cd` | 41 | 401,583 / 10,325 | 372.663 s |
+| [Candidate](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/0def1a04-7d51-4ba5-a29f-803789771039) | `3d0bb71` | `a2f72c30c929` / `5e52cbd9f01eaf26` | 34 | 387,065 / 11,650 | 408.103 s |
+
+Trace findings against the predeclared behavioral checks:
+
+- All four baseline cases first attempted to read three `/skills/` files with `run_shell`,
+  received missing-file errors, and then recovered with instruction `read_file`. All four
+  candidate cases used the correct instruction tools immediately, with no shell skill probes.
+- Both missing-cost trials refused without rendering or exporting a substitute report, and
+  neither claimed delivery. This pair does not demonstrate a refusal-quality improvement.
+- All eight trials returned structured completion directly, with zero recovery prompts.
+  The candidate's energy run corrected one workbook-check assertion after discovering the
+  renderer prefixes sheet names; the final workbook passed the independent host grader.
+- Candidate completion summaries report supported analytical findings. Clean host export,
+  manifest verification, independent numerical/unit/metric checks and workbook reconciliation
+  passed for each delivered bundle.
+
+The plan was frozen before inference: one trial per case per arm, serial execution,
+`chatgpt-plan/gpt-6.1-sol`, medium reasoning, 24 model calls / 50 tool calls / 900 seconds per
+case, 192 model calls total, no provider fallback, trial retry or LLM judge. The run consumed
+75 calls, 788,648 input tokens and 21,975 output tokens, with complete subscription usage.
+Per-request dollar charges are not reported by this route; this is not a claim of free
+inference. No paid API calls or credit purchases occurred. SmolVM 1.31.1 and the prepared
+image/archive identities match the migration receipt. Local verification work overlapped
+the experiment, so elapsed times are descriptive and are not a controlled speed comparison.
+
+The original dataset identity is
+`7294f8c0ca8ea4ef54e1667535e845a4d1cbd8591b82b5d235583cf9ff006615`.
+During execution, PR review found grader gaps in metric identity, negated missing-input
+explanations and live CLI eligibility. Runtime code stayed frozen. After both arms ended,
+their saved outputs were checked with the same corrected evaluator at `fd99f07`; source,
+brief, reference and tolerance identities matched. No new inference or threshold tuning was
+used for that regrade. Both remained 4/4. Original `task_pass` feedback stays untouched;
+`task_pass_evaluator_v2` and `evaluation_valid_evaluator_v2` record the correction. Separate
+`skill_access_correct` and `refusal_scope_clean` feedback expose the behavioral comparison.
+
+Corrected case-module SHA-256:
+`bed630e04f7b7769f2b252eeaf256e94477b893adf05df898422047bcc0b32f6`.
+The runner hash and all original identities are retained in `review-regrade.json`.
+LangSmith read-back verified all eight stored run identities/statuses/completions/usage and
+all 26 added feedback records. These are agent-reviewed results, not human calibration.
+
+Evidence: `data/output/specialist-guidance-pair-20261113T044726Z/` contains the frozen
+`plan.json`, both original `comparison.json` files, full trajectories and bundles,
+`review-regrade.json` and `langsmith-verification.json`. The prompt candidate is
+[PR #7](https://github.com/IntelIP/BackIntel/pull/7); the evaluator package is
+[PR #6](https://github.com/IntelIP/BackIntel/pull/6). This supports the specific guidance
+change. Unseen domains, real large data, the 92-response analyst campaign and release
+acceptance remain open.
+
 ## Reproducible evaluation package — 2026-11-13 UTC
 
 The expanded four-case runner, source builders, independent graders and original two-case

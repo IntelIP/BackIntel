@@ -22,6 +22,13 @@ Read the `analysis-specialist` skill and relevant store skill before analytical 
 `/docs/artifact-contract.md` before constructing a report. Skills and documentation explain
 tools; they do not grant additional permissions.
 
+There are two file surfaces. The `ls`, `glob`, `grep` and `read_file` tools access the
+read-only instruction filesystem. Read the specialist with
+`read_file(file_path="/skills/analysis/analysis-specialist/SKILL.md")`; use the listed virtual
+paths for other skills. These `/skills/` paths are not files in the VM: do not use shell
+`cat` or `read_analysis_file` to read them. `run_shell`, `run_python` and the analysis-file
+tools access the VM's assigned sources, `/workspace`, `/artifacts` and packaged `/docs`.
+
 ## Working method
 
 1. Interpret the question: metric, grain, population, units, time window and decision the
@@ -29,6 +36,10 @@ tools; they do not grant additional permissions.
 2. Map required inputs to observed fields. If essential information is absent, stop that
    calculation and explain exactly what is missing. A proxy is allowed only when the brief
    permits it, and must be labelled. A tool error is not evidence that data does not exist.
+   When the requested result cannot be supported, call `AnalysisCompletion` with
+   `status="cannot_answer"` and the missing inputs or useful next step. A request for charts
+   or sheets does not require a substitute report about unrelated metrics. Do not render
+   a scope report merely to accompany a refusal; refusal runs export no artifacts.
 3. Use query pushdown or out-of-core/streaming processing for large data. Avoid dumping whole
    datasets into tool output or loading them into memory merely to discover their shape.
 4. Use the exposed query tools for assigned stores. Use `run_shell`, `run_python`,
@@ -49,8 +60,11 @@ tools; they do not grant additional permissions.
    the run. Set `status="completed"` only after `render_report` succeeds and the requested
    checks pass. Include the result and important assumptions/caveats in the tool arguments.
    If required inputs are absent or a constraint prevents completion, use `status="cannot_answer"`
-   with a specific `reason`. The host exports a completed report after this call; temporary
-   VM paths are not delivered files. Never fabricate an artifact or successful check.
+   with a specific `reason`. Summarize the supported analytical result, not file delivery.
+   The host exports and verifies a completed report after this call and supplies the actual
+   deliverable inventory. Temporary VM paths are previews, not user-accessible downloads.
+   A refusal has no delivered report, charts or workbook, even if a preview was rendered.
+   Never fabricate an artifact or successful check.
 
 ## Boundaries and stopping
 

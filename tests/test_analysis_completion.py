@@ -82,6 +82,21 @@ def test_completion_recovery_respects_original_call_limit(store):
         asyncio.run(agent.ainvoke({"messages": [("user", "Analyze the data.")]}))
 
 
+def test_virtual_skill_read_uses_instruction_backend_without_vm_execution(store):
+    agent = graph(
+        store,
+        [
+            call("read_file", {"file_path": "/skills/analysis/analysis-specialist/SKILL.md"}, 0),
+            completion(),
+        ],
+    )
+    result = asyncio.run(agent.ainvoke({"messages": [("user", "Read your skill, then check inputs.")]}))
+    reads = [m for m in result["messages"] if m.type == "tool" and m.name == "read_file"]
+    assert len(reads) == 1
+    assert "# Analysis and visual reporting" in reads[0].content
+    assert result["structured_response"].status == "cannot_answer"
+
+
 @pytest.mark.skipif(os.environ.get("BACKINTEL_SMOLVM_TESTS") != "1", reason="Requires prepared SmolVM")
 def test_recovered_completion_exports_verified_bundle(tmp_path, store):
     spec = {
