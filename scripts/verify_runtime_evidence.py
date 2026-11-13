@@ -18,6 +18,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from backintel.answer_validation import answer_schema
+from backintel.bench.run import git_sha, source_version, working_tree
 from backintel.sandbox import PythonSandbox
 from backintel.settings import Settings, repo_root
 from backintel.stores import open_store
@@ -146,6 +147,10 @@ def main() -> int:
     sandbox = PythonSandbox(settings.sandbox, timeout_s=30)
     report = {
         "created_at": datetime.now(UTC).isoformat(),
+        "git_sha": git_sha(),
+        "source_version": source_version(),
+        "working_tree": working_tree(),
+        "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "scope": "Runtime evidence execution smoke; not a model quality or full data parity evaluation",
         "dataset": "olist",
         "model_calls": 0,

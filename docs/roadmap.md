@@ -28,13 +28,13 @@ rate. See [current capabilities and measured outcomes](../README.md#what-has-bee
 ## Next achievable increments
 
 Each item below is small enough to define a concrete development handoff. A role names the
-work involved, not an assigned person or a new runtime sub-agent. Existing scripts and
-fixtures that are still pending publication must be packaged before another contributor can
-reproduce their experiments from a checkout.
+work involved, not an assigned person or a new runtime sub-agent. The
+[four-case evaluation package](../evals/analysis/cases.md) supplies its scripts and fixtures
+in the checkout; publication and release evidence belongs in the linked Linear issues.
 
 | Order | Deliverable | Completion criteria | Dependency / tracker |
 | --- | --- | --- | --- |
-| 1 | Reproducible foundation and evaluation handoff | Publish the reviewed SmolVM/completion candidate and docs; package the pending four-case runner, case definitions, tests and reference generation as a separately reviewed change; verify a clean checkout can run the offline suite without private files | Engineering + evaluation; INT-451, INT-454 |
+| 1 | Reproducible foundation and evaluation handoff | Publish the reviewed SmolVM/completion candidate and docs; publish the four-case runner, case definitions, tests and reference generation as a separately reviewed change; verify a clean checkout can run the offline suite without private files | Engineering + evaluation; INT-451, INT-454 |
 | 2 | Reliable finish, refusal and artifact claims | Clarify virtual skill reads versus shell paths; stop unsupported profit calculations without unnecessary report generation; never claim an unexported file exists; add regressions for these observed behaviors and retain the completion recovery/call-limit tests | Existing failure traces; INT-435, INT-454 |
 | 3 | A measured reliability improvement | Freeze model, inputs, prompt/skills, graders, candidate and finite allowance; execute the 92-response comparison described below; improve mandatory historical failures without regressing controls; assess all development and reserved cases | Readiness and frozen comparison plan; INT-430–438, parent INT-429 |
 | 4 | An unfamiliar-domain data package | Qualify three distinct non-retail sources, including terms, provenance, hashes, units, grain, nulls and joins; reserve one entire domain; define six challenge questions and one bounded discovery report per domain | Data + evaluation; INT-440, INT-441, INT-443 |
