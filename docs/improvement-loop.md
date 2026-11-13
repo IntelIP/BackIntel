@@ -241,3 +241,10 @@ prompt/record wiring. Mock model outputs test transport only. They do not establ
 live judge now reasons correctly: a fresh, funded contrast run and baseline/candidate
 comparison are still required. Human calibration remains waived, and method scores remain
 uncalibrated.
+
+The [judge validation record](../results/judge-context-validation.md) preserves the live
+context contrast, the subsequent incomplete caveat experiment, and the new categorical
+caveat candidate. For new runs, caveat verdicts map to fixed scores; raw assessments are
+retained alongside the source context in records and in LangSmith feedback metadata.
+This changes the judge/scorer identities prospectively. The categorical candidate still
+requires live validation; no historical feedback is rewritten.

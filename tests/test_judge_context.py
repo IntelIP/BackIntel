@@ -129,7 +129,10 @@ def test_method_judge_sees_context_and_accepts_alternative_shapes_as_instruction
         def invoke(self, prompt, config):
             prompts.append(prompt)
             return {
-                key: {"reason": "Controlled placeholder, not a live judgment", "rating": 2}
+                key: {
+                    "reason": "Controlled placeholder, not a live judgment",
+                    **({"verdict": "none_established"} if key == "caveats_material" else {"rating": 2}),
+                }
                 for key in judge.RUBRIC
             }
 
@@ -158,10 +161,11 @@ def test_harness_passes_evaluator_context_and_records_it_without_changing_numeri
 
     store = snapshot(tmp_path)
     seen = []
+    assessments = {"caveats_material": {"reason": "Controlled category", "verdict": "none_established"}}
 
     def capture(*args, **kwargs):
         seen.append(kwargs["context"])
-        return {"score": 0.5, "comment": "Mock judge only", "criteria": {}}
+        return {"score": 0.5, "comment": "Mock judge only", "criteria": {}, "assessments": assessments}
 
     monkeypatch.setattr(run, "judge_answer", capture)
     scenario = Scenario(
@@ -183,4 +187,5 @@ def test_harness_passes_evaluator_context_and_records_it_without_changing_numeri
         store.close()
     assert scores["correct"]["score"] == scores["evidence_reproduces"]["score"] == 1
     assert record["judge_context"] == seen[0]
+    assert record["judge_assessments"] == assessments
     assert record["scores"]["judge_method"] == 0.5

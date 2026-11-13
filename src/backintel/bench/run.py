@@ -330,6 +330,7 @@ class Harness:
                     "score": judged["score"],
                     "comment": judged["comment"] + " " + json.dumps(judged["criteria"]),
                     "context": context,
+                    "assessments": judged.get("assessments", {}),
                 }
             except Exception as exc:
                 scores["judge_method"] = {
@@ -399,6 +400,7 @@ class Harness:
             ),
             "outputs": outputs,
             "judge_context": scores.get("judge_method", {}).get("context"),
+            "judge_assessments": scores.get("judge_method", {}).get("assessments"),
             "scores": {k: v["score"] for k, v in scores.items()},
             "comments": {k: v["comment"] for k, v in scores.items()},
         }
@@ -565,7 +567,10 @@ def run_langsmith(
                     "key": k,
                     "score": v["score"],
                     "comment": v["comment"],
-                    "evaluator_info": {"usage": v["metrics"]} if "metrics" in v else {},
+                    "evaluator_info": {
+                        **({"usage": v["metrics"]} if "metrics" in v else {}),
+                        **({"assessments": v["assessments"]} if "assessments" in v else {}),
+                    },
                 }
                 for k, v in scored.items()
             ]
