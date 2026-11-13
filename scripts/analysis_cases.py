@@ -786,7 +786,7 @@ def verify_case_report(case: AnalysisCase, report: dict) -> None:
             raise ValueError(f"Table {name} has incorrect units")
     for required in case.requirements["metrics"]:
         if not any(
-            all(m.get(k) == required[k] for k in ("table", "row", "column"))
+            all(m.get(k) == required[k] for k in ("id", "table", "row", "column"))
             for m in report.get("metrics", [])
         ):
             raise ValueError("Required summary metric is missing or incorrectly bound")
@@ -794,6 +794,44 @@ def verify_case_report(case: AnalysisCase, report: dict) -> None:
         keys = [k for k in ("kind", "table", "x", "y", "z") if k in required]
         if not any(all(c.get(k) == required[k] for k in keys) for c in report.get("charts", [])):
             raise ValueError("Required analytical chart is missing or incorrectly bound")
+
+
+def _explains_missing_cost(reason: str) -> bool:
+    """Recognize explicit missing-input statements, not disconnected keywords.
+
+    This is a conservative language check, not a semantic judge. Ambiguous wording
+    remains a failed automatic check for review rather than an inferred pass.
+    """
+    cost = r"\b(?:costs?|expenses?|cogs)\b"
+    absence = r"(?:missing|absent|unavailable|not\s+(?:provided|supplied|available|present|included))"
+    modifiers = r"(?:(?:required|product|unit|operating|operational|purchase|actual|the|any)\s+)*"
+    has_gap = False
+    for clause in re.split(r"[.!?;\n]", reason.lower()):
+        # Negating an absence (or asserting presence) cannot establish a data gap.
+        if re.search(r"\b(?:not|never|isn't|aren't|isn’t|aren’t)\s+(?:missing|absent|unavailable)\b", clause):
+            return False
+        negative_subject = re.search(r"\b(?:no|without|lacks?|lacking)\s+" + modifiers + cost, clause)
+        if not negative_subject and re.search(
+            cost + r".{0,60}\b(?:are|is)\s+(?:present|available|provided|supplied)\b", clause
+        ):
+            return False
+        if re.search(r"\bnot\s+(?:true|the case)\b", clause):
+            continue
+        # Costs may be qualified by units or grouped with other absent inputs.
+        if re.search(cost + r".{0,100}\b(?:are|is|were|was)\s+" + absence + r"\b", clause):
+            has_gap = True
+        if re.search(r"\b" + absence + r"[:\s]+" + modifiers + cost, clause):
+            has_gap = True
+        if re.search(
+            r"\b(?:no|without|lacks?|lacking)\s+"
+            + modifiers
+            + cost
+            + r"(?:\s+(?:data|inputs?|fields?|records?|information))?"
+            + r"(?=\s*(?:[,/:]|$|\b(?:is|are|for|to|in|and|or)\b))",
+            clause,
+        ):
+            has_gap = True
+    return has_gap
 
 
 def verify_case_completion(case: AnalysisCase, completion: dict, report: dict | None = None) -> None:
@@ -806,10 +844,8 @@ def verify_case_completion(case: AnalysisCase, completion: dict, report: dict | 
             raise ValueError("Completed analysis has no report")
         verify_case_report(case, report)
         return
-    reason = completion.get("reason", "").lower()
-    if not re.search(r"cost|expense|cogs", reason) or not re.search(
-        r"missing|absent|unavailable|not provided|not supplied|no |need|requir|lack", reason
-    ):
+    reason = completion.get("reason") or ""
+    if not isinstance(reason, str) or not _explains_missing_cost(reason):
         raise ValueError("Refusal must explain the absent required cost inputs")
     if report is not None:
         raise ValueError("Missing-cost refusal must not deliver a substitute profit report")
