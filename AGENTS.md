@@ -1,14 +1,16 @@
-# BackIntel v2 agent instructions
+# BackIntel agent instructions
 
 Use plain, complete English. Lead with the measured result and what it means for the
 analyst's capability. Preserve required behavior and checks.
 
 ## What this is
 
-BackIntel v2 is an ambient data-analyst agent: given connected data stores and a few
-standing business problems, it answers questions on a schedule and tells a consistent story
-over time. This branch (`codex/backintel-v2`) is a fresh build; v1 lives in Git history and on
-the older branches, and nothing from it is imported.
+BackIntel is an experimental data-analyst agent, versioned from **v0.0.1** by owner decision
+on 2026-11-11. It currently answers individual questions and runs historical standing-report
+replays. An opt-in specialist now builds local report/chart/workbook bundles; its live-model
+acceptance remains open. Durable background scheduling and hosted delivery are roadmap work.
+The historical branch name (`codex/backintel-v2`) identifies this rebuild, not product stability;
+the earlier implementation remains in Git history and is not imported.
 
 The build order is deliberate (owner decision, 2026-11-09): benchmark first, agent second,
 infrastructure last. The agent's value is measured, not asserted.
@@ -23,6 +25,14 @@ infrastructure last. The agent's value is measured, not asserted.
   `run_python` (SmolVM sandbox, no network, read-only data mount). Skills in `agent_files/skills`
   are loaded on demand through the Deep Agents skills middleware; `agent_files/lead.md` is the
   system prompt.
+- `analysis.py`: an opt-in, single specialist graph with a structured business brief,
+  persistent SmolVM shell/Python workspace and bounded artifact output. `analysis_sandbox.py`
+  enforces runtime limits; `artifacts.py` renders tables, charts and sheets. A clean second
+  VM renders the retained specification for delivery. Read `docs/specialist-default.md`
+  and `docs/sandbox-environment.md`.
+  Owner-selected specialist default: `chatgpt-plan/gpt-6.1-sol`, medium reasoning. The `analyze`
+  CLI resolves `--model`, then `BACKINTEL_ANALYSIS_MODEL`, then that built-in default.
+  Scripted integration proves wiring, not live model quality; automatic delegation stays off.
 - Contract (`contracts.py`): the analyst returns an `AnalystAnswer` with `evidence` (the exact
   SQL or Python that produced the number), `method` and `caveats`. Code re-executes the
   evidence; an answer that cannot be reproduced from its evidence is scored as unsupported.
