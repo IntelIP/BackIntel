@@ -15,15 +15,21 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NotRequired
 
 from deepagents import FilesystemPermission, HarnessProfile, create_deep_agent, register_harness_profile
 from deepagents._models import get_model_identifier, get_model_provider
 from deepagents.backends import FilesystemBackend
 from deepagents.middleware.filesystem import FilesystemMiddleware
-from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
+from langchain.agents.middleware import (
+    AgentState,
+    ModelCallLimitMiddleware,
+    ToolCallLimitMiddleware,
+    after_model,
+)
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import ToolException, tool
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -60,6 +66,41 @@ class AnalysisCompletion(BaseModel):
         if self.status == "cannot_answer" and not (self.reason or "").strip():
             raise ValueError("A refusal must explain the missing inputs or unresolved constraint.")
         return self
+
+
+class AnalysisState(AgentState):
+    completion_repair_attempted: NotRequired[bool]
+
+
+@after_model(state_schema=AnalysisState, can_jump_to=["model"])
+def require_analysis_completion(state: AnalysisState, runtime) -> dict | None:
+    """Recover one text-only stop, retaining the original graph's budgets and transcript."""
+    if state.get("structured_response") is not None:
+        return None
+    last = state["messages"][-1]
+    if not isinstance(last, AIMessage) or last.tool_calls:
+        return None
+    if state.get("completion_repair_attempted"):
+        raise ValueError("Missing AnalysisCompletion after one recovery prompt; no artifacts delivered.")
+    # ChatGPT plan transport uses automatic tool selection. ToolStrategy alone cannot
+    # prevent a prose-only stop. Never infer completion or a refusal from that prose.
+    return {
+        "completion_repair_attempted": True,
+        "messages": [
+            HumanMessage(
+                content=(
+                    "The host did not receive the required AnalysisCompletion tool call. "
+                    "Your previous text has been retained, but it cannot finish this run. "
+                    "Call AnalysisCompletion with your supported status, summary and caveats; "
+                    "cannot_answer also requires a specific reason. Use completed only after "
+                    "a successful render_report and the requested checks. Do not repeat finished "
+                    "analysis or claim that temporary VM paths have already been delivered. "
+                    "The original tool, model-call and time limits still apply."
+                )
+            )
+        ],
+        "jump_to": "model",
+    }
 
 
 def _safe_text(text: str, env: dict[str, str]) -> str:
@@ -292,6 +333,8 @@ def build_analysis_agent(
         permissions=[FilesystemPermission(operations=["write"], paths=["/**"], mode="deny")],
         middleware=[
             FilesystemMiddleware(backend=backend, tools=["ls", "read_file", "glob", "grep"]),
+            # after_model hooks run in reverse order: count the call before any recovery jump.
+            require_analysis_completion,
             ModelCallLimitMiddleware(run_limit=max_model_calls, exit_behavior="error"),
             ToolCallLimitMiddleware(run_limit=max_tool_calls, exit_behavior="error"),
         ],
@@ -439,6 +482,7 @@ async def run_analysis(
         record["usage"] = usage.report()
         record["budget"] = budget.report() if budget else None
         record["latency_s"] = round(time.monotonic() - started, 3)
+        record["completion_recovery_attempts"] = int(state.get("completion_repair_attempted", False))
         record["messages"] = [m.model_dump(mode="json") for m in state.get("messages", [])]
         (output / "run.json").write_text(json.dumps(record, indent=2, default=str))
     return record
