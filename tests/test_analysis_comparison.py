@@ -24,7 +24,11 @@ def test_selected_case_keeps_frozen_suite_and_limits_subscription_calls(tmp_path
     assert len(seen) == 1
     assert seen[0]["budget"].max_calls == 24
     assert result["arms"][0]["summary"]["case_count"] == 1
-    assert result["dataset_sha256"] == "7294f8c0ca8ea4ef54e1667535e845a4d1cbd8591b82b5d235583cf9ff006615"
+    # SQLite file bytes include engine-version metadata. Freeze the full suite for this
+    # environment rather than pinning one host's file encoding across platforms.
+    full = run_suite(tmp_path / "full", model_ids=["chatgpt-plan/test"])
+    assert full["case_ids"] == list(suite.CASE_IDS)
+    assert result["dataset_sha256"] == full["dataset_sha256"]
 
 
 def test_unresolved_cases_and_unknown_costs_never_qualify_an_arm():
