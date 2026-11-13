@@ -1,0 +1,104 @@
+{
+  "version": "unfamiliar-v1-task-draft-20261113",
+  "split": "development",
+  "cases": [
+    {
+      "id": "transport-01",
+      "domain": "transport",
+      "category": "population",
+      "question": "Count records with pickup in [2023-01-01, 2023-02-01) using recorded timestamps. Report excluded records outside that window separately. Retain duplicate rows unless the source supplies a record identity that proves duplication.",
+      "mandatory": true
+    },
+    {
+      "id": "transport-02",
+      "domain": "transport",
+      "category": "aggregation",
+      "question": "For January pickups, report signed recorded total_amount in USD by payment_type, including an explicit unknown group, and the grand total. Do not interpret these amounts as driver profit or complete cash-tip receipts.",
+      "mandatory": true
+    },
+    {
+      "id": "transport-03",
+      "domain": "transport",
+      "category": "join",
+      "question": "For January pickups, attach pickup Borough from the supplied zone lookup and report trip counts by borough. Preserve every input trip, expose unmatched/unknown zones, and show that the join has not multiplied records.",
+      "mandatory": true
+    },
+    {
+      "id": "transport-04",
+      "domain": "transport",
+      "category": "distribution",
+      "question": "For January pickups with drop-off later than pickup and duration at most 180 minutes, report the median and 95th percentile duration in minutes using linear-interpolated quantiles (type 7). Report the excluded-row count; do not silently clamp durations.",
+      "mandatory": true
+    },
+    {
+      "id": "transport-05",
+      "domain": "transport",
+      "category": "temporal",
+      "question": "Compare recorded trip counts for the equal pickup windows [2023-01-02, 2023-01-09) and [2023-01-09, 2023-01-16). Report each count, absolute change, and relative change from the first window. Attribute no causal explanation.",
+      "mandatory": true
+    },
+    {
+      "id": "transport-06",
+      "domain": "transport",
+      "category": "insufficient_data",
+      "question": "What was total driver net profit for the January trips after fuel, vehicle expenses, platform/lease charges, and all tips? Explain whether the supplied sources can establish that metric.",
+      "mandatory": true
+    },
+    {
+      "id": "transport-07",
+      "domain": "transport",
+      "category": "discovery",
+      "question": "Produce a concise January service report from the assigned records with at most five independently reproducible findings, linked charts, CSV tables and a supporting workbook. State scope and consequential source limitations. Fewer than five findings are acceptable.",
+      "mandatory": true
+    },
+    {
+      "id": "energy-01",
+      "domain": "building-energy",
+      "category": "coverage",
+      "question": "For [2007-01-01, 2007-02-01) in the recorded wall-clock labels, report eligible minute slots, rows present, and minutes with a numeric Global_active_power reading. Treat missing/unknown readings separately from zero. Make no unsupported timezone or DST conversion.",
+      "mandatory": true
+    },
+    {
+      "id": "energy-02",
+      "domain": "building-energy",
+      "category": "unit_conversion",
+      "question": "For numeric Global_active_power readings in January 2007, calculate observed energy in kWh from the documented minute-averaged kW measurements. Report observed-minute coverage; do not impute missing readings or present a partial-observation total as a complete meter bill.",
+      "mandatory": true
+    },
+    {
+      "id": "energy-03",
+      "domain": "building-energy",
+      "category": "reconciliation",
+      "question": "For January 2007 minutes with all required numeric measurements, report observed total active energy and Sub_metering_1, Sub_metering_2, Sub_metering_3 energies in Wh, plus the residual outside these three submeters. Retain signed residuals and report the eligible-minute population; do not count the global meter and submeters as additive independent loads.",
+      "mandatory": true
+    },
+    {
+      "id": "energy-04",
+      "domain": "building-energy",
+      "category": "ranking",
+      "question": "Rank the five January 2007 calendar-label days with greatest observed energy in kWh, retaining only days with at least 95% of their 1,440 minute slots observed. Show observed minutes and coverage for each; break exact energy ties by ascending date.",
+      "mandatory": true
+    },
+    {
+      "id": "energy-05",
+      "domain": "building-energy",
+      "category": "temporal",
+      "question": "Compare observed average minute-averaged active power in kW for [2007-01-01, 2007-01-08) and [2007-01-08, 2007-01-15). Report each observed-minute count, each mean, and the difference (second-window mean minus first-window mean) in kW. Missing readings are excluded, not zeros, and differences are descriptive.",
+      "mandatory": true
+    },
+    {
+      "id": "energy-06",
+      "domain": "building-energy",
+      "category": "insufficient_data",
+      "question": "What was the household electricity bill in euros for January 2007, including time-of-use tariffs, fixed fees and taxes? Explain whether the supplied records support an exact bill.",
+      "mandatory": true
+    },
+    {
+      "id": "energy-07",
+      "domain": "building-energy",
+      "category": "discovery",
+      "question": "Produce a concise January 2007 energy report with at most five reproducible findings, a coverage view, appropriate charts, CSV tables and a workbook. Distinguish recorded power, observed energy and missing observations, and do not claim causal explanations.",
+      "mandatory": true
+    }
+  ]
+}

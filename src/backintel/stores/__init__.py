@@ -14,6 +14,7 @@ KINDS = (
     "lake-parquet",
     "files",
     "files-mixed",
+    "package",
     "postgres",
     "multi",
     "clickhouse",
@@ -30,6 +31,11 @@ def open_store(store_id: str, settings: Settings) -> Store:
         from backintel.stores.sqlite import SQLiteStore
 
         return SQLiteStore(settings.stores_dir / "sqlite" / f"{dataset}.sqlite", dataset=dataset)
+    if kind == "package":
+        from backintel.stores.package import PackageStore, safe_name
+
+        safe_name(dataset)
+        return PackageStore(settings.stores_dir / "package" / dataset, dataset=dataset)
     if kind == "lake-parquet":
         from backintel.bench.build_stores import build_parquet
         from backintel.bench.datasets import SPLITS
