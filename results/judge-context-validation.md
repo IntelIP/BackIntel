@@ -87,3 +87,38 @@ scorer `ba972f36ad0d9f1c`. These are working-source identities, not a new publis
 rating decision but cannot guarantee semantic agreement between verdict and reason. Funded
 live controls and the fresh paired analyst campaign remain necessary. No release or broad
 reliability claim follows from these checks.
+
+## Native categorical validation — 2026-11-13 23:32 UTC
+
+The unchanged six controls were executed through native Anthropic
+`anthropic/claude-haiku-5-5`, standard service, with judge `94a36eb150da` and source
+context `dd44858434c4`. This prospective run retained the already-declared partial-credit
+expectation for the partly scoped pending-order answer; earlier labels were not changed.
+Cases SHA-256: `cb2630cf80f88f91a044cf75ccf36c4ef929b30e5d6a2d30deb33c3048dd0560`.
+
+| Control | Frozen caveat expectation | Observed caveat score |
+| --- | ---: | ---: |
+| Pre-truncated complete extract | 1 | 0.5 |
+| Future-data leakage | 0 | 0 |
+| Equivalent calculation | 1 | 1 |
+| Flat extract total | 1 | 1 |
+| Pending deliveries, partly scoped answer | 0.5 | 0 |
+| Pending deliveries, limitation disclosed | 1 | 1 |
+
+All four targeted method controls matched. Overall **four of six** controls met every
+frozen expectation. The pre-truncated case was incorrectly penalized for small row count
+as though the answer claimed representativeness beyond the supplied extract. The pending
+case was described as wholly omitted despite its partial scope statement. These are
+retained evaluator failures, not analyst failures or grounds for retrospective relabeling.
+The candidate is not qualified; the 92-response campaign remains held.
+
+All six requests completed with complete conservative native token accounting, no retries
+and no reservation breach. Estimated usage was **$0.028152** within the $0.12 admission
+limit. This estimate is not an invoice amount; `cost_usd` remains null. Accounting version:
+`a0cc73ec381e4778`. LangSmith read-back matched all six output records and twelve feedback
+values. [Native experiment](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/e2832945-3a35-43b1-b445-44f7b6f7c80a).
+
+Plan, exact controls/source copies, script, full assessments, usage and read-back remain
+at `data/output/judge-native-validation-20261113/` in the canonical checkout. The working
+source identity was `ac5cb1b7de4701b1` (PR8 plus native adapter/accounting integration).
+No human calibration, broad accuracy or release claim follows from this six-case check.
