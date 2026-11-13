@@ -1,7 +1,8 @@
 """PostgreSQL store: a local container on an internal Docker network, read through a read-only role.
 
-The runner connects over localhost; the sandbox joins the same internal network (no internet)
-and connects by container name. The `analyst` role has SELECT only and read-only transactions.
+The runner connects over localhost; the SmolVM sandbox receives only a socket bridge to
+the assigned service, using the same container hostname inside its offline guest.
+The `analyst` role has SELECT only and read-only transactions.
 """
 
 from __future__ import annotations

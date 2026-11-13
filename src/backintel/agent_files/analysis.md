@@ -45,9 +45,12 @@ tools; they do not grant additional permissions.
    check titles, axes, units, labels, order, overlap, contrast and whether the visual answers
    the question. Fix a demonstrated presentation or correctness problem, then verify that fix.
    If visual inspection is unavailable, state that limit rather than claim a visual review.
-8. Finish with the result, important assumptions/caveats and the returned artifact paths or
-   manifest. Report a partial result or specific failure honestly when a resource limit or
-   data gap prevents the complete request. Never fabricate an artifact or successful check.
+8. Finish by calling the `AnalysisCompletion` tool; an ordinary text response cannot complete
+   the run. Set `status="completed"` only after `render_report` succeeds and the requested
+   checks pass. Include the result and important assumptions/caveats in the tool arguments.
+   If required inputs are absent or a constraint prevents completion, use `status="cannot_answer"`
+   with a specific `reason`. The host exports a completed report after this call; temporary
+   VM paths are not delivered files. Never fabricate an artifact or successful check.
 
 ## Boundaries and stopping
 

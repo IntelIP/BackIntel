@@ -1,7 +1,7 @@
 """Opt-in analytical coding specialist; the benchmark analyst remains independent.
 
 The orchestrator owns the brief, sources, model and limits. The specialist can revise
-programs and artifacts inside one Docker workspace, never its own runtime or release.
+programs and artifacts inside one SmolVM workspace, never its own runtime or release.
 """
 
 from __future__ import annotations
@@ -15,15 +15,21 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NotRequired
 
 from deepagents import FilesystemPermission, HarnessProfile, create_deep_agent, register_harness_profile
 from deepagents._models import get_model_identifier, get_model_provider
 from deepagents.backends import FilesystemBackend
 from deepagents.middleware.filesystem import FilesystemMiddleware
-from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
+from langchain.agents.middleware import (
+    AgentState,
+    ModelCallLimitMiddleware,
+    ToolCallLimitMiddleware,
+    after_model,
+)
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import ToolException, tool
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -62,8 +68,43 @@ class AnalysisCompletion(BaseModel):
         return self
 
 
+class AnalysisState(AgentState):
+    completion_repair_attempted: NotRequired[bool]
+
+
+@after_model(state_schema=AnalysisState, can_jump_to=["model"])
+def require_analysis_completion(state: AnalysisState, runtime) -> dict | None:
+    """Recover one text-only stop, retaining the original graph's budgets and transcript."""
+    if state.get("structured_response") is not None:
+        return None
+    last = state["messages"][-1]
+    if not isinstance(last, AIMessage) or last.tool_calls:
+        return None
+    if state.get("completion_repair_attempted"):
+        raise ValueError("Missing AnalysisCompletion after one recovery prompt; no artifacts delivered.")
+    # ChatGPT plan transport uses automatic tool selection. ToolStrategy alone cannot
+    # prevent a prose-only stop. Never infer completion or a refusal from that prose.
+    return {
+        "completion_repair_attempted": True,
+        "messages": [
+            HumanMessage(
+                content=(
+                    "The host did not receive the required AnalysisCompletion tool call. "
+                    "Your previous text has been retained, but it cannot finish this run. "
+                    "Call AnalysisCompletion with your supported status, summary and caveats; "
+                    "cannot_answer also requires a specific reason. Use completed only after "
+                    "a successful render_report and the requested checks. Do not repeat finished "
+                    "analysis or claim that temporary VM paths have already been delivered. "
+                    "The original tool, model-call and time limits still apply."
+                )
+            )
+        ],
+        "jump_to": "model",
+    }
+
+
 def _safe_text(text: str, env: dict[str, str]) -> str:
-    # Source access stays inside Docker; do not return connection secrets in tool traces.
+    # Source access stays inside SmolVM; do not return connection secrets in tool traces.
     for key, value in env.items():
         if len(value) >= 8 and any(
             part in key.upper() for part in ("PASSWORD", "TOKEN", "SECRET", "DSN", "URI")
@@ -164,7 +205,7 @@ def build_analysis_tools(store: Store, sandbox: AnalysisSandbox, identity: dict,
 
     @tool
     def run_python(code: str) -> str:
-        """Run Python in the persistent Docker workspace with assigned read-only sources.
+        """Run Python in the persistent SmolVM workspace with assigned read-only sources.
 
         Use installed analytical/plotting packages. Save programs in /workspace; save
         final outputs through render_report. Print bounded results, not entire raw datasets.
@@ -240,7 +281,7 @@ def build_analysis_tools(store: Store, sandbox: AnalysisSandbox, identity: dict,
         return execute(result)
 
     # Reuse native read-only schema/query tools; replace the old ephemeral Python tool.
-    domain = [t for t in build_tools(store, PythonSandbox("docker")) if t.name != "run_python"]
+    domain = [t for t in build_tools(store, PythonSandbox("smolvm")) if t.name != "run_python"]
     selected = [
         *domain,
         run_shell,
@@ -292,6 +333,8 @@ def build_analysis_agent(
         permissions=[FilesystemPermission(operations=["write"], paths=["/**"], mode="deny")],
         middleware=[
             FilesystemMiddleware(backend=backend, tools=["ls", "read_file", "glob", "grep"]),
+            # after_model hooks run in reverse order: count the call before any recovery jump.
+            require_analysis_completion,
             ModelCallLimitMiddleware(run_limit=max_model_calls, exit_behavior="error"),
             ToolCallLimitMiddleware(run_limit=max_tool_calls, exit_behavior="error"),
         ],
@@ -439,6 +482,7 @@ async def run_analysis(
         record["usage"] = usage.report()
         record["budget"] = budget.report() if budget else None
         record["latency_s"] = round(time.monotonic() - started, 3)
+        record["completion_recovery_attempts"] = int(state.get("completion_repair_attempted", False))
         record["messages"] = [m.model_dump(mode="json") for m in state.get("messages", [])]
         (output / "run.json").write_text(json.dumps(record, indent=2, default=str))
     return record

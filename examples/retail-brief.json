@@ -1,0 +1,15 @@
+{
+  "objective": "Report net invoiced sales by calendar month, with a monthly trend chart, supporting CSV tables and an Excel workbook. Describe coverage and data-quality limitations.",
+  "business_context": "Exploratory review of the assigned historical Online Retail II source. Inspect the schema and observed date range before calculating.",
+  "audience": "Business analyst",
+  "metric_definitions": {
+    "net_invoiced_sales": "Sum Quantity multiplied by Price for rows with a valid invoice date and non-null quantity and price. Preserve negative quantities as returns or cancellations. Report currency as GBP. This is a source-row invoiced-sales measure, not cash collected or profit.",
+    "population": "Include source rows regardless of whether a customer identifier is present. Explain missingness and any exact duplicate rows; do not silently remove duplicates or non-product codes. Report any exclusions explicitly."
+  },
+  "time_window": "All observed invoice dates in the assigned source; identify partial boundary months.",
+  "known_limitations": [
+    "Historical test data, not a current operating business.",
+    "No costs, expenses or causal conclusions are supplied by this brief."
+  ],
+  "required_outputs": ["report", "monthly line chart", "CSV", "XLSX"]
+}

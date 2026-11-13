@@ -1,7 +1,7 @@
 [project]
 name = "backintel"
-version = "2.0.0a0"
-description = "BackIntel v2: an ambient data-analyst agent on Deep Agents, benchmarked across storage types"
+version = "0.0.1"
+description = "BackIntel: an experimental data-analyst agent on Deep Agents, benchmarked across storage types"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12,<3.14"
