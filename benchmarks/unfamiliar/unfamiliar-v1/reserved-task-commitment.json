@@ -1,0 +1,17 @@
+{
+  "version": "unfamiliar-v1-task-draft-20261113",
+  "domain": "weather",
+  "scenario_count": 7,
+  "sha256": "783f3e299767f91cb8271310d36a442607dfa88db69f86dec9cc5b4bfcac9411",
+  "case_ids": [
+    "weather-01",
+    "weather-02",
+    "weather-03",
+    "weather-04",
+    "weather-05",
+    "weather-06",
+    "weather-07"
+  ],
+  "private_relative_path": "data/unfamiliar-v1/evaluator/reserved-task-spec.json",
+  "truth_generated": false
+}

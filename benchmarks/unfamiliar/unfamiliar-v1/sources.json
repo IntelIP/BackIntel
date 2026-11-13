@@ -1,0 +1,147 @@
+{
+  "version": "unfamiliar-v1-sources-20261113",
+  "purpose": "Offline dataset qualification and future 21-scenario cold-start evaluation; not a live run authorization",
+  "acquired_at_utc": "2026-11-13",
+  "source_base_revision": "51846a48e52e203eabefd7354182a1bd49ba72b6",
+  "domains": [
+    {
+      "id": "transport",
+      "split": "development",
+      "source": "NYC TLC Green Taxi Trip Records, January 2023 + official zone lookup",
+      "assets": [
+        "green_tripdata_2023-01.parquet",
+        "taxi_zone_lookup.csv"
+      ],
+      "publisher": "City of New York Taxi and Limousine Commission",
+      "source_url": "https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page",
+      "rights": "NYC Open Data permitted use under NYC.gov terms; preserve attribution and disclaimer; not an assertion that all city content is CC0",
+      "rights_urls": [
+        "https://www.nyc.gov/opendata/get-started/FAQs",
+        "https://www.nyc.gov/main/terms-of-use",
+        "https://registry.opendata.aws/nyc-tlc-trip-records-pds/"
+      ],
+      "dictionary_url": "https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_green.pdf",
+      "transformations": "None. Original Parquet and zone CSV retained; metadata dictionary is dated 2025 and includes newer columns absent from 2023."
+    },
+    {
+      "id": "building-energy",
+      "split": "development",
+      "source": "UCI Individual Household Electric Power Consumption, DOI 10.24432/C58K54",
+      "assets": [
+        "household_power.zip"
+      ],
+      "publisher": "University of California, Irvine; dataset creators Georges Hebrail and Alice Berard",
+      "source_url": "https://archive.ics.uci.edu/dataset/235/individual+household+electric+power+consumption",
+      "rights": "CC BY 4.0; credit creators/repository, include license link and identify transformations",
+      "rights_urls": [
+        "https://archive.ics.uci.edu/dataset/235/individual+household+electric+power+consumption",
+        "https://creativecommons.org/licenses/by/4.0/"
+      ],
+      "transformations": "ZIP extraction of one exact member only. No missing-value replacement, resampling, timezone inference or synthetic rows."
+    },
+    {
+      "id": "weather",
+      "split": "reserved",
+      "source": "NOAA GSOD 2023, three US stations; NCEI C00516",
+      "assets": [
+        "gsod_2023_74486094789.csv",
+        "gsod_2023_72509014739.csv",
+        "gsod_2023_72278023183.csv",
+        "gsod_readme.txt"
+      ],
+      "publisher": "NOAA National Centers for Environmental Information, US Department of Commerce",
+      "source_url": "https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/gov.noaa.ncdc:C00516/html",
+      "rights": "US-station NOAA data, attribution and no implied endorsement; GSOD readme restricts commercial redistribution of non-US data, which are excluded",
+      "rights_urls": [
+        "https://www.ncei.noaa.gov/data/global-summary-of-the-day/doc/readme.txt",
+        "https://www.noaa.gov/office-education/outreach-communication/faq"
+      ],
+      "transformations": "None. Original CSVs retained. Reserved records/profiles/questions/references must stay outside implementation-worker and analyst mounts until candidate freeze."
+    }
+  ],
+  "large_data_status": "These files do not satisfy >=10 GiB. TLC/ISD source families support larger natural corpora, but an exact >=10 GiB selection and hashes are not frozen here.",
+  "assets": [
+    {
+      "file": "green_tripdata_2023-01.parquet",
+      "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_2023-01.parquet",
+      "resolved_url": "https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_2023-01.parquet",
+      "bytes": 1427002,
+      "sha256": "9f0e03dd7f8f94ecc15949cdbfd2a4e1fc9ebb41a11882215158c9fc95012e31",
+      "etag": "\"4ddd13febe8dfe9e32c41c26175a5115\"",
+      "last_modified": "Mon, 20 Mar 2023 20:46:53 GMT",
+      "retrieved_at": "2026-11-13T18:16:39.372866+00:00",
+      "role": "observed_data"
+    },
+    {
+      "file": "taxi_zone_lookup.csv",
+      "url": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
+      "resolved_url": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
+      "bytes": 12331,
+      "sha256": "1a99e105092230f8620f301edcca7f80d3080642ff404d28ed957d3fa222c8ed",
+      "etag": "\"c6064b7c144c716450641f769659d178\"",
+      "last_modified": "Thu, 22 Feb 2024 21:33:00 GMT",
+      "retrieved_at": "2026-11-13T18:16:39.811536+00:00",
+      "role": "observed_data"
+    },
+    {
+      "file": "household_power.zip",
+      "url": "https://archive.ics.uci.edu/static/public/235/individual%2Bhousehold%2Belectric%2Bpower%2Bconsumption.zip",
+      "resolved_url": "https://archive.ics.uci.edu/static/public/235/individual%2Bhousehold%2Belectric%2Bpower%2Bconsumption.zip",
+      "bytes": 20640916,
+      "sha256": "9f84b46ade8a2d8e1286ec4b2b6c2987a45a755c59f263be3b3b3d10dfbda3ff",
+      "etag": null,
+      "last_modified": null,
+      "retrieved_at": "2026-11-13T18:16:42.140487+00:00",
+      "role": "observed_data"
+    },
+    {
+      "file": "gsod_2023_74486094789.csv",
+      "url": "https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/2023/74486094789.csv",
+      "resolved_url": "https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/2023/74486094789.csv",
+      "bytes": 88639,
+      "sha256": "a55da874fb384886c971a36e3766a89f80f84353e686e510779ec0cfd6ce4003",
+      "etag": "\"15a3f-60e484e65ea00\"",
+      "last_modified": "Sat, 06 Jan 2024 15:06:16 GMT",
+      "retrieved_at": "2026-11-13T18:16:43.001269+00:00",
+      "role": "observed_data"
+    },
+    {
+      "file": "gsod_2023_72509014739.csv",
+      "url": "https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/2023/72509014739.csv",
+      "resolved_url": "https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/2023/72509014739.csv",
+      "bytes": 92289,
+      "sha256": "796ba827658250031d124b8fc2f2fdca2e87acb3460b8b4b1dbf6184c8209a86",
+      "etag": "\"16881-60e484e56a7c0\"",
+      "last_modified": "Sat, 06 Jan 2024 15:06:15 GMT",
+      "retrieved_at": "2026-11-13T18:16:43.794030+00:00",
+      "role": "observed_data"
+    },
+    {
+      "file": "gsod_2023_72278023183.csv",
+      "url": "https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/2023/72278023183.csv",
+      "resolved_url": "https://www.ncei.noaa.gov/data/global-summary-of-the-day/access/2023/72278023183.csv",
+      "bytes": 85614,
+      "sha256": "9cf9303287695988914db9f38ec2e90ab804a560ec990a9a66a00609e0db6c9f",
+      "etag": "\"14e6e-60e484e382340\"",
+      "last_modified": "Sat, 06 Jan 2024 15:06:13 GMT",
+      "retrieved_at": "2026-11-13T18:16:44.445792+00:00",
+      "role": "observed_data"
+    },
+    {
+      "file": "gsod_readme.txt",
+      "url": "https://www.ncei.noaa.gov/data/global-summary-of-the-day/doc/readme.txt",
+      "resolved_url": "https://www.ncei.noaa.gov/data/global-summary-of-the-day/doc/readme.txt",
+      "bytes": 11288,
+      "sha256": "25a784a4cba0eab5f070137c57c4b4bd113982e054c77812b2d22e96c5818bc1",
+      "etag": "\"2c18-5b2c072244d80\"",
+      "last_modified": "Wed, 28 Oct 2020 19:48:22 GMT",
+      "retrieved_at": "2026-11-13T18:16:44.905696+00:00",
+      "role": "source_documentation"
+    }
+  ],
+  "extracted_energy": {
+    "file": "household_power_consumption.txt",
+    "bytes": 132960755,
+    "sha256": "4259c9d7ece5dbee9ab8d53682baac68d791c864f0f64a52b4043cb3b90894b7"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "commits": 0,
+  "comparison_difference_count": 0,
+  "development": {
+    "cases": 12,
+    "continuous_numbers": {
+      "absolute_tolerance": 1e-06,
+      "relative_tolerance": 1e-08
+    },
+    "counts_and_labels": "exact",
+    "created_at": "2026-11-13T18:31:01.013866+00:00",
+    "difference_count": 0,
+    "human_calibration": false,
+    "inputs": {
+      "comparison_implementation_sha256": "2e2dc0f3e3698f572cbd36d65db80ab3e3929a92207a39428e5d3a1e01b7029b",
+      "python_implementation_sha256": "91ad403db55db9f455858b5fe3bccf50553f7aea4cfa56f3dd10d62eb1f491a5",
+      "sources_sha256": "1c90a5986a68c1fa8192a06bf42c517ecc5e220c87a1091cd950fd9a1fe85087",
+      "sql_implementation_sha256": "f4b66fb3c4e28fd244985ff7937afab7c6d9bf7aadcdbde5c177c32f067287ba",
+      "tasks_sha256": "e6fde92929fa6762621b9d7e5ddea1ebfae2149b1a88f218d5e355d2d71adb61"
+    },
+    "insufficient_data_cases": 2,
+    "model_calls": 0,
+    "numeric_cases": 10,
+    "python_sha256": "5933ec485b0f668b1cc234e4f727a98ff3d0e9f3e81284469bb5cac978715682",
+    "sql_sha256": "6e7711bd9406524387467a3e0ff0d56f2b0f954e396d4fa528a8c687dfc5ab55"
+  },
+  "development_python_exact_repeat_confirmed": true,
+  "discovery_verification": "Partial: evaluator-mapped facts and existing artifact bindings only; generic narrative/causality and refusal semantics not integrated.",
+  "insufficient_data_cases": 3,
+  "model_calls": 0,
+  "numeric_cases": 15,
+  "private_reference_visibility": "Evaluator-only; hashes/coverage public, no reserved answers or precise questions included.",
+  "profile_decoy_excluded": true,
+  "profile_sha256": "436e74dea81ae51bca96dd507f98739e17d665dfae1be174e30e792a17e8bd48",
+  "pushes": 0,
+  "reserved": {
+    "cases": 6,
+    "continuous_numbers": {
+      "absolute_tolerance": 1e-06,
+      "relative_tolerance": 1e-08
+    },
+    "counts_and_labels": "exact",
+    "created_at": "2026-11-13T18:30:30.018284+00:00",
+    "difference_count": 0,
+    "human_calibration": false,
+    "inputs": {
+      "comparison_implementation_sha256": "2e2dc0f3e3698f572cbd36d65db80ab3e3929a92207a39428e5d3a1e01b7029b",
+      "implementation_sha256": "5235e76a05cb6e46384bfaef3d4187fe168cd24f43d2be33165a32647c2b1e0b",
+      "sources_sha256": "1c90a5986a68c1fa8192a06bf42c517ecc5e220c87a1091cd950fd9a1fe85087",
+      "task_spec_sha256": "783f3e299767f91cb8271310d36a442607dfa88db69f86dec9cc5b4bfcac9411"
+    },
+    "insufficient_data_cases": 1,
+    "model_calls": 0,
+    "numeric_cases": 5,
+    "python_sha256": "40ffb9ed168fcb8798b2cfcb625eb8810793b54bcc74d7c9bdca2205b580a2a9",
+    "sql_sha256": "41c34c536eadda0e2a8b1ece807dfefe9130299715adbd25fbeb51e0a0a9b960"
+  },
+  "source_profiler_sha256": "503af0a3a0a282a0ea6dac874afc5f3010c962ea86050258e606e7be517c8464",
+  "total_fixed_challenges": 18,
+  "version": "unfamiliar-v1-references-20261113"
+}
