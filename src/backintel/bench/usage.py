@@ -14,6 +14,12 @@ from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
 
+from backintel.bench.native_costs import (
+    NATIVE_RATES,
+    native_accounting_version,
+    native_estimate,
+    valid_amount,
+)
 from backintel.models import message_token_usage, normalize_token_usage
 
 
@@ -125,14 +131,36 @@ class PlanRunBudget:
         }
 
 
+class NativeRunBudget(RunBudget):
+    """Reuse call/reservation admission with conservative estimates, not invoice costs."""
+
+    def report(self) -> dict:
+        result = super().report()
+        result.pop("reported_spent_usd")
+        result.pop("unknown_charge")
+        return {
+            **result,
+            "billing_mode": "native_api_estimate",
+            "accounting_version": native_accounting_version(),
+            "estimated_spent_usd": self.spent_usd,
+            "reported_spent_usd": None,
+            "unknown_charge": True,
+            "accounting_uncertain": self.uncertain,
+            "scope": "conservative token-cost admission; not provider invoice or hard billing cap",
+        }
+
+
 class UsageTracker(BaseCallbackHandler):
     """Use one tracker per answer/judge call; optional shared budget spans the experiment."""
 
     raise_error = True
     run_inline = True
 
-    def __init__(self, budget: RunBudget | PlanRunBudget | None = None):
+    def __init__(self, budget: RunBudget | PlanRunBudget | None = None, *, model_id: str | None = None):
         self.budget = budget
+        self.model_id = model_id
+        if isinstance(budget, NativeRunBudget) and model_id not in NATIVE_RATES:
+            raise ValueError(f"No qualified native accounting for {model_id!r}")
         self.started: set[UUID] = set()
         self.finished: dict[UUID, dict | None] = {}
         self._lock = Lock()
@@ -147,9 +175,11 @@ class UsageTracker(BaseCallbackHandler):
 
     def on_llm_end(self, response, *, run_id, **kwargs):
         value = normalize_token_usage((response.llm_output or {}).get("token_usage"))
+        native_message = None
         for generations in response.generations:
             for generation in generations:
                 message = getattr(generation, "message", None)
+                native_message = message
                 reported = message_token_usage(message)
                 if reported:
                     # LLM output may be empty for Responses or omit standard token counts.
@@ -158,6 +188,10 @@ class UsageTracker(BaseCallbackHandler):
                     break
             if value:
                 break
+        if isinstance(self.budget, NativeRunBudget):
+            single = len(response.generations) == 1 and len(response.generations[0]) == 1
+            value["estimated_cost_usd"] = native_estimate(self.model_id, native_message) if single else None
+            value.pop("cost", None)  # The native response is not an invoice.
         self._finish(run_id, value or None)
 
     def on_llm_error(self, error, *, run_id, **kwargs):
@@ -170,9 +204,11 @@ class UsageTracker(BaseCallbackHandler):
                 return
             self.finished[run_id] = value
             if self.budget and run_id in self.started:
-                self.budget.settle(
-                    value if isinstance(self.budget, PlanRunBudget) else value.get("cost") if value else None
-                )
+                if isinstance(self.budget, PlanRunBudget):
+                    self.budget.settle(value)
+                else:
+                    field = "estimated_cost_usd" if isinstance(self.budget, NativeRunBudget) else "cost"
+                    self.budget.settle(value.get(field) if value else None)
 
     def report(self) -> dict:
         values = [v for v in self.finished.values() if v is not None]
@@ -204,5 +240,21 @@ class UsageTracker(BaseCallbackHandler):
                 cost_complete=False,
                 cost_applicable=False,
                 scope="ChatGPT subscription token usage; no per-request dollar charge reported",
+            )
+        if isinstance(self.budget, NativeRunBudget):
+            estimates = [v.get("estimated_cost_usd") for v in values]
+            complete = (
+                not incomplete
+                and len(estimates) == report["llm_calls"]
+                and all(valid_amount(v) for v in estimates)
+            )
+            report.update(
+                billing_mode="native_api_estimate",
+                accounting_version=native_accounting_version(),
+                estimated_cost_usd=sum(v for v in estimates if valid_amount(v)),
+                estimate_complete=complete,
+                cost_usd=None,
+                cost_complete=False,
+                scope="conservative native token costs; actual provider charges remain unknown",
             )
         return report

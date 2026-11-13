@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from backintel.bench.improvement import ComparisonPolicy, fingerprint
+from backintel.bench.native_costs import native_accounting_version
 from backintel.bench.run import reference_version, scorer_version, source_version
 from backintel.contracts import Scenario
 
@@ -147,13 +148,17 @@ def test_manifest_binds_scenarios_to_exact_store_bytes_and_reference_hash(tmp_pa
         cycle.load_scenario_manifest(manifest, settings)
 
 
-def test_current_mode_invokes_only_fresh_baseline_candidate_and_shares_allowance(tmp_path, monkeypatch):
+@pytest.mark.parametrize("native", [False, True])
+def test_current_mode_invokes_only_fresh_baseline_candidate_and_shares_allowance(
+    tmp_path, monkeypatch, native
+):
     cycle = runner()
     plan = {
         "candidate_source": "current",
         "baseline": str(tmp_path / "baseline"),
         "candidate": str(tmp_path / "candidate"),
         "data_dir": str(tmp_path / "data"),
+        "accounting": {"basis": "native_estimate" if native else "provider_reported"},
     }
     identity = dict(
         dataset="frozen",
@@ -163,7 +168,16 @@ def test_current_mode_invokes_only_fresh_baseline_candidate_and_shares_allowance
         judge_model="judge",
         judge_version="rubric1",
     )
-    cycle.write_new(tmp_path / "policy.json", ComparisonPolicy(identity, ("case",), ("case",)).document())
+    cycle.write_new(
+        tmp_path / "policy.json",
+        ComparisonPolicy(
+            identity,
+            ("case",),
+            ("case",),
+            cost_basis=plan["accounting"]["basis"],
+            accounting_version=native_accounting_version() if native else None,
+        ).document(),
+    )
     monkeypatch.setattr(cycle, "load_plan", lambda output: plan)
     invoked = []
 
@@ -188,8 +202,12 @@ def test_current_mode_invokes_only_fresh_baseline_candidate_and_shares_allowance
             "outputs": {
                 "answer": {"status": "answered"},
                 "metrics": {
-                    "total_reported_cost_usd": 0.02,
-                    "total_cost_complete": True,
+                    "total_reported_cost_usd": None if native else 0.02,
+                    "total_cost_complete": not native,
+                    "total_estimated_cost_usd": 0.02 if native else None,
+                    "total_estimate_complete": native,
+                    "billing_mode": "native_api_estimate" if native else "api",
+                    "accounting_version": native_accounting_version() if native else None,
                     "latency_s": 1,
                     "llm_calls": 2,
                 },
@@ -202,9 +220,11 @@ def test_current_mode_invokes_only_fresh_baseline_candidate_and_shares_allowance
                 "status": "completed",
                 "records": str(records),
                 "budget": {
-                    "reported_spent_usd": 0.02,
+                    "reported_spent_usd": None if native else 0.02,
+                    "estimated_spent_usd": 0.02 if native else None,
                     "calls": 2,
-                    "unknown_charge": False,
+                    "unknown_charge": native,
+                    "accounting_uncertain": False,
                     "reservation_breached": False,
                 },
             },
@@ -216,6 +236,22 @@ def test_current_mode_invokes_only_fresh_baseline_candidate_and_shares_allowance
     assert invoked == [("baseline", 0.1), ("candidate", 0.08)]
     result = json.loads((tmp_path / "comparison.json").read_text())
     assert result["verdict"] == "accept_for_review"
-    assert result["cycle_reported_cost_usd"] == 0.04
+    assert result["cycle_reported_cost_usd"] == (None if native else 0.04)
+    assert result["cycle_estimated_cost_usd"] == (0.04 if native else None)
     assert result["cycle_model_calls"] == 4
     assert not (tmp_path / "worker.log").exists()
+
+
+def test_campaign_accounting_rejects_mixed_or_unqualified_models_before_calls():
+    cycle = runner()
+    from backintel.bench.usage import NativeRunBudget
+
+    policy = cycle.accounting_policy("openai/gpt-6-luna", "anthropic/claude-haiku-5-5")
+    assert policy["version"] == native_accounting_version()
+    assert isinstance(cycle.campaign_budget({"accounting": policy}, 0.1, 2, 0.01), NativeRunBudget)
+    for model, judge in (
+        ("openai/gpt-6-luna", "openrouter/anthropic/claude-haiku-5.5"),
+        ("openai/unqualified", "anthropic/claude-haiku-5-5"),
+    ):
+        with pytest.raises(ValueError, match="qualified native"):
+            cycle.accounting_policy(model, judge)

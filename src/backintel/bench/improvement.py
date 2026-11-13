@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from backintel.bench.native_costs import native_accounting_version, valid_amount
 from backintel.bench.usage import RunBudget, UsageTracker
 from backintel.models import build_model
 
@@ -50,8 +51,14 @@ class ComparisonPolicy:
     min_method_score: float | None = None
     max_candidate_cost_usd: float | None = None
     max_case_latency_s: float | None = None
+    cost_basis: str = "provider_reported"
+    accounting_version: str | None = None
 
     def __post_init__(self):
+        if self.cost_basis not in {"provider_reported", "native_estimate"}:
+            raise ValueError("Unknown cost accounting basis")
+        if self.cost_basis == "native_estimate" and self.accounting_version != native_accounting_version():
+            raise ValueError("Native comparison must freeze the qualified accounting version")
         if not self.case_ids or len(set(self.case_ids)) != len(self.case_ids):
             raise ValueError("Expected case IDs must be nonempty and unique")
         if not set(self.mandatory_ids) <= set(self.case_ids) or not self.mandatory_ids:
@@ -88,6 +95,9 @@ class ComparisonPolicy:
 def compare_records(baseline: list[dict], candidate: list[dict], policy: ComparisonPolicy) -> dict:
     expected = {(case, trial) for case in policy.case_ids for trial in range(policy.trials)}
     invalid, regressions, improvements, failures = [], [], [], []
+    native = policy.cost_basis == "native_estimate"
+    cost_field = "total_estimated_cost_usd" if native else "total_reported_cost_usd"
+    complete_field = "total_estimate_complete" if native else "total_cost_complete"
 
     def index(records, label):
         found = {}
@@ -117,14 +127,15 @@ def compare_records(baseline: list[dict], candidate: list[dict], policy: Compari
                 ):
                     invalid.append(f"{label}/{key}: missing or invalid {field}")
             metrics = row.get("outputs", {}).get("metrics", {})
-            cost = metrics.get("total_reported_cost_usd")
-            if cost is not None and (
-                not isinstance(cost, (int, float)) or not math.isfinite(cost) or cost < 0
-            ):
+            cost = metrics.get(cost_field)
+            if cost is not None and not valid_amount(cost):
                 invalid.append(f"{label}/{key}: invalid reported cost")
-            if policy.require_complete_cost and (
-                cost is None or not metrics.get("total_cost_complete", False)
+            if native and (
+                metrics.get("accounting_version") != policy.accounting_version
+                or metrics.get("billing_mode") != "native_api_estimate"
             ):
+                invalid.append(f"{label}/{key}: native accounting identity differs from policy")
+            if policy.require_complete_cost and (cost is None or not metrics.get(complete_field, False)):
                 invalid.append(f"{label}/{key}: analyst/judge accounting is incomplete")
             if scores.get("fully_supported") == 1 and (
                 row.get("outputs", {}).get("error")
@@ -158,16 +169,22 @@ def compare_records(baseline: list[dict], candidate: list[dict], policy: Compari
     def summary(rows):
         metrics = [r.get("outputs", {}).get("metrics", {}) for r in rows]
         costs = [m.get("total_reported_cost_usd") for m in metrics]
+        estimates = [m.get("total_estimated_cost_usd") for m in metrics]
         latency = [m.get("latency_s") for m in metrics]
         return {
             "responses": len(rows),
             "supported": sum(r.get("scores", {}).get("fully_supported") == 1 for r in rows),
-            "reported_cost_usd": sum(
-                c for c in costs if isinstance(c, (int, float)) and math.isfinite(c) and c >= 0
-            ),
+            "reported_cost_usd": sum(c for c in costs if valid_amount(c))
+            if any(valid_amount(c) for c in costs)
+            else None,
             "cost_complete": bool(rows)
             and all(m.get("total_cost_complete", False) for m in metrics)
             and all(isinstance(c, (int, float)) and math.isfinite(c) and c >= 0 for c in costs),
+            "estimated_cost_usd": sum(c for c in estimates if valid_amount(c)) if native else None,
+            "estimate_complete": native
+            and bool(rows)
+            and all(m.get("total_estimate_complete", False) for m in metrics)
+            and all(valid_amount(c) for c in estimates),
             "latency_s": sum(
                 t for t in latency if isinstance(t, (int, float)) and math.isfinite(t) and t >= 0
             ),
@@ -180,7 +197,9 @@ def compare_records(baseline: list[dict], candidate: list[dict], policy: Compari
 
     old_summary, new_summary = summary(baseline), summary(candidate)
     if policy.max_candidate_cost_usd is not None and (
-        not new_summary["cost_complete"] or new_summary["reported_cost_usd"] > policy.max_candidate_cost_usd
+        not new_summary["estimate_complete" if native else "cost_complete"]
+        or new_summary["estimated_cost_usd" if native else "reported_cost_usd"]
+        > policy.max_candidate_cost_usd
     ):
         failures.append({"reason": "candidate cost exceeds policy or is incomplete"})
     if policy.require_improvement and not improvements:
@@ -190,6 +209,8 @@ def compare_records(baseline: list[dict], candidate: list[dict], policy: Compari
         if invalid
         else ("reject" if regressions or failures else "accept_for_review"),
         "policy_hash": policy.document()["policy_hash"],
+        "cost_basis": policy.cost_basis,
+        "accounting_version": policy.accounting_version,
         "baseline_records_hash": fingerprint(baseline),
         "candidate_records_hash": fingerprint(candidate),
         "baseline": old_summary,
@@ -243,7 +264,7 @@ def propose_candidate(files: dict[str, str], failure_brief: str, *, model_id: st
         {"role": "system", "content": instruction},
         {"role": "user", "content": json.dumps({"failure_brief": failure_brief, "editable_files": files})},
     ]
-    tracker = UsageTracker(budget)
+    tracker = UsageTracker(budget, model_id=model_id)
     model = build_model(model_id, max_retries=0)
     try:
         patch = model.with_structured_output(CandidatePatch).invoke(prompt, config={"callbacks": [tracker]})

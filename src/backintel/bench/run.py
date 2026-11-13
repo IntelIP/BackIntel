@@ -27,7 +27,7 @@ from backintel.agent import build_agent, method_version
 from backintel.bench.judge import judge_answer, judge_version
 from backintel.bench.oracle import load_answers
 from backintel.bench.scoring import abstention_correct, evidence_reproduces, score_correct
-from backintel.bench.usage import BudgetExceeded, RunBudget, UsageTracker
+from backintel.bench.usage import BudgetExceeded, NativeRunBudget, RunBudget, UsageTracker
 from backintel.contracts import AnalystAnswer, Scenario
 from backintel.models import build_model, usage_from_message
 from backintel.providers.chatgpt_plan import PlanUsageStopped
@@ -207,7 +207,7 @@ class Harness:
             "tools": {},
         }
         answer = error = failure_class = None
-        usage = UsageTracker(self.budget)
+        usage = UsageTracker(self.budget, model_id=self.model_id)
         result = {}
         try:
             for state in agent.stream(
@@ -233,7 +233,7 @@ class Harness:
                 if isinstance(exc, BudgetExceeded)
                 else "infrastructure"
                 if isinstance(exc, (TimeoutError, ConnectionError, PlanUsageStopped))
-                or type(exc).__module__.startswith(("openai", "httpx", "requests"))
+                or type(exc).__module__.startswith(("openai", "anthropic", "httpx", "requests"))
                 or _provider_error_envelope(exc)
                 else "agent"
             )
@@ -264,6 +264,9 @@ class Harness:
             )
         if failure_class == "infrastructure" and not metrics["llm_calls"]:
             metrics.update(usage_complete=False, cost_complete=False, cost_usd=None)
+        if isinstance(self.budget, NativeRunBudget) and not metrics["usage_complete"]:
+            metrics["estimate_complete"] = False
+            self.budget.uncertain = True
         metrics["latency_s"] = round(time.monotonic() - started, 2)
         return {
             "answer": answer.model_dump() if answer else None,
@@ -302,7 +305,7 @@ class Harness:
             "abstention_correct": abstention_correct(scenario, answer),
         }
         if self.judge:
-            judge_usage = UsageTracker(self.budget)
+            judge_usage = UsageTracker(self.budget, model_id=self.settings.judge_model)
             judge_started = time.monotonic()
             try:
                 judged = judge_answer(
@@ -346,7 +349,7 @@ class Harness:
         outputs = {**outputs, "metrics": dict(outputs.get("metrics") or {})}
         judge_usage = scores.get("judge_method", {}).get("metrics")
         if not self.judge:
-            judge_usage = UsageTracker().report()
+            judge_usage = UsageTracker(self.budget, model_id=self.model_id).report()
         if judge_usage is not None:
             outputs["metrics"]["judge"] = judge_usage
             analyst = outputs["metrics"]
@@ -355,6 +358,15 @@ class Harness:
             outputs["metrics"]["total_cost_complete"] = bool(
                 analyst.get("cost_complete") and judge_usage.get("cost_complete")
             )
+            if analyst.get("billing_mode") == "native_api_estimate":
+                outputs["metrics"]["total_estimated_cost_usd"] = analyst.get(
+                    "estimated_cost_usd", 0
+                ) + judge_usage.get("estimated_cost_usd", 0)
+                outputs["metrics"]["total_estimate_complete"] = bool(
+                    analyst.get("estimate_complete")
+                    and judge_usage.get("estimate_complete")
+                    and analyst.get("accounting_version") == judge_usage.get("accounting_version")
+                )
         judge_invalid = self.judge and scores.get("judge_method", {}).get("score") is None
         if judge_invalid:
             outputs["evaluation_error"] = scores.get("judge_method", {}).get(

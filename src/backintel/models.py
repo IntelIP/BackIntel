@@ -4,6 +4,7 @@
   Google models are allowed, per the technology-selection policy of 2026-10-30.
 - `chatgpt-plan/<model>`: the operator's ChatGPT plan after `backintel chatgpt login`.
 - `openai/<model>`: OpenAI directly with OPENAI_API_KEY.
+- `anthropic/<model>`: Anthropic directly with ANTHROPIC_API_KEY.
 """
 
 from __future__ import annotations
@@ -11,11 +12,14 @@ from __future__ import annotations
 import math
 import os
 
+from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from langchain_openai.chat_models.base import _construct_lc_result_from_responses_api, _is_pydantic_class
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
+OPENAI_URL = "https://api.openai.com/v1"
+ANTHROPIC_URL = "https://api.anthropic.com"
 ALLOWED_OPENROUTER_VENDORS = ("openai", "anthropic", "google")
 
 
@@ -108,7 +112,7 @@ class OpenRouterResponsesChatOpenAI(ChatOpenAI):
 def parse_model_id(model_id: str) -> tuple[str, str]:
     provider, _, name = model_id.partition("/")
     if not name:
-        raise ValueError("Model ids look like '<provider>/<model>', e.g. 'openrouter/openai/gpt-6-luna'.")
+        raise ValueError("Model ids look like '<provider>/<model>', e.g. 'openai/gpt-6-luna'.")
     return provider, name
 
 
@@ -186,9 +190,47 @@ def build_model(
     if provider == "openai":
         key = env.get("OPENAI_API_KEY")
         if not key:
-            raise RuntimeError("OPENAI_API_KEY is not set.")
-        return ChatOpenAI(model=name, api_key=key, max_retries=max_retries, timeout=timeout_s, **transport)
-    raise ValueError(f"Unknown provider {provider!r}; use openrouter, chatgpt-plan or openai.")
+            raise RuntimeError("OPENAI_API_KEY is not set (run under Doppler).")
+        return ChatOpenAI(
+            model=name,
+            api_key=key,
+            base_url=OPENAI_URL,
+            organization=env.get("OPENAI_ORG_ID"),
+            default_headers=(
+                {"OpenAI-Project": env["OPENAI_PROJECT_ID"]} if env.get("OPENAI_PROJECT_ID") else {}
+            ),
+            max_retries=max_retries,
+            max_tokens=int(env.get("BACKINTEL_MAX_COMPLETION_TOKENS", "8192")),
+            timeout=timeout_s,
+            service_tier="default",
+            **({"temperature": temperature} if temperature is not None else {}),
+            **transport,
+        )
+    if provider == "anthropic":
+        if responses_api:
+            raise ValueError("Anthropic uses its native Messages API, not the OpenAI Responses API.")
+        if reasoning_effort not in {None, "low", "medium", "high", "xhigh"}:
+            raise ValueError("Anthropic reasoning effort must be low, medium, high or xhigh.")
+        key = env.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise RuntimeError("ANTHROPIC_API_KEY is not set (run under Doppler).")
+        headers = {}
+        if workspace := env.get("ANTHROPIC_WORKSPACE_ID"):
+            headers["anthropic-workspace-id"] = workspace
+        return ChatAnthropic(
+            model=name,
+            api_key=key,
+            base_url=ANTHROPIC_URL,
+            max_retries=max_retries,
+            max_tokens=int(env.get("BACKINTEL_MAX_COMPLETION_TOKENS", "8192")),
+            timeout=timeout_s,
+            default_headers=headers,
+            disable_streaming=True,
+            model_kwargs={"service_tier": "standard_only"},
+            **({"temperature": temperature} if temperature is not None else {}),
+            **({"effort": reasoning_effort} if reasoning_effort is not None else {}),
+        )
+    raise ValueError(f"Unknown provider {provider!r}; use openai, anthropic, chatgpt-plan or openrouter.")
 
 
 def usage_from_message(message) -> dict:

@@ -6,8 +6,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_MODEL = "openrouter/openai/gpt-6-luna"
-DEFAULT_JUDGE_MODEL = "openrouter/anthropic/claude-haiku-5.5"
+DEFAULT_MODEL = "openai/gpt-6-luna"
+DEFAULT_JUDGE_MODEL = "anthropic/claude-haiku-5-5"
 DEFAULT_ANALYSIS_MODEL = "chatgpt-plan/gpt-6.1-sol"
 
 

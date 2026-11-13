@@ -29,7 +29,7 @@ not a product version. Code is available under the [MIT license](LICENSE).
 Two entry points share the same source boundaries:
 
 - **`ask`** runs the benchmark analyst and returns a structured answer with evidence, method
-  and caveats. Its default is `openrouter/openai/gpt-6-luna`.
+  and caveats. Its default is `openai/gpt-6-luna` through the native OpenAI API.
 - **`analyze`** runs an opt-in coding specialist with a persistent per-run workspace and
   artifact export. Its default is `chatgpt-plan/gpt-6.1-sol` with medium reasoning.
 
@@ -150,8 +150,12 @@ access to IntelIP's Doppler project is **not required** by the application.
 | Setting | Purpose |
 | --- | --- |
 | `BACKINTEL_ANALYSIS_MODEL` | Override the specialist default; explicit `--model` takes precedence |
-| `BACKINTEL_MODEL` | Benchmark analyst model |
-| `BACKINTEL_JUDGE_MODEL` | Method judge; default `openrouter/anthropic/claude-haiku-5.5` |
+| `BACKINTEL_MODEL` | Benchmark analyst model; default `openai/gpt-6-luna` |
+| `BACKINTEL_JUDGE_MODEL` | Method judge; default `anthropic/claude-haiku-5-5` |
+| `OPENAI_API_KEY` | Native OpenAI API key from the organization receiving API credits |
+| `ANTHROPIC_API_KEY` | Native Anthropic API key from the organization receiving API credits |
+| `OPENAI_ORG_ID`, `OPENAI_PROJECT_ID` | Optional native OpenAI account/project selectors |
+| `ANTHROPIC_WORKSPACE_ID` | Workspace selector when required by the Anthropic key |
 | `OPENROUTER_API_KEY` | Required when using the OpenRouter route |
 | `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, `LANGSMITH_TRACING` | Optional tracing and experiment configuration |
 | `BACKINTEL_DATA_DIR` | Data directory; defaults to the checkout's `data/` |
@@ -162,6 +166,15 @@ and VM mounts. Subscription usage reports calls and tokens; it does not provide 
 per-request API dollar charge. There is no paid-API fallback. An OpenRouter specialist run
 requires both `--max-cost-usd` and `--reservation-usd`; these are application admission
 limits, not a provider-enforced billing cap. See [model selection and usage](docs/specialist-default.md).
+
+Native API calls consume the corresponding provider account's API credits. They are
+separate from the specialist's ChatGPT plan connection. Explicit model overrides still
+select OpenRouter; there is no automatic fallback. Native responses retain token usage,
+but do not supply a per-request invoice amount: `cost_usd` stays unknown. Fresh native
+improvement campaigns use separately labeled, versioned conservative token-cost
+estimates for budget admission, with incomplete usage stopping later calls. Historical
+OpenRouter accounting stays unchanged. See
+[native provider setup](docs/native-provider-credits.md) for activation and experiment boundaries.
 
 Olist acquisition additionally needs your own Kaggle access. Dataset permissions are
 separate from this repository's code license; see the [benchmark specification](docs/benchmark.md).
