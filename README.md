@@ -68,10 +68,10 @@ have been used for testing; BackIntel has not trained or fine-tuned its models o
 
 ### 1. Check out and verify the project
 
-Until a versioned release is published, use the development branch:
+Until a versioned release is published, use a source checkout of `main`:
 
 ```bash
-git clone --branch codex/backintel-v2 https://github.com/IntelIP/BackIntel.git
+git clone https://github.com/IntelIP/BackIntel.git
 cd BackIntel
 uv sync --frozen --python 3.12
 uv run backintel --help
