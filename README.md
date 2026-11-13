@@ -225,12 +225,17 @@ These are versioned development observations, not a production accuracy guarante
 | Historical TPC-H SF1 | 6/6 | Generated analytical workload; not real 10 GiB data or an official performance result |
 | Controlled Sol specialist on SmolVM | 3/4 | Retail refunds, missing-cost refusal, energy coverage and service availability; one trial each |
 | Energy after completion recovery fix | 1/1 | Targeted rerun delivered the correct report, heatmap, CSVs and workbook; other cases were not rerun on that candidate |
+| Fresh Sol guidance comparison on SmolVM, 2026-11-13 | Baseline 4/4; candidate 4/4 | Eight new trials; candidate removed virtual-skill shell lookup mistakes in all four cases, with three verified bundles per arm |
 
 The specialist cases use **three small synthetic SQLite fixtures**, with sales reused for
 the missing-cost question. The energy failure had correct intermediate numbers but no
 structured completion or exported bundle. The fix's live rerun completed directly without
 needing recovery; a deterministic SmolVM regression separately exercised recovery and export.
 The 3/4 baseline remains unchanged: a targeted success is not a new 4/4 experiment.
+The subsequent [fresh paired comparison](docs/results-analysis-sandbox.md#fresh-sol-guidance-comparison--2026-11-13-utc)
+tested every case on both versions. Both also pass the corrected metric/refusal checks;
+the candidate used 34 model calls versus 41. This supports the specific tool-guidance fix,
+not a general reliability rate or a faster-runtime claim.
 
 Historical results and failures are in the [capability report](docs/results.md) and
 [scorecard](results/scorecard.md). The [SmolVM baseline](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/datasets/d2e934c2-77e8-4926-93b3-0bcd644b200d/compare?selectedSessions=f667f6fc-4e8d-4bba-bcbf-fcde7d808d40)

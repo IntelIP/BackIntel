@@ -20,10 +20,13 @@ science covers descriptive analysis and calculation checks; forecasting, causal 
 and general statistical-model validity remain unqualified. Native MongoDB deployments and
 vector databases are not established by the FerretDB benchmark.
 
-The controlled SmolVM specialist baseline passed 3/4 cases. The failed energy case now has
-one successful candidate rerun with verified artifact delivery, while the original failure
-remains retained. That is a targeted fix, not a new four-case candidate score or a reliability
-rate. See [current capabilities and measured outcomes](../README.md#what-has-been-measured).
+The original controlled SmolVM specialist baseline passed 3/4 cases, followed by a successful
+targeted energy fix. A fresh eight-trial guidance comparison on 2026-11-13 passed 4/4 on both
+versions, including the corrected grader. The candidate eliminated incorrect virtual-skill
+shell lookups in all four cases, with no measured task regression. Both arms refused missing
+costs without rendering a substitute report. These are small controlled trials; the broader
+92-response reliability comparison remains required. See
+[current capabilities and measured outcomes](../README.md#what-has-been-measured).
 
 ## Next achievable increments
 

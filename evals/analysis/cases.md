@@ -5,6 +5,11 @@ The four-case live comparison completed on 2026-11-12 UTC; see
 [the measured results and limitations](../../docs/results-analysis-sandbox.md#live-subscription-comparison--completed-2026-11-12-utc).
 This specification does not establish broader reliability or release acceptance.
 
+A [fresh baseline/candidate guidance comparison](../../docs/results-analysis-sandbox.md#fresh-sol-guidance-comparison--2026-11-13-utc)
+on 2026-11-13 completed eight trials. Both arms passed 4/4 under the original and separately
+versioned corrected grader. The candidate eliminated virtual-skill shell probes; refusal
+behavior passed on both arms. Original feedback and the earlier failed trial are preserved.
+
 The 2026-11-12 [Sol rerun on SmolVM](../../docs/results-analysis-sandbox.md#live-sol-on-smolvm--2026-11-12-utc)
 retained these same inputs, reference answers and acceptance rules. It passed 3/4 after
 trace classification: the energy trial returned prose without structured completion, so
