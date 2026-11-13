@@ -26,6 +26,11 @@ The implementation is [`scripts/analysis_cases.py`](../../scripts/analysis_cases
 
 The manifest records the source file SHA-256, canonical source-row content SHA-256, private-reference SHA-256, brief SHA-256, and case-module SHA-256. The runner records its own evaluator fingerprint. Source/reference hashes are checked during grading, including refusal cases. Each reference stores its table values, requirements and explicit numeric tolerance. The original sales builder/oracle is imported from `run_analysis_demo.py`; preserve that file and the repository revision when reproducing a run. A manifest is run provenance, not proof of analytical correctness.
 
+SQLite engine versions can encode identical rows into different file bytes. A changed
+source-byte fingerprint cannot reuse an existing frozen LangSmith dataset; retain the
+original fixture/environment or use a separately named dataset and report the difference.
+Selecting only one case still validates the entire four-case dataset identity.
+
 Each answerable case has two distinct calculation paths:
 
 | Path | Purpose | Access |
