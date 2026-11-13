@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "name": "analytical-reliability-92",
-  "preparation_status": "offline_snapshots_verified_execution_ineligible",
+  "preparation_status": "historical_openrouter_snapshots_execution_ineligible",
   "baseline_runtime_revision": "cb963fdefc6e5d2daf9779f6726a2c199ed195ee",
   "candidate_runtime": "current reviewed runtime at final freeze",
   "analyst_model": "openrouter/openai/gpt-6-luna",
@@ -167,10 +167,26 @@
       "model_routing": "first_party_only"
     }
   ],
-  "execution_blockers": [
+  "record_scope": "Historical OpenRouter preparation; retained for reproducibility only. None of these snapshots may execute. See native_followup for current readiness.",
+  "historical_execution_blockers": [
     "Latest evaluator revision has offline checks only; funded live judge validation is still required.",
     "Provider funding unavailable for the full campaign: latest parent-reported credit $0.007308928; last judge call returned HTTP402 and has an unresolved individual charge.",
     "Integrator must reconcile aggregate remaining $5 allowance and freeze final batch caps before any calls.",
     "Recheck exact prepared image/runtime and source bytes before execution."
-  ]
+  ],
+  "native_followup": {
+    "date": "2026-11-13",
+    "analyst_model": "openai/gpt-6-luna",
+    "judge_model": "anthropic/claude-haiku-5-5",
+    "accounting_basis": "native_estimate",
+    "accounting_version": "a0cc73ec381e4778",
+    "latest_judge_version": "f3b3a2c216f8",
+    "controls_matched": 5,
+    "controls_total": 6,
+    "native_campaign_prepared": false,
+    "campaign_responses_executed": 0,
+    "estimated_native_checks_usd": 0.06112375,
+    "actual_native_invoice_usd": null,
+    "remaining_gate": "Partial-disclosure grading remains unresolved; freeze a fresh native campaign after the final evaluator is accepted."
+  }
 }

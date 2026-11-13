@@ -5,6 +5,33 @@ the existing comparison runner; it does not introduce a new agent or evaluation 
 The [machine-readable selection](../benchmarks/improvement/reliability-campaign.json)
 contains case identities and gates without expected answers. Linear owns execution status.
 
+## Current native follow-up — 2026-11-13
+
+The owner-selected routes for the next campaign are `openai/gpt-6-luna` and
+`anthropic/claude-haiku-5-5`, using native account credentials and the versioned
+conservative token accounting in PR10 (`a0cc73ec381e4778`). Both native adapters have
+live verification. These estimates are not invoices or account credit balances.
+
+The six native judge controls first matched 4/6. A prospective JSON-output transport
+fix, keeping rubric/model/effort/labels fixed, matched 5/6 at judge `f3b3a2c216f8`.
+The partial-disclosure boundary still disagreed with its frozen expectation. Preserve
+that failure: the 92-response campaign is still unstarted and no native campaign plans
+have been frozen. The [judge evidence](https://github.com/IntelIP/BackIntel/blob/codex/analyst-judge-context/results/judge-context-validation.md) is in PR8,
+which is stacked on PR10. The existing comparison policy continues to report uncalibrated
+method scores without adding a release threshold.
+
+New native checks total $0.06112375 in conservative usage estimates across 13 calls.
+Historical reported goal usage is $0.04697181225, with $0.012 retained for previously
+unpriced calls. These are separate accounting bases. All future allocations must remain
+within the original $5 authorization; no credit purchase is permitted. The qualified
+SmolVM benchmark profile passed a fresh offline check with public networking blocked.
+
+The OpenRouter settings, source identities and prepared plan hashes below are **historical
+preparation only, not executable instructions for the native campaign**. Keep them intact.
+After the remaining evaluator issue is resolved, prepare fresh directories using the native
+model IDs above and freeze the final candidate, evaluator, accounting policy and aggregate
+batch caps. Do not relabel the old plans or swap their providers in place.
+
 ## What is being compared
 
 The baseline is analyst logic from `cb963fdefc6e5d2daf9779f6726a2c199ed195ee`.
