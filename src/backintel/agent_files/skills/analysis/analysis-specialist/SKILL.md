@@ -23,6 +23,11 @@ Never treat missing values as zero unless the definition supports it.
 
 ## Work in the sandbox
 
+Load skills with the instruction tools (`read_file`, `ls`, `glob`, `grep`). Their virtual
+`/skills/` paths belong to the read-only instruction filesystem, not the VM shell. Use
+`run_shell` and the analysis-file tools only for VM paths such as `/workspace`, `/artifacts`,
+assigned sources and `/docs`.
+
 Prefer an aggregate SQL query to moving entire tables into Python. Use DuckDB/Polars lazy
 scans or bounded chunks when the corpus is large. Inspect a small sample to discover formats;
 compute final answers over the full requested population, or explicitly label sampling.
@@ -90,8 +95,12 @@ verify the affected output once. If no image inspection tool exists, report that
 
 ## Finish
 
-Return the requested result, the important caveats and the artifact manifest/paths supplied
-by the tools. A `cannot_answer` result should name the missing input and useful next step.
+Call `AnalysisCompletion` with the supported result and important caveats. The manifest
+from `render_report` describes a temporary preview; the host delivers and verifies the
+final bundle after completion. Do not advertise VM paths as downloads or claim delivery
+before that export. A `cannot_answer` result should name the missing input and useful next
+step, then stop. Refusal runs export no artifacts; do not render a substitute report merely
+because the brief requests charts or sheets for an unsupported metric.
 A timeout or resource failure should say which part finished and which did not. Do not call
 an incomplete bundle complete or claim independent truth verification for an ordinary run.
 

@@ -57,7 +57,10 @@ class AnalysisBrief(BaseModel):
 class AnalysisCompletion(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: Literal["completed", "cannot_answer"]
-    summary: str = Field(min_length=1)
+    summary: str = Field(
+        min_length=1,
+        description="Supported analytical result. Do not claim file delivery or advertise VM paths.",
+    )
     reason: str | None = None
     caveats: list[str] = Field(default_factory=list)
 
@@ -195,10 +198,12 @@ def build_analysis_tools(store: Store, sandbox: AnalysisSandbox, identity: dict,
 
     @tool
     def run_shell(command: str) -> str:
-        """Run bash inside the isolated analytical container, never on the host.
+        """Run bash inside the isolated analytical VM, never on the host.
 
         /workspace persists between commands. Sources and /docs are read-only. /artifacts
-        holds deliverables. Use preinstalled tools only; there is no public network.
+        holds previews; the host exports the final bundle after completion. Virtual
+        /skills paths belong to read_file, not this shell. Use preinstalled tools only;
+        there is no public network.
         Returns bounded stdout/stderr, exit code, elapsed time and timeout status.
         """
         return execute(sandbox.run_shell(command))
