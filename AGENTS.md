@@ -50,8 +50,11 @@ infrastructure last. The agent's value is measured, not asserted.
   aggregates into `results/scorecard.md`.
 - Models (`models.py`): `openrouter/<vendor>/<model>` (OpenAI, Anthropic, Google only, per the
   technology-selection policy), `chatgpt-plan/<model>` (operator's ChatGPT plan after
-  `backintel chatgpt login`), `openai/<model>`. The judge is a different model family from
-  the analyst.
+  `backintel chatgpt login`), `openai/<model>`, and `anthropic/<model>` for native APIs.
+  Default analyst/coding worker: `openai/gpt-6-luna`; default judge: `anthropic/claude-haiku-5-5`.
+  The judge is a different model family from the analyst. Native API token usage is not a
+  per-request invoice; do not fabricate dollar charges or bypass budget admission.
+  Read `docs/native-provider-credits.md`.
 
 ## Working rules
 

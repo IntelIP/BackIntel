@@ -17,6 +17,48 @@ import sys
 from pathlib import Path
 
 RUNTIME_FILES = ("src/backintel/agent.py", "src/backintel/tools.py", "src/backintel/contracts.py")
+MODEL_ROUTING = "first_party_only"
+
+
+def accounting_policy(model: str, judge_model: str) -> dict:
+    """Freeze one accounting basis for every model role, before any calls."""
+    from backintel.bench.native_costs import NATIVE_POLICY, NATIVE_RATES, native_accounting_version
+
+    if all(m.startswith("openrouter/") for m in (model, judge_model)):
+        return {"basis": "provider_reported", "version": None}
+    if all(m in NATIVE_RATES for m in (model, judge_model)):
+        return {"basis": "native_estimate", "version": native_accounting_version(), "policy": NATIVE_POLICY}
+    raise ValueError("Campaign requires qualified native models or OpenRouter models in every role")
+
+
+def campaign_budget(plan, limit_usd, max_calls, reservation_usd):
+    from backintel.bench.usage import NativeRunBudget, RunBudget
+
+    basis = plan.get("accounting", {}).get("basis", "provider_reported")
+    if basis not in {"provider_reported", "native_estimate"}:
+        raise ValueError("Unknown campaign accounting basis")
+    cls = NativeRunBudget if basis == "native_estimate" else RunBudget
+    return cls(limit_usd, max_calls, reservation_usd)
+
+
+def configure_stage_routing(policy: str) -> None:
+    """Pin models inside this isolated stage process, leaving application defaults alone."""
+    from backintel.bench import improvement, judge, run
+    from backintel.models import build_model
+
+    if policy != MODEL_ROUTING:
+        raise ValueError("Prepared model routing must be first_party_only")
+
+    def routed_model(model_id: str, **kwargs):
+        if model_id.startswith("openrouter/"):
+            kwargs["first_party_only"] = True
+        return build_model(model_id, **kwargs)
+
+    # Every model role in the stage uses the same routing, including per-store analyst
+    # reconstruction. The standalone CLI starts a new process for each stage.
+    run.build_model = routed_model
+    judge.build_model = routed_model
+    improvement.build_model = routed_model
 
 
 def write_new(path: Path, value) -> None:
@@ -140,6 +182,7 @@ def prepare(args) -> None:
         if getattr(args, "scenario_manifest", None):
             raise ValueError("Explicit scenario manifests are for frozen current-runtime comparisons")
     settings = Settings.from_env()
+    accounting = accounting_policy(settings.model, settings.judge_model)
     scenario_manifest = getattr(args, "scenario_manifest", None)
     if scenario_manifest:
         document, scenarios = load_scenario_manifest(scenario_manifest, settings)
@@ -182,6 +225,8 @@ def prepare(args) -> None:
         tuple(sorted(wanted)),
         trials=args.trials,
         require_improvement=require_improvement,
+        cost_basis=accounting["basis"],
+        accounting_version=accounting["version"],
     )
     write_new(args.output / "policy.json", policy.document())
     manifest = {
@@ -194,6 +239,8 @@ def prepare(args) -> None:
         "trials": args.trials,
         "model": settings.model,
         "judge_model": settings.judge_model,
+        "model_routing": MODEL_ROUTING,
+        "accounting": accounting,
         "data_dir": str(settings.data_dir),
         "worker_files": worker_files,
         "brief_hash": brief_hash,
@@ -221,6 +268,8 @@ def load_plan(output: Path) -> dict:
         raise ValueError("Prepared manifest or runner changed")
     if sha(Path(improvement.__file__)) != plan["gate_hash"]:
         raise ValueError("Frozen comparison implementation changed")
+    if plan.get("accounting") != accounting_policy(plan["model"], plan["judge_model"]):
+        raise ValueError("Frozen accounting policy changed")
     candidate_source = plan.get("candidate_source", "worker")
     if candidate_source not in {"worker", "current"}:
         raise ValueError("Unknown candidate source")
@@ -252,10 +301,10 @@ def stage(args) -> None:
     from backintel.bench.acceptance import build_acceptance, verify_acceptance_data
     from backintel.bench.improvement import apply_candidate, propose_candidate, read_records
     from backintel.bench.run import Harness, reference_version, run_langsmith, scorer_version, source_version
-    from backintel.bench.usage import RunBudget
     from backintel.settings import Settings, repo_root
 
     plan = load_plan(args.output)
+    configure_stage_routing(plan.get("model_routing"))
     candidate_source = plan.get("candidate_source", "worker")
     if args.stage == "worker" and candidate_source != "worker":
         raise ValueError("Frozen current-runtime comparisons have no tuning worker")
@@ -277,7 +326,7 @@ def stage(args) -> None:
             worker = json.loads((args.output / "worker-result.json").read_text())
             if worker["status"] != "proposed" or source_version() != worker["source_version"]:
                 raise ValueError("Candidate differs from the actual worker proposal")
-    budget = RunBudget(args.max_cost_usd, args.max_calls, args.reservation_usd)
+    budget = campaign_budget(plan, args.max_cost_usd, args.max_calls, args.reservation_usd)
     stage_dir = args.output / args.stage / "cycle-results"
     stage_dir.mkdir(parents=True, exist_ok=False)
     if args.stage == "worker":
@@ -336,6 +385,9 @@ def stage(args) -> None:
                     git_sha=plan["baseline_revision"],
                     baseline_runtime_revision=plan["baseline_revision"],
                     candidate_source=candidate_source,
+                    model_routing=plan["model_routing"],
+                    cost_basis=plan["accounting"]["basis"],
+                    accounting_version=plan["accounting"]["version"],
                 )
                 report = run_langsmith(harness, scenarios, out_dir=stage_dir, max_concurrency=1)
                 reports.append(report)
@@ -354,8 +406,13 @@ def stage(args) -> None:
         with (stage_dir / "records.jsonl").open("x") as handle:
             for record in records:
                 handle.write(json.dumps(record, default=str) + "\n")
+        complete_field = (
+            "total_estimate_complete"
+            if plan["accounting"]["basis"] == "native_estimate"
+            else "total_cost_complete"
+        )
         valid = len(records) == len(scenarios) * plan["trials"] and all(
-            r.get("evaluation_status") == "valid" and r["outputs"]["metrics"].get("total_cost_complete")
+            r.get("evaluation_status") == "valid" and r["outputs"]["metrics"].get(complete_field)
             for r in records
         )
         report = {
@@ -371,18 +428,19 @@ def stage(args) -> None:
 
 def execute(args) -> None:
     from backintel.bench.improvement import ComparisonPolicy, compare_records, read_records
-    from backintel.bench.usage import RunBudget
 
     if args.max_cost_usd is None:
         raise ValueError("--execute requires an explicitly approved --max-cost-usd")
     plan = load_plan(args.output)
-    RunBudget(args.max_cost_usd, args.max_calls, args.reservation_usd)  # Validate before any subprocess.
+    campaign_budget(plan, args.max_cost_usd, args.max_calls, args.reservation_usd)
+    native = plan.get("accounting", {}).get("basis") == "native_estimate"
     write_new(
         args.output / "execution-start.json",
         {
             "limit_usd": args.max_cost_usd,
             "max_calls": args.max_calls,
             "reservation_usd": args.reservation_usd,
+            "accounting": plan.get("accounting", {"basis": "provider_reported"}),
             "note": "operator-invoked paid run; reserved/unknown charges halt continuation",
         },
     )
@@ -420,12 +478,13 @@ def execute(args) -> None:
             raise RuntimeError(f"{name} stage failed; inspect its retained log before further spending")
         report = json.loads((args.output / f"{name}-result.json").read_text())
         budget = report["budget"]
-        spent += budget["reported_spent_usd"]
+        spent += budget["estimated_spent_usd" if native else "reported_spent_usd"]
         calls += budget["calls"]
         write_new(
             args.output / f"allowance-after-{name}.json",
             {
-                "reported_spent_usd": spent,
+                "reported_spent_usd": None if native else spent,
+                "estimated_spent_usd": spent if native else None,
                 "calls": calls,
                 "remaining_usd": args.max_cost_usd - spent,
                 "stage_budget": budget,
@@ -433,7 +492,7 @@ def execute(args) -> None:
         )
         if (
             report["status"] not in {"completed", "proposed"}
-            or budget["unknown_charge"]
+            or budget["accounting_uncertain" if native else "unknown_charge"]
             or budget["reservation_breached"]
         ):
             raise RuntimeError(f"{name} is incomplete or accounting uncertain; no subsequent stage will run")
@@ -442,7 +501,8 @@ def execute(args) -> None:
         read_records(Path(json.loads((args.output / "candidate-result.json").read_text())["records"])),
         ComparisonPolicy.from_document(json.loads((args.output / "policy.json").read_text())),
     )
-    result["cycle_reported_cost_usd"] = spent
+    result["cycle_reported_cost_usd"] = None if native else spent
+    result["cycle_estimated_cost_usd"] = spent if native else None
     result["cycle_model_calls"] = calls
     write_new(args.output / "comparison.json", result)
     print(json.dumps(result, indent=2))

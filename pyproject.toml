@@ -9,6 +9,7 @@ dependencies = [
   "deepagents==0.7.35",
   "langchain>=1.4,<2",
   "langchain-openai>=1.7,<2",
+  "langchain-anthropic>=1.7.10,<2",
   "langsmith>=0.14.17,<0.15",
   "pydantic>=2,<3",
   "polars>=2.1,<3",
