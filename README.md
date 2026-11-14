@@ -15,6 +15,9 @@ not a product version. Code is available under the [MIT license](LICENSE).
 [Architecture](#how-it-works) · [Evaluation](#what-has-been-measured) ·
 [Roadmap](docs/roadmap.md) · [Contributing](#contributing)
 
+The reliability benchmark is [frozen](docs/reliability-campaign.md); historical failures
+remain recorded. The next milestone is a [real-data analysis demonstration](docs/dataset-demonstration.md).
+
 ## Capabilities today
 
 | Area | Implemented behavior | Current boundary |

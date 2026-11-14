@@ -5,7 +5,20 @@ the existing comparison runner; it does not introduce a new agent or evaluation 
 The [machine-readable selection](../benchmarks/improvement/reliability-campaign.json)
 contains case identities and gates without expected answers. Linear owns execution status.
 
-## Current native follow-up — 2026-11-14 UTC
+## Owner freeze and next milestone — 2026-11-14 UTC
+
+The owner stopped further expansion and live requalification of this campaign. Preserve
+all cases, references, criteria, traces and failures at their recorded identities. The
+prepared generation-3 63-response run is shelved and must not execute. The $7 funding
+request for it is withdrawn; no additional spending is authorized. Existing offline
+regressions remain useful for code changes. This freeze does not establish release
+acceptance or change any historical result.
+
+The next milestone is one unfamiliar real-data business-analysis demonstration with a
+report, charts and supporting workbook. See [dataset selection](dataset-demonstration.md).
+The campaign plans and funding requests below are historical records.
+
+## Historical native follow-up — 2026-11-14 UTC
 
 The first revised candidate (`d0d476e04fc7f378`) completed 46 new responses within the
 existing $5 allowance: 12/12 original, 17/17 development, and 16/17 generation-2 reserved

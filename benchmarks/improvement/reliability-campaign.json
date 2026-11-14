@@ -338,5 +338,14 @@
       "observed_failed_completion_replays_rejected": 3,
       "active_local_freeze": "data/output/reliability-native-refresh-20261114-r3-final/"
     }
+  },
+  "owner_freeze": {
+    "status": "frozen_by_owner",
+    "recorded_at": "2026-11-14T04:31:33.812978+00:00",
+    "owner_instruction": "Okay let's freeze the benchmark and then we need to find a dataset",
+    "effect": "Preserve cases, criteria, references, historical results and failures. Stop further variant generation and the proposed 63-response qualification. Use the existing offline regression suite for subsequent code changes.",
+    "release_acceptance": "Not established; freeze does not turn failures into passes.",
+    "additional_spending_request": "The $7 total request for this campaign is withdrawn; no added spending is approved.",
+    "next_step": "Select one real dataset for a bounded business-analysis artifact demonstration."
   }
 }

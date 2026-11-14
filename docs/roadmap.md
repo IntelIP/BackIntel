@@ -1,5 +1,11 @@
 # Capability roadmap and next development increments
 
+Owner priority, 2026-11-14 UTC: freeze the reliability benchmark; shelve its generation-3
+rerun and withdraw the $7 request. The immediate next milestone is the [single real-data
+artifact demonstration](dataset-demonstration.md) on 11.2 million NYC yellow-taxi records.
+Existing failures remain open; no release acceptance is claimed. The broader domain/scale
+sequence below remains future work rather than a prerequisite for this demonstration.
+
 BackIntel starts at **v0.0.1, experimental**. Version numbers below describe acceptance
 milestones, not released capability or delivery dates. The internal
 [Linear project](https://linear.app/intelip/project/backintel-0287c22fe5a7) owns priority and
