@@ -14,14 +14,16 @@ answer had correct facts but put its explicit SQL status label in the unit colum
 so the independent evidence check rejected it. [Revision checkpoint and all LangSmith
 links](../results/reliability-revision-20261114.md) preserve that failure separately.
 
-PR13 now fixes explicit SQL/structured-Python metric/value associations. Its 275 offline
-tests and hosted CI pass; it has no live result. Frozen source `19a89013cd62b4d0` at
-`f1d88cb89fb58a98c719223e715bc7528a6b37c2` has a zero-call generation-3 proposal at
-`data/output/reliability-native-refresh-20261114-r3/`. It requires 63 new responses and
+PR13 now fixes explicit SQL/structured-Python metric/value associations. Its 277 offline
+tests and hosted CI pass; it has no live result. Frozen source `9463f7cec50ccc9e` at
+`e501bd30be96c0a7291e2c9eec63a32e6d8257a3` has a zero-call generation-3 proposal at
+`data/output/reliability-native-refresh-20261114-r3-final/`. It requires 63 new responses and
 reuses 29 unchanged baselines. A shared $2.05 cap would keep cumulative usage/reserves
 below $6.97681681225; the requested increase from $5 to $7 is pending and supersedes
 the earlier $6 request. Current usage/reserves is $4.92681681225. No further inference
 or release is authorized by this preparation.
+The earlier pre-review generation-3 zero-call freeze remains retained; final preparation
+preserves SQLite Boolean compatibility and uses the same unconsumed generation-3 worlds.
 
 The following checkpoints describe the earlier freezes and their historical allocations.
 

@@ -143,7 +143,8 @@ def _report_value_matches(value, cell) -> bool:
         target, observed = (" ".join(v.split()).casefold() for v in (value, cell))
         return observed == target or target in observed or (len(observed) >= 3 and observed in target)
     if isinstance(value, bool):
-        return isinstance(cell, bool) and value == cell
+        # SQLite represents Boolean query results as integer 0/1.
+        return isinstance(cell, (bool, int, float)) and value == cell
     return value is not None and _number_matches(float(value), cell)
 
 

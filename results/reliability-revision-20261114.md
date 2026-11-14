@@ -94,3 +94,11 @@ The original/development stages and the fresh candidate-only arm were separately
 Measured candidate: `d0d476e04fc7f378` at `661646fe8842e67e6734c2eb887dc056843cbffb`; retained baseline `368cd43ab7c6df81`; scorer `c100f51adc12873d`; judge `b44929467d85`; native accounting `a0cc73ec381e4778`. Analyst: native `openai/gpt-6-luna`; advisory judge: native `anthropic/claude-haiku-5-5`, high effort, 8192-token cap. Sandbox: unchanged SmolVM profile. No human calibration, model training, merge or release is claimed.
 
 Local evidence is retained under `data/output/reliability-native-refresh-20261114-r2/`: immutable plans and source snapshots, staged admissions, exact reused baseline records, all new answers, per-job receipts, LangSmith IDs and disk-flushed usage journals. [Machine-readable report](reliability-revision-20261114.json) retains comparison policies and fingerprints.
+
+The final implementation source `9463f7cec50ccc9e` at
+`e501bd30be96c0a7291e2c9eec63a32e6d8257a3` passes 277 tests (15 optional skips) and
+[hosted CI 43553743854](https://github.com/IntelIP/BackIntel/actions/runs/43553743854).
+An offline replay of the three real failed completions confirms that the current runtime
+rejects each: numeric unit mismatch, unavailable required metrics and contradictory report
+value binding. This uses zero model calls, changes no historical grades and is not new
+held-out acceptance. The final generation-3 proposal remains unfunded and unexecuted.

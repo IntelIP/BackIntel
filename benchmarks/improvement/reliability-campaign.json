@@ -187,7 +187,7 @@
     "campaign_responses_executed": 92,
     "estimated_native_checks_usd": 0.24891425,
     "actual_native_invoice_usd": null,
-    "remaining_gate": "Latest report-binding revision 19a89013cd62b4d0 needs a 63-response qualification with fresh generation 3. Shared $2.05 allocation requires requested $7 cumulative cap; pending approval.",
+    "remaining_gate": "Latest report-binding revision 9463f7cec50ccc9e needs a 63-response qualification with fresh generation 3. Shared $2.05 allocation requires requested $7 cumulative cap; pending approval.",
     "campaign_execution": "All 92 responses completed; original/development accepted, reserved rejected for two mandatory regressions. Revision prepared separately; no revised inference yet.",
     "candidate_commit": "b0569942267e9530f0ff77fbd80263111085dbe5",
     "candidate_source_version": "1812b58dfccbd6f9",
@@ -321,12 +321,12 @@
       "machine_report": "results/reliability-revision-20261114.json"
     },
     "next_revision": {
-      "candidate_source": "19a89013cd62b4d0",
-      "candidate_commit": "f1d88cb89fb58a98c719223e715bc7528a6b37c2",
+      "candidate_source": "9463f7cec50ccc9e",
+      "candidate_commit": "e501bd30be96c0a7291e2c9eec63a32e6d8257a3",
       "fix_pr": "https://github.com/IntelIP/BackIntel/pull/13",
-      "offline_tests_passed": 275,
+      "offline_tests_passed": 277,
       "optional_tests_skipped": 15,
-      "hosted_ci_run": 43553327225,
+      "hosted_ci_run": 43553743854,
       "new_responses_required": 63,
       "retained_baseline_responses": 29,
       "reserved_generation": 3,
@@ -334,7 +334,9 @@
       "requested_cumulative_allowance_usd": 7,
       "maximum_total_with_proposal_usd": 6.97681681225,
       "approval_status": "pending",
-      "live_model_calls": 0
+      "live_model_calls": 0,
+      "observed_failed_completion_replays_rejected": 3,
+      "active_local_freeze": "data/output/reliability-native-refresh-20261114-r3-final/"
     }
   }
 }

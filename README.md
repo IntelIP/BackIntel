@@ -249,7 +249,7 @@ and [release qualification package](docs/v0.0.1-release.md).
 The following revision passed 12/12 original and 17/17 development responses, then
 16/17 fresh reserved candidate responses. Its remaining failure was an explicit report
 value binding; the fresh baseline arm did not run. The latest code fixes that binding
-for SQL and structured Python output and passes 275 offline tests, but has no live
+for SQL and structured Python output and passes 277 offline tests, but has no live
 qualification yet. See the [revision checkpoint](results/reliability-revision-20261114.md).
 
 | Experiment | Observed result | Scope |
