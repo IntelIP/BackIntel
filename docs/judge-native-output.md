@@ -55,3 +55,35 @@ this sample, but the partial-disclosure control still disagreed. Estimated usage
 $0.0329345; no invoice cost or general reliability rate is inferred. The
 [validation record](../results/judge-context-validation.md#native-json-output-contrast--2026-11-13)
 retains the exact outcome. The campaign remains unstarted; this candidate is still draft.
+
+## Partial-disclosure follow-up
+
+An explicit clarification of partial disclosure still gave zero credit to two partly
+scoped answers, one about pending deliveries and one about missing sensor observations.
+The rubric now distinguishes the observed subset from its unexplained consequence and
+reads disclosure from answer text and method as well as the caveats list. Contradictory
+claims and unrelated boilerplate still receive zero. These general criteria do not
+include control identifiers, dataset hints or numerical answers.
+
+Native judges now request `reasoning_effort="high"` through the existing model factory.
+The installed SDK sends it as `output_config.effort`, alongside JSON-schema output;
+adaptive thinking remains enabled. Anthropic recommends high effort for strict instruction
+following in [Haiku's effort guidance](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels).
+The native transport tests check the actual payload for answered and declined cases and
+still reject an incomplete response while accounting for its usage. Other transports
+are unchanged.
+
+The first ten-control run at high effort correctly graded both partial-disclosure cases
+and all other completed responses. One response hit the validation harness's 2048-token
+cap, so that run was 9/10, not a passing gate. The follow-up uses the application factory's
+existing 8192-token limit; thinking consumes that same allowance. No model or dependency
+change is involved. The [validation record](../results/judge-context-validation.md)
+preserves every configuration, failure and measured result.
+
+The follow-up completed **10/10** frozen controls successfully at 8192 output tokens,
+including all six original controls and the four sensor contrasts. Its conservative
+usage estimate was $0.068076. Judge `b44929467d85` is the evaluator qualified for the
+fresh campaign. This targeted check does not establish population-level judge accuracy
+or human calibration, and the campaign still determines analyst quality. Keep the
+benchmark token allowance when reproducing this gate; lower caps can invalidate a
+response even when its partial JSON is parseable.

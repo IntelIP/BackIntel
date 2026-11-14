@@ -43,9 +43,16 @@ RUBRIC = {
     "caveats_material": "Does the answer disclose demonstrated limitations that materially affect the "
     "requested result or its stated use? Select none_established when no relevant limitation is "
     "established; adequately_disclosed when relevant limitations are explained; materially_incomplete "
-    "when the explanation is partial; omitted_or_denied when a limitation that clearly changes "
-    "interpretation is omitted or denied. Do not require speculative caveats or reward "
-    "boilerplate. Scope already stated in the question, method or answer need not be repeated.",
+    "when the answer acknowledges the relevant scope or limitation but leaves its material "
+    "consequence unexplained; omitted_or_denied when the answer provides no relevant disclosure "
+    "or contradicts the limitation. Read the whole answer, including text and method: an empty "
+    "caveats list is not evidence of absent disclosure. Accurately naming the observed subset "
+    "is partial disclosure when the question also asks about a broader population and that "
+    "consequence is not explained. A raw query filter alone or unrelated boilerplate earns no "
+    "disclosure credit. An explicit false claim of broader applicability overrides an accurate "
+    "subset label. Cite the acknowledgment and missing consequence when selecting partial credit. "
+    "Do not require speculative caveats. Scope already fixed by a bounded question need not "
+    "be repeated when no broader interpretation is requested or claimed.",
 }
 
 
@@ -138,10 +145,10 @@ def judge_answer(
         + "\n\n"
         + case
     )
-    judge = build_model(model_id, max_retries=max_retries)
     # Forced tool output suppresses upfront thinking on native Haiku. Native JSON
-    # output preserves the model's adaptive thinking without changing the rubric.
+    # output preserves adaptive thinking; high effort targets strict rubric adherence.
     native = model_id.startswith("anthropic/")
+    judge = build_model(model_id, max_retries=max_retries, **({"reasoning_effort": "high"} if native else {}))
     output_options = {"method": "json_schema", "include_raw": True} if native else {}
     result = judge.with_structured_output(schema, **output_options).invoke(
         prompt, config={"callbacks": callbacks or []}

@@ -153,3 +153,79 @@ Plan, source copies, complete assessments and receipts are retained under
 Source `f3ea32af0037c625`; scorer `47ceaa277246ba19`; context `dd44858434c4`;
 accounting `a0cc73ec381e4778`. The unchanged working-source suite passed 252 tests with
 15 optional skips; lint, formatting, Vulture and diff checks passed.
+
+## Partial-disclosure clarification — 2026-11-13
+
+Judge `dbeb94634692` explicitly credited a relevant scope acknowledgment in the answer's
+text or method even when its caveats list was empty. It distinguished that partial
+disclosure from a raw query filter, generic boilerplate and a false broader-population
+claim. All six prior cases and expectations remained unchanged. Four prospectively
+authored sensor-coverage contrasts added partial disclosure, complete explanation,
+explicit denial and boilerplate controls; these are public evaluator fixtures in
+`benchmarks/judge/caveat-disclosure-controls.json`, not analyst training examples.
+
+The clarification alone matched **8/10** controls: 5/6 original and 3/4 new. Both the
+pending-delivery and sensor partial-disclosure answers still received zero instead of
+0.5. The other eight controls passed. This cross-domain failure supports a problem with
+the partial-credit boundary; the change alone is not a qualified fix.
+
+All ten requests completed, costing **$0.0509685** in conservative native usage estimates,
+with no accounting uncertainty or reservation breach. LangSmith read-back verified ten
+outputs and twenty feedback records. [Clarification experiment](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/9b1ea8e2-785e-402a-83a6-79f8d0d871ab).
+The frozen cases hash is `677ff5bffdee37934b9133b182a9b0f6612e973df2b7effcdfbb89cc1f644277`;
+source `5b0bec7a68bb6dc8`. Plans, exact cases, source copies and raw results are retained
+in `data/output/judge-disclosure-validation-20261113/` in the canonical checkout. No
+historical expectation or result was overwritten.
+
+## High effort at the prior token limit — 2026-11-14 UTC
+
+The same ten controls ran once with native Haiku's effort explicitly set to `high`.
+The partial-disclosure rubric, model, source context, expected grades and 2048-token
+limit stayed fixed. Both partial-disclosure cases now received 0.5 with reasons that
+identified the scope acknowledgment and missing consequence. All nine completed
+assessments matched; the equivalent-calculation response exhausted 2048 output tokens
+and was rejected as invalid rather than repaired or assigned a score. Therefore this
+configuration did **not** pass the full ten-control gate.
+
+Estimated usage was **$0.068746**, including the truncated call, with complete token
+accounting and no reservation breach. LangSmith read-back matched ten outputs and twenty
+feedback records. [High-effort experiment](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/b1d0781d-ed0d-423a-81e2-197b8feaa229).
+Evidence: `data/output/judge-high-effort-validation-20261114/`; effective source
+`1812b58dfccbd6f9`. The next configuration uses the benchmark factory's existing
+8192-token limit, leaving room for thinking plus the JSON assessment. It retains all
+cases and expectations and gets a fresh bounded plan; this is not a retry of unchanged
+configuration or a retrospective repair of the truncated result.
+
+## Benchmark-configuration validation — 2026-11-14 UTC
+
+Judge `b44929467d85` passed **10/10** frozen controls with native Haiku 5.5 at high
+effort and the benchmark's existing 8192-token output allowance. All responses completed
+and all frozen expected criteria matched. The original six cases passed 6/6; the four
+new sensor-coverage contrasts passed 4/4. Reasons credit the stated subset on both partial
+answers while identifying the unexplained consequence. Full disclosure receives one;
+false generalization, boilerplate and future-data leakage still receive zero.
+
+Only the output-token allowance changed from the immediately preceding test. The
+equivalent-calculation response used 2120 output tokens and completed. The truncated
+2048-token result remains invalid in its original experiment. No expected grades,
+numerical references, analyst code or scoring tolerances were altered.
+
+All ten calls had complete conservative token accounting, zero retries and no reservation
+breach. Estimated usage was **$0.068076**. LangSmith read-back verified ten identical
+outputs and twenty feedback records. [Passing experiment](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/37a4b33b-7b2c-4fe8-93f1-1585356b9b33).
+Evidence: `data/output/judge-benchmark-config-validation-20261114/`; cases hash remains
+`677ff5bffdee37934b9133b182a9b0f6612e973df2b7effcdfbb89cc1f644277`; source
+`1812b58dfccbd6f9`; scorer `c100f51adc12873d`; context `dd44858434c4`; accounting
+`a0cc73ec381e4778`.
+
+The working source passed all 252 local tests with 15 optional skips, lint, formatting,
+Vulture, whitespace and Gitleaks checks. This passes the targeted evaluator gate for the
+fresh paired campaign. It is not broad judge accuracy, human calibration or an analyst
+release result. Human calibration remains waived; method scores remain advisory.
+
+This fix's three prospective runs used **$0.1877905** in estimated native usage. All
+native adapter/control checks now total **$0.24891425** across 43 calls. Historical
+reported goal charges of $0.04697181225 and $0.012 retained unknown-call reservations
+remain separate. Conservatively accounting for all three leaves $4.69211393775 of the
+original $5 authorization before campaign allocation; this is not an account balance
+or an invoice reconciliation. The campaign may allocate $1 to each of its three batches.

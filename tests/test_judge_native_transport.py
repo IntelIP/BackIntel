@@ -24,6 +24,7 @@ def test_native_judge_uses_json_output_without_forcing_tool_or_disabling_thinkin
         model_id,
         env={"ANTHROPIC_API_KEY": "offline-test", "BACKINTEL_MAX_COMPLETION_TOKENS": "2048"},
         max_retries=0,
+        reasoning_effort="high",
     )
     rubric = judge.DECLINED_RUBRIC if declined else judge.RUBRIC
     assessment = {key: {"reason": "Controlled parser fixture", "rating": 2} for key in rubric}
@@ -43,9 +44,9 @@ def test_native_judge_uses_json_output_without_forcing_tool_or_disabling_thinkin
         assert payload["max_tokens"] == 2048
         assert payload["service_tier"] == "standard_only"
         assert "tools" not in payload and "tool_choice" not in payload
-        # Haiku 5.5 defaults to adaptive thinking and medium effort. Keep both.
+        # Preserve adaptive thinking and explicitly request stricter rubric adherence.
         assert "thinking" not in payload
-        assert "effort" not in payload["output_config"]
+        assert payload["output_config"]["effort"] == "high"
         output_format = payload["output_config"]["format"]
         assert output_format["type"] == "json_schema"
         assert set(output_format["schema"]["required"]) == set(rubric)
@@ -71,9 +72,10 @@ def test_native_judge_uses_json_output_without_forcing_tool_or_disabling_thinkin
             },
         )
 
-    def configured_model(requested_id, max_retries):
+    def configured_model(requested_id, max_retries, reasoning_effort):
         assert requested_id == model_id
         assert max_retries == 0
+        assert reasoning_effort == "high"
         return model
 
     monkeypatch.setattr(judge, "build_model", configured_model)
