@@ -5,32 +5,66 @@ the existing comparison runner; it does not introduce a new agent or evaluation 
 The [machine-readable selection](../benchmarks/improvement/reliability-campaign.json)
 contains case identities and gates without expected answers. Linear owns execution status.
 
-## Current native follow-up — 2026-11-13
+## Current native follow-up — 2026-11-14 UTC
 
 The owner-selected routes for the next campaign are `openai/gpt-6-luna` and
 `anthropic/claude-haiku-5-5`, using native account credentials and the versioned
 conservative token accounting in PR10 (`a0cc73ec381e4778`). Both native adapters have
 live verification. These estimates are not invoices or account credit balances.
 
-The six native judge controls first matched 4/6. A prospective JSON-output transport
-fix, keeping rubric/model/effort/labels fixed, matched 5/6 at judge `f3b3a2c216f8`.
-The partial-disclosure boundary still disagreed with its frozen expectation. Preserve
-that failure: the 92-response campaign is still unstarted and no native campaign plans
-have been frozen. The [judge evidence](https://github.com/IntelIP/BackIntel/blob/codex/analyst-judge-context/results/judge-context-validation.md) is in PR8,
-which is stacked on PR10. The existing comparison policy continues to report uncalibrated
-method scores without adding a release threshold.
+The remaining partial-disclosure judge defect is fixed. Judge `b44929467d85` matched
+all **10/10 frozen controls**, including the six originals and four prospectively authored
+sensor contrasts. It uses native JSON output, a clarified partial-disclosure rubric and
+high reasoning effort. The benchmark's existing 8192-token output allowance leaves room
+for reasoning and a complete assessment. Earlier failed attempts, including one truncated
+2048-token assessment, remain unchanged. [Passing experiment](https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/37a4b33b-7b2c-4fe8-93f1-1585356b9b33).
+The [judge evidence](https://github.com/IntelIP/BackIntel/blob/codex/analyst-judge-context/results/judge-context-validation.md)
+is published in PR8 at `b0569942267e9530f0ff77fbd80263111085dbe5`, stacked on PR10.
+252 local tests passed with 15 optional skips; [hosted CI passed](https://github.com/IntelIP/BackIntel/actions/runs/43531747031).
+This is a targeted evaluator gate, not human calibration or an analyst release result.
+The comparison policy still reports method scores without a release threshold.
 
-New native checks total $0.06112375 in conservative usage estimates across 13 calls.
+Native adapter/control checks total $0.24891425 in conservative usage estimates across 43 calls.
 Historical reported goal usage is $0.04697181225, with $0.012 retained for previously
 unpriced calls. These are separate accounting bases. All future allocations must remain
-within the original $5 authorization; no credit purchase is permitted. The qualified
-SmolVM benchmark profile passed a fresh offline check with public networking blocked.
+within the original $5 authorization; no credit purchase is permitted. These amounts
+leave $4.69211393775 before campaign allocation. The qualified SmolVM benchmark profile
+passed an offline check with public networking blocked.
+
+All three native plans were frozen before any campaign inference at
+`data/output/reliability-native-20261114/` in the canonical checkout. The original-regression
+batch has been invoked; Linear and retained stage results carry execution status. Baseline
+source is `368cd43ab7c6df81`, candidate `1812b58dfccbd6f9`, scorer `c100f51adc12873d`,
+judge `b44929467d85`. The machine-readable `native_followup.native_plans` preserves each
+manifest/policy hash and selected output path. Historical OpenRouter plans are untouched.
+
+The frozen native allocation is **$1 per batch, $3 total**, with a **$0.05 per-call
+reservation** and call ceilings 600 / 850 / 850. The larger reservation replaces the
+historical $0.01 proposal for this native configuration; it accommodates the qualified
+conservative rates and 8192-token output cap. Each two-arm batch shares its allowance.
+Incomplete coverage, infrastructure errors, uncertain accounting or reservation breaches
+stop continuation. A valid quality rejection is retained rather than rerun for a pass.
+
+Execute from the PR8 checkout with explicit native overrides after Doppler injection:
+
+```bash
+BACKINTEL_MODEL=openai/gpt-6-luna \
+BACKINTEL_JUDGE_MODEL=anthropic/claude-haiku-5-5 \
+BACKINTEL_SANDBOX=smolvm BACKINTEL_MAX_COMPLETION_TOKENS=8192 \
+uv run python scripts/run_improvement_cycle.py --execute \
+  --output /absolute/path/to/frozen/batch \
+  --max-cost-usd 1 --max-calls 600 --reservation-usd 0.05
+```
+
+Use 850 calls for development/reserved. Never invoke an already-started output directory;
+the runner deliberately refuses overwriting its execution record. The aggregate admission
+record is `campaign-freeze.json`. Completed experiments determine analyst quality; freezing
+92 responses and passing judge controls do not establish that campaign results have passed.
 
 The OpenRouter settings, source identities and prepared plan hashes below are **historical
 preparation only, not executable instructions for the native campaign**. Keep them intact.
-After the remaining evaluator issue is resolved, prepare fresh directories using the native
-model IDs above and freeze the final candidate, evaluator, accounting policy and aggregate
-batch caps. Do not relabel the old plans or swap their providers in place.
+The fresh native plans above supersede these for execution. Do not relabel the old plans
+or swap their providers in place.
 
 ## What is being compared
 

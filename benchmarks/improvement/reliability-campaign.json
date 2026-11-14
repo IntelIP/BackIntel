@@ -175,18 +175,63 @@
     "Recheck exact prepared image/runtime and source bytes before execution."
   ],
   "native_followup": {
-    "date": "2026-11-13",
+    "date": "2026-11-14",
     "analyst_model": "openai/gpt-6-luna",
     "judge_model": "anthropic/claude-haiku-5-5",
     "accounting_basis": "native_estimate",
     "accounting_version": "a0cc73ec381e4778",
-    "latest_judge_version": "f3b3a2c216f8",
-    "controls_matched": 5,
-    "controls_total": 6,
-    "native_campaign_prepared": false,
-    "campaign_responses_executed": 0,
-    "estimated_native_checks_usd": 0.06112375,
+    "latest_judge_version": "b44929467d85",
+    "controls_matched": 10,
+    "controls_total": 10,
+    "native_campaign_prepared": true,
+    "campaign_responses_executed": null,
+    "estimated_native_checks_usd": 0.24891425,
     "actual_native_invoice_usd": null,
-    "remaining_gate": "Partial-disclosure grading remains unresolved; freeze a fresh native campaign after the final evaluator is accepted."
+    "remaining_gate": "Complete the fresh paired campaign and assess mandatory gates; targeted evaluator gate has passed.",
+    "campaign_execution": "originals batch invoked; await retained results for completed response count",
+    "candidate_commit": "b0569942267e9530f0ff77fbd80263111085dbe5",
+    "candidate_source_version": "1812b58dfccbd6f9",
+    "baseline_source_version": "368cd43ab7c6df81",
+    "scorer_version": "c100f51adc12873d",
+    "max_completion_tokens": 8192,
+    "judge_effort": "high",
+    "campaign_allocation_usd": 3,
+    "per_call_reservation_usd": 0.05,
+    "native_plans": [
+      {
+        "batch": "originals",
+        "output": "/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/reliability-native-20261114/originals",
+        "manifest_sha256": "d2c5ec083e64993f066d772ac41db9b61f2dbcdf85e260b70aca945ec97023ef",
+        "manifest_hash": "a565e15131cdb235a9093b399eaac68a6c2c1218fb57fa35ec631c4c5e105f7d",
+        "policy_hash": "6fe8128a0e410aac0b46e3bac769e67ea285cb3c2470b0776d8311dfe247a0b7",
+        "responses": 24,
+        "limit_usd": 1,
+        "max_calls": 600,
+        "reservation_usd": 0.05
+      },
+      {
+        "batch": "development",
+        "output": "/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/reliability-native-20261114/development",
+        "manifest_sha256": "794464f42d6a61c5e8e46d96f3cc878b471abb3fc6c3c0aa54ea80103653df82",
+        "manifest_hash": "70894366208dc19ca609a04ae9e88da8750e98deaa3e86d70eea03c7f35ffc69",
+        "policy_hash": "790f4b573170e3c613a55ef1e7db79536da13f510eb38cfa210aa888d1c1271d",
+        "responses": 34,
+        "limit_usd": 1,
+        "max_calls": 850,
+        "reservation_usd": 0.05
+      },
+      {
+        "batch": "reserved",
+        "output": "/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/reliability-native-20261114/reserved",
+        "manifest_sha256": "848b4a3dd7349e6aca86c31f8580bfc6f10c05fc4779ade457b38876f1a83b21",
+        "manifest_hash": "2b641b3d25261802a3f05c15dd2a2e8f2d84118c7a44ac31d0291c3cc56edcc2",
+        "policy_hash": "5be087f7ace47a56323295f7e720455be63879294d01de51360900abd9340a53",
+        "responses": 34,
+        "limit_usd": 1,
+        "max_calls": 850,
+        "reservation_usd": 0.05
+      }
+    ],
+    "control_experiment": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/37a4b33b-7b2c-4fe8-93f1-1585356b9b33"
   }
 }
