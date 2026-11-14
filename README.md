@@ -63,8 +63,9 @@ have been used for testing; BackIntel has not trained or fine-tuned its models o
   runtime support has not been qualified. Python-only CI runs on Linux.
 - Docker for the initial sandbox image build/export and optional database services.
   Prepared SQLite/file analysis runs in SmolVM without Docker execution.
-- For live analysis, an authorized ChatGPT subscription connection or a configured
-  supported OpenRouter model. No model account is needed for the offline checks below.
+- For live analysis, native OpenAI/Anthropic API credentials, an authorized ChatGPT
+  subscription connection, or an explicitly selected supported OpenRouter model,
+  depending on the entry point. No model account is needed for the offline checks below.
 
 ### 1. Check out and verify the project
 
@@ -183,12 +184,17 @@ separate from this repository's code license; see the [benchmark specification](
 
 ```mermaid
 flowchart LR
-    Brief[Business brief] --> Agent[One Deep Agents graph]
-    Agent --> Query[Read-only store tools]
+    Question[Question: ask] --> Analyst[Analyst graph]
+    Brief[Business brief: analyze] --> Specialist[Specialist graph]
+    Analyst --> Query[Read-only store tools]
+    Specialist --> Query
     Query --> Data[Assigned sources]
-    Agent --> VM[SmolVM shell and Python]
+    Analyst --> VM[SmolVM Python]
+    Specialist --> Workspace[SmolVM shell and Python workspace]
     VM --> Data
-    Agent --> Check[Structured completion and reproduced tables]
+    Workspace --> Data
+    Analyst --> Answer[Structured answer and executable evidence]
+    Specialist --> Check[Structured completion and reproduced tables]
     Check --> Render[Clean renderer VM]
     Render --> Files[Report, charts, CSV and XLSX]
 ```
@@ -207,6 +213,8 @@ original limits; it is never silently converted into success.
 The standard specialist profile uses **2 CPUs and 2 GiB RAM**, with separate workspace,
 artifact and temporary-file quotas. A larger profile exists, but is not evidence of real
 large-data reliability. Aggregate capacity reservation across concurrent runs is not implemented.
+The benchmark analyst's Python commands use **1 CPU and 768 MiB RAM**, with a 120-second
+command limit. Each entry point remains independently invoked.
 
 ### Prompts, skills and tools
 

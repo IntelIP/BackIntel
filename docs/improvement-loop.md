@@ -210,3 +210,41 @@ This follows LangSmith's [evaluation workflow](https://docs.langchain.com/langsm
 [human feedback guidance](https://docs.langchain.com/langsmith/improve-judge-evaluator-feedback).
 The `evaluator_info` feedback field and callback signatures were checked against installed
 LangSmith 0.14.17 and LangChain Core source. Current dependency pins remain in `uv.lock`.
+
+### Evaluator source context (INT-431)
+
+The method judge receives an evaluator-only schema and aggregate profile of the bound
+store. SQLite profiles include source-file identity and observed non-null/distinct key
+counts. Repository-owned replay IDs and source-hash-matched acceptance manifests can
+supply an observation cutoff; the evaluator checks the actual timestamp columns before
+calling it verified. Future estimated dates remain predictions. Unknown source types or
+undeclared snapshots stay unknown; a name alone never proves truncation.
+
+The prompt accepts equivalent calculations and does not require a redundant cutoff on
+verified observation columns or invent a required join from a preferred query shape.
+It still requires the question's period, population and grain. Numerical correctness and
+executable evidence remain separate code scores. Schema/profile failures invalidate the
+required judge evaluation rather than silently grading without the expected context.
+
+`judge_context.py` has its own content-derived version and each payload has a SHA-256.
+`judge_version` covers the complete judge implementation plus context version;
+`scorer_version` includes the context builder. Records retain the context payload.
+The comparison preparer already copies the current evaluator into both frozen runtime
+snapshots, so historical feedback stays untouched and a new comparison uses the same
+new evaluator on both arms. Reference values, oracle SQL, raw samples and private planted
+changes are not passed to the judge or analyst; only a validated cutoff is extracted from
+the evaluator's acceptance manifest.
+
+Offline checks exercise a valid pre-truncated source, future observations in an unfiltered
+source, alternate count calculations, duplicate-key profiles, manifest mismatch and
+prompt/record wiring. Mock model outputs test transport only. They do not establish that a
+live judge now reasons correctly: a fresh, funded contrast run and baseline/candidate
+comparison are still required. Human calibration remains waived, and method scores remain
+uncalibrated.
+
+The [judge validation record](../results/judge-context-validation.md) preserves the live
+context contrast, the subsequent incomplete caveat experiment, and the new categorical
+caveat candidate. For new runs, caveat verdicts map to fixed scores; raw assessments are
+retained alongside the source context in records and in LangSmith feedback metadata.
+This changes the judge/scorer identities prospectively. The categorical candidate still
+requires live validation; no historical feedback is rewritten.
