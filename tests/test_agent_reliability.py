@@ -138,6 +138,59 @@ def test_native_structured_output_retries_failed_evidence(store):
     assert len(model.bindings) == 2
 
 
+def test_numeric_unit_conversion_is_repaired_through_real_finalization(store):
+    # Different local data/amounts from the live benchmark; no evaluator truth is used.
+    bad = response(value=0.1, unit="EUR", method="Convert minor to major units.")
+    repaired = response(
+        value=0.1,
+        unit="EUR",
+        evidence=[{"kind": "sql", "code": "SELECT SUM(amount) / 100.0 FROM sales"}],
+    )
+    model = ScriptedModel(
+        responses=[
+            tool_call("VerifiedAnalystAnswer", bad, 0),
+            tool_call("VerifiedAnalystAnswer", repaired, 1),
+        ]
+    )
+    result = build_agent(model, store, TrustedFixturePython()).invoke(
+        {"messages": [HumanMessage(content="Report the total in major currency units.")]}
+    )
+    assert result["structured_response"].value == 0.1
+    assert len(model.bindings) == 2
+    assert any(isinstance(m, ToolMessage) and "unit conversion" in m.content for m in result["messages"])
+
+
+@pytest.mark.parametrize(
+    "kind,code", [("sql", "SELECT SUM(amount) * 100 FROM sales"), ("python", "print(1000)")]
+)
+def test_numeric_output_must_match_the_answer_not_only_execute(store, kind, code):
+    with pytest.raises(ValidationError, match="reported numeric value"):
+        answer_schema(store, TrustedFixturePython()).model_validate(
+            response(evidence=[{"kind": kind, "code": code}])
+        )
+
+
+def test_numeric_claim_in_note_or_program_source_is_not_executed_output(store):
+    with pytest.raises(ValidationError, match="reported numeric value"):
+        answer_schema(store, TrustedFixturePython()).model_validate(
+            response(evidence=[{"kind": "python", "code": "total = 10\nprint('finished')", "note": "10"}])
+        )
+
+
+@pytest.mark.parametrize(
+    "kind,code,value",
+    [
+        ("sql", "SELECT SUM(amount) / 3 FROM sales", 3.33),
+        ("python", "print('1e1')", 10),
+        ("python", "print('10,000.00')", 10000),
+    ],
+)
+def test_numeric_output_accepts_display_rounding_and_numeric_notation(store, kind, code, value):
+    answer_schema(store, TrustedFixturePython()).model_validate(
+        response(value=value, evidence=[{"kind": kind, "code": code}])
+    )
+
+
 def test_failed_finalization_remains_an_execution_failure(store):
     model = ScriptedModel(
         responses=[

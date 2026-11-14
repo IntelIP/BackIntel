@@ -46,9 +46,10 @@ def _fact(name: str, value) -> dict:
 
 
 class _Builder:
-    def __init__(self, settings: Settings, split: Split, output: Path):
+    def __init__(self, settings: Settings, split: Split, output: Path, *, generation: int = 1):
         self.settings, self.split, self.output = settings, split, output
-        self.dataset = f"backintel_acceptance_v1_{split}"
+        self.version = VERSION if generation == 1 else f"{VERSION}-reserved-{generation}"
+        self.dataset = f"backintel_{self.version.replace('-', '_')}_{split}"
         self.scenarios: list[Scenario] = []
         self.worlds: dict[str, dict] = {}
         self.checks: list[dict] = []
@@ -68,7 +69,7 @@ class _Builder:
         declaration: dict | None = None,
         level: int = 3,
     ) -> None:
-        world_name = "bi_" + _digest([VERSION, self.split, name])[:16]
+        world_name = "bi_" + _digest([self.version, self.split, name])[:16]
         path = self.settings.stores_dir / "sqlite" / f"{world_name}.sqlite"
         path.parent.mkdir(parents=True, exist_ok=True)
         # Rebuild only owned, deterministic fixture paths. No existing benchmark store is changed.
@@ -94,7 +95,7 @@ class _Builder:
                 if not matches:
                     raise AssertionError(f"Independent SQL reference mismatch: {name}: {value!r} != {want!r}")
                 self.checks.append({"case": name, "sql": sql, "matches": True, "observed": value})
-        identifier = f"{VERSION}-{self.split}-{name}"
+        identifier = f"{self.version}-{self.split}-{name}"
         self.scenarios.append(
             Scenario(
                 id=identifier,
@@ -124,7 +125,7 @@ class _Builder:
         data_hash = _digest(self.worlds)
         manifest_path = self.output / f"{self.split}.json"
         payload = {
-            "version": VERSION,
+            "version": self.version,
             "dataset": self.dataset,
             "split": self.split,
             "reference_hash": reference_hash,
@@ -151,9 +152,13 @@ def _financial_cases(b: _Builder, variant: int) -> None:
     sales = "sales_lines" if not variant else "revenue_entries"
     expenses = "expense_lines" if not variant else "cost_entries"
     year, month = (2024, 3) if not variant else (2025, 7)
+    if variant == 2:
+        sales, expenses, year, month = "receipts", "expenditures", 2026, 2
     period = f"{year}-{month:02d}"
     start, end = f"{period}-01", f"{year}-{month + 1:02d}-01"
     numbers = [12000, 8000, -1500, 5000] if not variant else [17003, 9401, -1107, 6309]
+    if variant == 2:
+        numbers = [14127, 8263, -2609, 10033]
     rows = [
         (f"E{i + 71}", f"{period}-{day:02d}", amount, "GBP")
         for i, (day, amount) in enumerate(zip((2, 8, 15, 23), numbers, strict=True))
@@ -164,6 +169,8 @@ def _financial_cases(b: _Builder, variant: int) -> None:
     coverage_schema = "ledger TEXT, period_start TEXT, period_end_exclusive TEXT, complete INTEGER"
     revenue = sum(numbers)
     costs = [10100, 3300, 700] if not variant else [11011, 5401, 1207]
+    if variant == 2:
+        costs = [8451, 2067, 999]
     cost_rows = [
         (f"C{i + 31}", f"{period}-{day:02d}", amount, "GBP")
         for i, (day, amount) in enumerate(zip((3, 10, 21), costs, strict=True))
@@ -273,6 +280,10 @@ def _report_cases(b: _Builder, variant: int) -> None:
     review_table = "reviews" if not variant else "feedback"
     base = datetime(2024 + variant, 2 + variant, 1, 8)
     durations = [3, 6, 4, 10, 5] if not variant else [2, 7, 6, 12, 4]
+    people = (1, 1, 2, 3, 3)
+    if variant == 2:
+        order_table, review_table = "dispatches", "ratings"
+        durations, people = [7, 3, 9, 4, 6], (1, 2, 2, 2, 3)
     estimates = [4, 5, 5, 8, 5]
     rows = [
         (
@@ -283,7 +294,7 @@ def _report_cases(b: _Builder, variant: int) -> None:
             (base + timedelta(days=i + d)).isoformat(),
             (base + timedelta(days=i + estimates[i])).isoformat(),
         )
-        for i, (d, person) in enumerate(zip(durations, (1, 1, 2, 3, 3), strict=True))
+        for i, (d, person) in enumerate(zip(durations, people, strict=True))
     ]
     rows.append(("O90", "U4", "delivered", base.isoformat(), None, (base + timedelta(days=9)).isoformat()))
     rows.append(("O91", "U5", "canceled", base.isoformat(), None, (base + timedelta(days=9)).isoformat()))
@@ -296,6 +307,8 @@ def _report_cases(b: _Builder, variant: int) -> None:
         ("R6", "O25", 5),
         ("R7", "O90", 2),
     ]
+    if variant == 2:
+        reviews = [(r[0], r[1], score) for r, score in zip(reviews, (4, 1, 5, 3, 2, 4, 1), strict=True)]
     schema = (
         "order_id TEXT, customer_person_id TEXT, status TEXT, purchased_at TEXT, delivered_at "
         "TEXT, estimated_at TEXT"
@@ -390,10 +403,14 @@ def _report_cases(b: _Builder, variant: int) -> None:
 def _replay_cases(b: _Builder, variant: int) -> None:
     # Different periods and baseline distributions keep the reserved split distinct.
     year, previous_month = (2024, 5) if not variant else (2025, 8)
+    if variant == 2:
+        year, previous_month = 2026, 8
     current_month = previous_month + 1
     previous, current = f"{year}-{previous_month:02d}", f"{year}-{current_month:02d}"
     cutoff = datetime(year, current_month + 1, 1)
     durations = [3, 4, 5, 4] if not variant else [5, 6, 7, 6]
+    if variant == 2:
+        durations = [7, 8, 9, 8]
     schema = "order_id TEXT, purchased_at TEXT, delivered_at TEXT, estimated_at TEXT"
     for name, shift, duplicate, delay in (
         ("stable", 0, False, "none"),
@@ -503,8 +520,11 @@ def _replay_cases(b: _Builder, variant: int) -> None:
 def _price_replay_cases(b: _Builder, variant: int) -> None:
     previous, current = ("2024-05", "2024-06") if not variant else ("2025-08", "2025-09")
     prices = (1000, 2000) if not variant else (1750, 3500)
+    if variant == 2:
+        previous, current, prices = "2026-08", "2026-09", (1375, 3125)
     for name, changed in (("mix-only", False), ("shift", True)):
-        current_prices = (prices[0] * 16 // 10 if changed else prices[0], prices[1])
+        multiplier = 17 if variant == 2 else 16
+        current_prices = (prices[0] * multiplier // 10 if changed else prices[0], prices[1])
         rows = [
             ("L41", previous + "-10", "P11", 100, prices[0]),
             ("L42", previous + "-11", "P92", 10, prices[1]),
@@ -557,13 +577,25 @@ def _price_replay_cases(b: _Builder, variant: int) -> None:
 
 
 def build_acceptance(
-    settings: Settings, split: Split = "development", *, output: Path | None = None
+    settings: Settings,
+    split: Split = "development",
+    *,
+    output: Path | None = None,
+    reserved_generation: int = 1,
 ) -> AcceptanceSuite:
     """Build owned immutable SQLite fixtures and hidden reference manifest without any model calls."""
     if split not in ("development", "acceptance"):
         raise ValueError("split must be development or acceptance")
-    builder = _Builder(settings, split, output or repo_root() / "benchmarks" / "acceptance" / VERSION)
-    variant = int(split == "acceptance")
+    if reserved_generation not in (1, 2) or (split != "acceptance" and reserved_generation != 1):
+        raise ValueError("Reserved generation must be 1 or 2 and applies only to acceptance")
+    version = VERSION if reserved_generation == 1 else f"{VERSION}-reserved-{reserved_generation}"
+    builder = _Builder(
+        settings,
+        split,
+        output or repo_root() / "benchmarks" / "acceptance" / version,
+        generation=reserved_generation,
+    )
+    variant = reserved_generation if split == "acceptance" else 0
     _financial_cases(builder, variant)
     _report_cases(builder, variant)
     _replay_cases(builder, variant)

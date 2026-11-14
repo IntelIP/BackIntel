@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Sequence
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest
@@ -21,6 +22,7 @@ from backintel.stores.base import QueryRefused, Store
 from backintel.stores.multi import DIRECTIVE, MultiStore
 
 DOMAIN_READS = frozenset({"list_tables", "describe_table", "run_sql", "run_query", "run_python"})
+NUMERIC_OUTPUT = re.compile(r"(?<![\w.])[+-]?(?:\d+(?:,\d{3})*(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?(?![\w.])")
 FINISH_REPEATED_READ = (
     "The last three reads used identical arguments and returned the same successful result. "
     "Further identical reads add no information. Finalize using the structured answer tool now: "
@@ -121,10 +123,12 @@ def validate_answer_shape(answer: AnalystAnswer) -> None:
 def validate_answer_evidence(answer: AnalystAnswer, store: Store, sandbox: PythonSandbox) -> None:
     """Execute every cited item under the same read-only bindings used by analysis tools.
 
-    This is an execution-integrity check, not a correctness/lineage judge. Independent
-    evaluators still check values, missing/extra requested metrics, and unsupported claims.
+    Numeric answers must also appear in executed output, allowing display rounding.
+    This does not establish correctness or lineage: independent evaluators still check
+    reference values, missing/extra requested metrics, and unsupported claims.
     """
     problems = []
+    numeric_output = []
     for index, item in enumerate(answer.evidence, 1):
         try:
             if item.kind == "python":
@@ -136,6 +140,8 @@ def validate_answer_evidence(answer: AnalystAnswer, store: Store, sandbox: Pytho
                 )
                 if result.exit_code != 0:
                     problems.append(f"Evidence {index}: program failed: {result.stderr[-300:]}")
+                else:
+                    numeric_output.extend(NUMERIC_OUTPUT.findall(result.stdout))
             else:
                 code = item.code
                 if isinstance(store, MultiStore):
@@ -149,18 +155,35 @@ def validate_answer_evidence(answer: AnalystAnswer, store: Store, sandbox: Pytho
                         code = f"-- store: {item.store}\n{code}"
                 elif item.store is not None and item.store != store.id:
                     raise QueryRefused("Evidence names a store that is not connected.")
-                store.query(code)
+                result = store.query(code)
+                numeric_output.extend(cell for row in result.rows for cell in row)
         except (QueryRefused, NotImplementedError) as error:
             problems.append(f"Evidence {index}: query failed: {str(error)[:300]}")
     if problems:
         raise ValueError("; ".join(problems))
+    if answer.status == "answered" and answer.answer_type == "number":
+        for cell in numeric_output:
+            if cell is None or isinstance(cell, bool):
+                continue
+            try:
+                value = float(cell.replace(",", "") if isinstance(cell, str) else cell)
+            except (ValueError, TypeError, OverflowError):
+                continue
+            # Same display-rounding allowance as the existing independent evidence check.
+            if math.isfinite(value) and math.isclose(value, answer.value, rel_tol=1e-4, abs_tol=0.011):
+                return
+        raise ValueError(
+            "Cited evidence executes but does not output the reported numeric value in its "
+            "reported units. Include any unit conversion or rounding in the executable "
+            "evidence and output the final value."
+        )
 
 
 def answer_schema(store: Store, sandbox: PythonSandbox) -> type[AnalystAnswer]:
     """Bind runtime-only validation to the native structured-output retry mechanism."""
 
     class VerifiedAnalystAnswer(AnalystAnswer):
-        """Return an answer with unique metrics and evidence that successfully re-executes."""
+        """Return unique metrics, executable evidence and numeric values present in its output."""
 
         @model_validator(mode="after")
         def verify_before_returning(self):
