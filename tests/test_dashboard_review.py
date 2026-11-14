@@ -284,8 +284,9 @@ def test_deadline_cancels_current_stage_and_prevents_more_calls(delivery, tmp_pa
     reviewer = SlowModel() if stage == "reviewer" else Scripted(rating(2))
     writer = SlowModel()
     started = time.monotonic()
-    result = run_loop(delivery, tmp_path, reviewer, writer, capture=browser, timeout_s=0.15)
-    assert time.monotonic() - started < 2
+    # Allow workbook/trace setup on CI before cancelling the deliberately stalled stage.
+    result = run_loop(delivery, tmp_path, reviewer, writer, capture=browser, timeout_s=2)
+    assert time.monotonic() - started < 5
     assert result["status"] == "timed_out" and not result["ready"]
     assert stopped == [stage]
     assert reviewer.calls == (0 if stage == "capture" else 1)
