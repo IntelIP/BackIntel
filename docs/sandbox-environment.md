@@ -105,6 +105,8 @@ Same-path local sources are relocated under `/sources`, updating `BACKINTEL_SQLI
 `BACKINTEL_FILES_DIR` and `BACKINTEL_PARQUET_DIR`. The original source remains unchanged.
 Artifact reads and exports reuse the bounded tar-stream validation: regular files only,
 no links/traversal/special files, supported suffixes, at most 256 files and the byte budget.
+Binary downloads use native pipes rather than SmolVM's 11 MiB capped command-output
+stream; see the [export fix and real-VM checks](smolvm-artifact-export.md).
 
 ## Verification
 
