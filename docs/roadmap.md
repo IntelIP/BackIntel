@@ -25,7 +25,8 @@ targeted energy fix. A fresh eight-trial guidance comparison on 2026-11-13 passe
 versions, including the corrected grader. The candidate eliminated incorrect virtual-skill
 shell lookups in all four cases, with no measured task regression. Both arms refused missing
 costs without rendering a substitute report. These are small controlled trials; the broader
-92-response reliability comparison remains required. See
+92-response reliability comparison completed with two mandatory reserved regressions,
+so the measured candidate remains rejected and a revised qualification is required. See
 [current capabilities and measured outcomes](../README.md#what-has-been-measured).
 
 ## Next achievable increments

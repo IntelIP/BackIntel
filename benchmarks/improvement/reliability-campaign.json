@@ -184,11 +184,11 @@
     "controls_matched": 10,
     "controls_total": 10,
     "native_campaign_prepared": true,
-    "campaign_responses_executed": 24,
+    "campaign_responses_executed": 92,
     "estimated_native_checks_usd": 0.24891425,
     "actual_native_invoice_usd": null,
-    "remaining_gate": "Run the frozen 34-response development and 34-response reserved batches. Original regression comparison accepted for review.",
-    "campaign_execution": "Originals complete after explicit interruption recovery; development/reserved frozen and unstarted.",
+    "remaining_gate": "Original candidate rejected by two reserved regressions. PR13 implements fixes; revised live qualification and the requested $6 cumulative allowance remain pending.",
+    "campaign_execution": "All 92 responses completed; original/development accepted, reserved rejected for two mandatory regressions. Revision prepared separately; no revised inference yet.",
     "candidate_commit": "b0569942267e9530f0ff77fbd80263111085dbe5",
     "candidate_source_version": "1812b58dfccbd6f9",
     "baseline_source_version": "368cd43ab7c6df81",
@@ -258,6 +258,48 @@
       "retained_unknown_remainder_usd": 0.39023725,
       "goal_used_or_encumbered_usd": 1.71356956225,
       "goal_remaining_before_other_batches_usd": 3.28643043775
+    },
+    "measured_campaign": {
+      "responses": 92,
+      "verdict": "reject",
+      "baseline_supported": 41,
+      "candidate_supported": 44,
+      "responses_per_arm": 46,
+      "originals": {
+        "baseline_supported": 9,
+        "candidate_supported": 12,
+        "responses_per_arm": 12,
+        "verdict": "accept_for_review"
+      },
+      "development": {
+        "baseline_supported": 15,
+        "candidate_supported": 17,
+        "responses_per_arm": 17,
+        "verdict": "accept_for_review",
+        "estimated_cost_usd": 0.927989,
+        "model_calls": 245
+      },
+      "reserved": {
+        "baseline_supported": 17,
+        "candidate_supported": 15,
+        "responses_per_arm": 17,
+        "verdict": "reject",
+        "estimated_cost_usd": 0.87160325,
+        "model_calls": 221
+      },
+      "goal_used_or_encumbered_usd": 3.51316181225,
+      "remaining_existing_goal_allowance_usd": 1.48683818775,
+      "report": "results/reliability-native-20261114.md",
+      "machine_report": "results/reliability-native-20261114.json",
+      "fix_pr": "https://github.com/IntelIP/BackIntel/pull/13",
+      "revised_candidate_source": "d0d476e04fc7f378",
+      "revised_candidate_commit": "661646fe8842e67e6734c2eb887dc056843cbffb",
+      "revised_live_responses": 0,
+      "proposed_new_responses": 63,
+      "proposed_retained_baseline_responses": 29,
+      "proposed_new_allocation_usd": 2.15,
+      "requested_cumulative_allowance_usd": 6,
+      "approval_status": "pending"
     }
   }
 }

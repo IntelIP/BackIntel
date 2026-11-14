@@ -1,0 +1,347 @@
+{
+  "status": "complete_rejected",
+  "responses": 92,
+  "candidate_source": "1812b58dfccbd6f9",
+  "candidate_commit": "b0569942267e9530f0ff77fbd80263111085dbe5",
+  "baseline_source": "368cd43ab7c6df81",
+  "scorer": "c100f51adc12873d",
+  "judge": "b44929467d85",
+  "accounting": "a0cc73ec381e4778",
+  "aggregate": {
+    "baseline": {
+      "responses": 46,
+      "fully_supported": 41,
+      "correct": 44,
+      "decision_correct": 45,
+      "answerable_cases": 36,
+      "evidence_reproduces_answerable": 33,
+      "estimated_cost_usd": 1.41156375,
+      "analyst_latency_s": 1590.28,
+      "model_calls": 342
+    },
+    "candidate": {
+      "responses": 46,
+      "fully_supported": 44,
+      "correct": 45,
+      "decision_correct": 45,
+      "answerable_cases": 36,
+      "evidence_reproduces_answerable": 35,
+      "estimated_cost_usd": 1.37437675,
+      "analyst_latency_s": 1663.1300000000003,
+      "model_calls": 336
+    }
+  },
+  "comparisons": {
+    "originals": {
+      "verdict": "accept_for_review",
+      "policy_hash": "6fe8128a0e410aac0b46e3bac769e67ea285cb3c2470b0776d8311dfe247a0b7",
+      "cost_basis": "native_estimate",
+      "accounting_version": "a0cc73ec381e4778",
+      "baseline_records_hash": "1a4835f5d226fbaf9f18e4c8c9204f4cfc421e373d3e928baa349732b3ba5fda",
+      "candidate_records_hash": "64db657835df8b14eb9a23722f1196911cabf19e0ae81ac8e04233d32ee52d27",
+      "baseline": {
+        "responses": 12,
+        "supported": 9,
+        "reported_cost_usd": null,
+        "cost_complete": false,
+        "estimated_cost_usd": 0.4965415,
+        "estimate_complete": true,
+        "latency_s": 644.17,
+        "model_calls": 107,
+        "source_versions": [
+          "368cd43ab7c6df81"
+        ],
+        "run_ids": [
+          "01a1d760-02db-7082-afcd-d31e0b43e7bd",
+          "01a1d760-3d76-7c7d-81d8-a2d594d3c4cf",
+          "01a1d762-0522-73c9-be2e-1f19aa2430df",
+          "01a1d762-cd0b-7b8d-bb29-e020abb7cdbc",
+          "01a1d763-402a-702b-9a1e-4c5309a4b795",
+          "01a1d764-2038-784f-9373-01f71b8e0edc",
+          "01a1d765-b3cf-7256-a02b-25f8e8b9deb7",
+          "01a1d765-d6c7-7cc0-be52-e9604f2ddd62",
+          "01a1d766-e50f-7952-97f5-4537bee6bd63",
+          "01a1d767-bde2-7fb3-bab8-9d7020760043",
+          "01a1d768-2e81-70ac-abd9-ffd03cff86f9",
+          "01a1d769-19f4-719b-8acd-18bf498bd4be"
+        ]
+      },
+      "candidate": {
+        "responses": 12,
+        "supported": 12,
+        "reported_cost_usd": null,
+        "cost_complete": false,
+        "estimated_cost_usd": 0.48980675,
+        "estimate_complete": true,
+        "latency_s": 790.69,
+        "model_calls": 105,
+        "source_versions": [
+          "1812b58dfccbd6f9"
+        ],
+        "run_ids": [
+          "01a1d76a-a9fc-712e-8cb2-39a05ad7f0dd",
+          "01a1d76a-dea7-787f-a62c-2050ee97ea37",
+          "01a1d79a-4de1-745f-9a03-4dbeb6bb6e94",
+          "01a1d79c-14a6-7bd4-a12b-64bd2a549962",
+          "01a1d79d-2e54-76b5-9edb-f361077507e4",
+          "01a1d79e-bbdb-7d78-b129-6cd35de86cdb",
+          "01a1d7a1-a70c-7ed6-ba75-72ac20a5762b",
+          "01a1d7a2-1322-78f9-8fa8-ccc9291ca6f5",
+          "01a1d7a4-195a-7e55-9f41-c221238444c9",
+          "01a1d7a5-be17-7c46-ba48-5e2a72507f30",
+          "01a1d7a6-ae62-7059-bcd0-174373af9fe6",
+          "01a1d7a8-52f2-73a8-93f9-5260888e3f8e"
+        ]
+      },
+      "invalid_reasons": [],
+      "regressions": [],
+      "improvements": [
+        {
+          "case": "olist-l5-01",
+          "trial": 0
+        },
+        {
+          "case": "olist-l5-02",
+          "trial": 0
+        },
+        {
+          "case": "olist-l5-02",
+          "trial": 1
+        }
+      ],
+      "acceptance_failures": [],
+      "promotion": "owner review required; no merge, deployment or model change performed",
+      "recovery": {
+        "plan": "/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/reliability-native-20261114/originals/recovery/recovery-plan.json",
+        "new_usage": {
+          "limit_usd": 1.0,
+          "max_calls": 500,
+          "reservation_usd": 0.05,
+          "reserved_usd": 0.0,
+          "calls": 86,
+          "reservation_breached": false,
+          "scope": "conservative token-cost admission; not provider invoice or hard billing cap",
+          "billing_mode": "native_api_estimate",
+          "accounting_version": "a0cc73ec381e4778",
+          "estimated_spent_usd": 0.40568350000000003,
+          "reported_spent_usd": null,
+          "unknown_charge": true,
+          "accounting_uncertain": false
+        },
+        "original_batch_encumbered_usd": 1.0,
+        "original_interrupted_run_retained": "01a1d76c-279f-727f-bd32-dda6a081f239",
+        "note": "Quality comparison uses 12 fixed case/trial slots; abandoned attempt and all expenses remain separately retained."
+      }
+    },
+    "development": {
+      "verdict": "accept_for_review",
+      "policy_hash": "790f4b573170e3c613a55ef1e7db79536da13f510eb38cfa210aa888d1c1271d",
+      "cost_basis": "native_estimate",
+      "accounting_version": "a0cc73ec381e4778",
+      "baseline_records_hash": "13e0bf484311febbbc90182b39a54ac075ab597b45d609e6430601fcdbe3549a",
+      "candidate_records_hash": "9de34b7310effe3d0b8cd507142a9438b503e0cda5dbcdbe4c0ed5f043fa19d1",
+      "baseline": {
+        "responses": 17,
+        "supported": 15,
+        "reported_cost_usd": null,
+        "cost_complete": false,
+        "estimated_cost_usd": 0.47826525,
+        "estimate_complete": true,
+        "latency_s": 504.84,
+        "model_calls": 124,
+        "source_versions": [
+          "368cd43ab7c6df81"
+        ],
+        "run_ids": [
+          "01a1d7c8-10c9-7229-ade4-48443ec4e657",
+          "01a1d7c8-97db-7b05-b99a-02a02d2cdfe3",
+          "01a1d7c9-50cb-75f4-a005-619bb78c8033",
+          "01a1d7ca-0eba-7a01-9056-6b26e37a498c",
+          "01a1d7ca-7716-720c-ac2e-6db198930ea0",
+          "01a1d7ca-f702-7862-8b84-3ba5efa68e14",
+          "01a1d7cb-98eb-75a4-9aed-1f2a997c492a",
+          "01a1d7cc-16d8-73ea-ade8-e81791b52688",
+          "01a1d7cd-02fd-72f8-a52a-ec6f330275a4",
+          "01a1d7cd-c602-705f-829f-86d46e8da49d",
+          "01a1d7ce-d862-7d5c-a9ca-9b0371e320b5",
+          "01a1d7cf-81e8-74fa-a3a4-aac13d1e4f23",
+          "01a1d7d0-3635-7786-bd0a-816154e67cdc",
+          "01a1d7d0-e84e-7742-97ff-f67b807c3c27",
+          "01a1d7d1-e244-7afd-adf6-d96271ad59ca",
+          "01a1d7d2-c5e9-7fd5-b6c0-654382760707",
+          "01a1d7d3-27dc-7b56-8c48-02c9c8e950fb"
+        ]
+      },
+      "candidate": {
+        "responses": 17,
+        "supported": 17,
+        "reported_cost_usd": null,
+        "cost_complete": false,
+        "estimated_cost_usd": 0.44972375000000003,
+        "estimate_complete": true,
+        "latency_s": 447.66,
+        "model_calls": 121,
+        "source_versions": [
+          "1812b58dfccbd6f9"
+        ],
+        "run_ids": [
+          "01a1d7d3-af41-7e7f-bc06-8b426e0b0d50",
+          "01a1d7d4-1994-7f26-8419-efa96718ad70",
+          "01a1d7d4-a7bc-7b88-a130-52625ff4bebe",
+          "01a1d7d5-405e-7f17-bb25-b35d81cd9580",
+          "01a1d7d5-94c8-79d5-a22f-7de54620a8ba",
+          "01a1d7d5-f696-7541-852d-6b864250cd54",
+          "01a1d7d6-804d-7bd8-bc80-59a7fd4c55ab",
+          "01a1d7d6-f940-751e-a230-1b4ab75d4498",
+          "01a1d7d7-c813-7ca0-aaa1-05c376de163e",
+          "01a1d7d8-aaf3-7592-be91-f118974e3a1e",
+          "01a1d7d9-74e9-79b8-aebf-98a10cd7bf2b",
+          "01a1d7da-25ca-7c16-9a04-4c7b3cfaabb4",
+          "01a1d7da-bc9b-7bc9-847f-be203db3a6a6",
+          "01a1d7db-b381-76bb-82dd-43221bf13f40",
+          "01a1d7dc-8040-79af-bec2-1ab50d6cabaa",
+          "01a1d7dd-5137-7d2c-9338-b467e0c1b4fb",
+          "01a1d7dd-d65e-7a7f-b178-0029bbcf392c"
+        ]
+      },
+      "invalid_reasons": [],
+      "regressions": [],
+      "improvements": [
+        {
+          "case": "acceptance-v1-development-replay-stable",
+          "trial": 0
+        },
+        {
+          "case": "acceptance-v1-development-replay-unobserved-period",
+          "trial": 0
+        }
+      ],
+      "acceptance_failures": [],
+      "promotion": "owner review required; no merge, deployment or model change performed",
+      "cycle_estimated_cost_usd": 0.9279889999999996,
+      "cycle_model_calls": 245,
+      "operator_execution_plan": "/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/reliability-native-20261114/development/durable/execution-plan.json"
+    },
+    "reserved": {
+      "verdict": "reject",
+      "policy_hash": "5be087f7ace47a56323295f7e720455be63879294d01de51360900abd9340a53",
+      "cost_basis": "native_estimate",
+      "accounting_version": "a0cc73ec381e4778",
+      "baseline_records_hash": "0dd5f5506ffa9c53522b20252ed730ed66bbc74932edd7069fa467eeb8ef202d",
+      "candidate_records_hash": "846f8948361af1496d3f5a9613ed8b719edfe508cdf0839c051ce121e9eb14e4",
+      "baseline": {
+        "responses": 17,
+        "supported": 17,
+        "reported_cost_usd": null,
+        "cost_complete": false,
+        "estimated_cost_usd": 0.436757,
+        "estimate_complete": true,
+        "latency_s": 441.27,
+        "model_calls": 111,
+        "source_versions": [
+          "368cd43ab7c6df81"
+        ],
+        "run_ids": [
+          "01a1d7df-30e3-7b3a-8171-a846c5887562",
+          "01a1d7df-8e60-7140-bfaa-e776f9e874bd",
+          "01a1d7e0-2dd6-72da-93bd-8a627d140224",
+          "01a1d7e0-bec9-7d24-9877-8473010d0360",
+          "01a1d7e1-1882-7aaf-a9a7-37c8a579c31b",
+          "01a1d7e1-898e-7800-85e0-b29971260fc2",
+          "01a1d7e2-23f0-763c-b2e4-b30397eeca90",
+          "01a1d7e2-942e-723f-ab19-c9a7d3faf6c9",
+          "01a1d7e3-6f93-7af6-ab02-184fe51cdd94",
+          "01a1d7e4-480f-7045-a210-1b398e6caa58",
+          "01a1d7e5-0488-7ee9-9037-e5ab5c46b460",
+          "01a1d7e5-aa40-73d4-8f05-0a0d6fd8ed62",
+          "01a1d7e6-737d-76aa-a890-549e6df9294c",
+          "01a1d7e7-4a4e-75bd-882e-27a0fb427643",
+          "01a1d7e8-111a-733e-b2ec-67a6004d5bf6",
+          "01a1d7e8-fa4f-7cc4-a20a-92cd6fc1f498",
+          "01a1d7e9-6ee7-75c0-86e1-e44c0219fec9"
+        ]
+      },
+      "candidate": {
+        "responses": 17,
+        "supported": 15,
+        "reported_cost_usd": null,
+        "cost_complete": false,
+        "estimated_cost_usd": 0.43484625,
+        "estimate_complete": true,
+        "latency_s": 424.78000000000003,
+        "model_calls": 110,
+        "source_versions": [
+          "1812b58dfccbd6f9"
+        ],
+        "run_ids": [
+          "01a1d7e9-f270-7219-b633-59be43712d03",
+          "01a1d7ea-837f-7332-a57c-93cbac1c722d",
+          "01a1d7eb-06e2-76cf-b10d-4222997620e0",
+          "01a1d7eb-b53b-7547-a2c2-2f487ba43088",
+          "01a1d7ec-10a0-7686-810e-21a5b20987e5",
+          "01a1d7ec-628d-7108-a8a0-9576f8c714c4",
+          "01a1d7ec-e127-733b-8da7-af8aadcc2fd5",
+          "01a1d7ed-59cf-7cb5-9a03-5e01e8ea4e9a",
+          "01a1d7ee-27ca-7850-a705-f85398dac5be",
+          "01a1d7ef-14e8-74b0-8861-8e5a892832cc",
+          "01a1d7f0-067e-7f7b-a6f1-520f7e09fa08",
+          "01a1d7f0-aae4-7d71-bc2e-2d44ce000336",
+          "01a1d7f1-3e27-7b8e-aff6-61d903adf27b",
+          "01a1d7f2-09e3-7197-98cc-8961afc79999",
+          "01a1d7f2-cd99-7f4d-aee2-59d5daaa7467",
+          "01a1d7f3-9332-7a8b-9597-58e822f3d5ce",
+          "01a1d7f4-30dc-7e0f-8033-fd6b5dc78b91"
+        ]
+      },
+      "invalid_reasons": [],
+      "regressions": [
+        {
+          "case": "acceptance-v1-acceptance-profit-complete",
+          "trial": 0,
+          "metric": "evidence_reproduces"
+        },
+        {
+          "case": "acceptance-v1-acceptance-profit-complete",
+          "trial": 0,
+          "metric": "fully_supported"
+        },
+        {
+          "case": "acceptance-v1-acceptance-replay-unobserved-period",
+          "trial": 0,
+          "metric": "correct"
+        },
+        {
+          "case": "acceptance-v1-acceptance-replay-unobserved-period",
+          "trial": 0,
+          "metric": "abstention_correct"
+        },
+        {
+          "case": "acceptance-v1-acceptance-replay-unobserved-period",
+          "trial": 0,
+          "metric": "fully_supported"
+        }
+      ],
+      "improvements": [],
+      "acceptance_failures": [
+        {
+          "case": "acceptance-v1-acceptance-profit-complete",
+          "trial": 0,
+          "reason": "mandatory case failed"
+        },
+        {
+          "case": "acceptance-v1-acceptance-replay-unobserved-period",
+          "trial": 0,
+          "reason": "mandatory case failed"
+        }
+      ],
+      "promotion": "owner review required; no merge, deployment or model change performed",
+      "cycle_estimated_cost_usd": 0.8716032500000008,
+      "cycle_model_calls": 221,
+      "operator_execution_plan": "/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/reliability-native-20261114/reserved/durable/execution-plan.json"
+    }
+  },
+  "goal_used_or_encumbered_usd": 3.513161812250001,
+  "goal_limit_usd": 5,
+  "goal_remaining_usd": 1.4868381877499992,
+  "revised_candidate_live_validation": "not_run; proposed allowance extension awaits owner response"
+}

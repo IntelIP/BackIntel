@@ -238,8 +238,19 @@ or causal-analysis capabilities.
 
 These are versioned development observations, not a production accuracy guarantee.
 
+The first native 92-response reliability comparison is complete. Its candidate passed
+44/46 responses versus baseline 41/46, but **reserved acceptance rejected it**: two
+mandatory cases regressed. The correct profit lacked executable major-unit output, and
+an unavailable-period report used `answered` with null required metrics. A revised
+implementation requires fresh qualification; it has no live acceptance result yet.
+See the [complete comparison and LangSmith traces](results/reliability-native-20261114.md)
+and [release qualification package](docs/v0.0.1-release.md).
+
 | Experiment | Observed result | Scope |
 | --- | --- | --- |
+| Native original regressions | Baseline 9/12; candidate 12/12 | Six cases, two trials per arm; frozen improvement gate passed |
+| Native controlled development | Baseline 15/17; candidate 17/17 | Two improvements, no deterministic regression |
+| Native reserved acceptance | Baseline 17/17; candidate 15/17 | Candidate rejected for two mandatory regressions; full failed results retained |
 | Historical Olist storage matrix | 143/144 supported responses | GPT-6 Luna; 24 questions repeated across six stores on the earlier runtime |
 | Historical UCI storage runs | 80/80 | 20 questions on four stores; repetitions are not independent domains |
 | Historical standing reports and replay | 15/17 | Three standing reports plus 14 historical replay cases; no live scheduler |

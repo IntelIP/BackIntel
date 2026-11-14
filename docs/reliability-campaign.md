@@ -7,6 +7,28 @@ contains case identities and gates without expected answers. Linear owns executi
 
 ## Current native follow-up — 2026-11-14 UTC
 
+All **92 original planned responses completed**. The original-regression comparison
+passed (candidate 12/12 versus baseline 9/12), and development passed (17/17 versus
+15/17). Reserved acceptance rejected the candidate (15/17 versus baseline 17/17):
+the profit evidence omitted executable unit conversion, and an unavailable-period
+report returned answered with null required metrics. [Complete results and LangSmith
+links](../results/reliability-native-20261114.md) retain both failures and all comparisons.
+The aggregate 44/46 versus 41/46 supported result does not override mandatory regressions.
+
+Goal usage plus retained reservations is $3.51316181225 of the original $5 allowance,
+leaving $1.48683818775. PR13 implements both runtime fixes and prepares distinct reserved
+worlds; its 263 passing tests are implementation evidence, not live acceptance. The
+revised source is `d0d476e04fc7f378` at `661646fe8842e67e6734c2eb887dc056843cbffb`.
+A separate frozen proposal needs 63 new responses and reuses 29 unchanged baseline
+records under their actual identities. Its proposed $2.15 allocation needs an increase
+to $6 cumulative; approval remains pending. No revised model calls have run. The
+original plans and the earlier zero-call revision proposal remain retained unchanged.
+
+The following commands and allocation records describe the completed first native
+freeze. Do not execute its already-started directories again. The current revised
+proposal is separate at `data/output/reliability-native-refresh-20261114-r2/` and does
+not authorize new spending.
+
 The owner-selected routes for the next campaign are `openai/gpt-6-luna` and
 `anthropic/claude-haiku-5-5`, using native account credentials and the versioned
 conservative token accounting in PR10 (`a0cc73ec381e4778`). Both native adapters have
@@ -36,7 +58,8 @@ All three native plans were frozen before any campaign inference at
 batch is complete after explicit interruption recovery: candidate 12/12 fully supported,
 baseline 9/12, three improvements and zero frozen quality-gate regressions. The verdict is
 `accept_for_review`; [full evidence and recovery accounting](../results/original-regression-native-20261114.md).
-The 34-response development and 34-response reserved batches remain frozen and unstarted. Baseline
+The 34-response development and 34-response reserved batches also completed, with
+the pass/rejection outcomes recorded above. Baseline
 source is `368cd43ab7c6df81`, candidate `1812b58dfccbd6f9`, scorer `c100f51adc12873d`,
 judge `b44929467d85`. The machine-readable `native_followup.native_plans` preserves each
 manifest/policy hash and selected output path. Historical OpenRouter plans are untouched.
