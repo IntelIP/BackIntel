@@ -232,6 +232,7 @@ def cmd_analyze(args, settings):
     if args.review_dashboard:
         import importlib.util
 
+        from backintel.models import build_dashboard_reviewer
         from backintel.presentation.review import DEFAULT_REVIEWER
 
         if not model_id.startswith(("chatgpt-plan/", "openai/")):
@@ -243,7 +244,7 @@ def cmd_analyze(args, settings):
             for name in ("playwright", "streamlit", "langchain_anthropic")
         ):
             raise ValueError("Install extras first: uv sync --extra dashboard --extra dashboard-review")
-        reviewer = build_model(DEFAULT_REVIEWER, max_retries=0, timeout_s=120)
+        reviewer = build_dashboard_reviewer(DEFAULT_REVIEWER)
     store = open_store(args.store, settings)
     try:
         record = asyncio.run(
@@ -282,7 +283,7 @@ def cmd_dashboard(args, settings):
     from backintel.presentation import dashboard
 
     if args.action == "review":
-        from backintel.models import build_model
+        from backintel.models import build_dashboard_reviewer, build_model
         from backintel.presentation.review import review_dashboard
 
         if not args.reviewer_model.startswith("anthropic/"):
@@ -292,7 +293,7 @@ def cmd_dashboard(args, settings):
             raise ValueError(
                 "Use the existing OpenAI/ChatGPT writer; the reviewer must be a different family."
             )
-        reviewer = build_model(args.reviewer_model, max_retries=0, timeout_s=120)
+        reviewer = build_dashboard_reviewer(args.reviewer_model)
         writer = build_model(writer_id, reasoning_effort="medium", max_retries=0, timeout_s=120)
         result = review_dashboard(
             Path(args.directory),

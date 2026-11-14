@@ -140,3 +140,14 @@ def test_streamlit_missing_or_invalid_data_has_a_readable_state(contents, tmp_pa
     assert not app.exception
     assert app.info if contents is None else app.error
     assert not app.get("plotly_chart")
+
+
+@pytest.mark.parametrize("month", [None, next(iter(MONTHS))[:7]])
+def test_airport_axis_contains_both_series_with_label_space(report, month):
+    story = prepare_story(report)
+    chart = airport_chart(story, month)
+    assert chart.layout.xaxis.range[0] == 0
+    assert chart.layout.xaxis.range[1] > max(v for trace in chart.data for v in trace.x)
+    assert chart.layout.xaxis.ticksuffix == "%"
+    if month is None:
+        assert list(chart.data[1].x) == [20, 10]

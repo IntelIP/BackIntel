@@ -327,9 +327,8 @@ def airport_chart(story: dict, month: str | None = None):
         )
     f.update_layout(barmode="group", bargap=0.4, showlegend=True, legend=dict(orientation="h", y=1.25, x=0))
     f.update_xaxes(
-        range=[0, 17],
-        tickvals=[0, 5, 10, 15],
-        ticktext=["0%", "5%", "10%", "15%"],
+        range=[0, max(1, max(value for trace in f.data for value in trace.x) * 1.15)],
+        ticksuffix="%",
         showgrid=True,
         gridcolor="#E4E2DB",
     )

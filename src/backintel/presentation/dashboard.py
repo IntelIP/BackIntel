@@ -33,6 +33,7 @@ def project_report(spec: dict) -> dict:
     # Explicit allowlists prevent arbitrary report extensions and execution metadata
     # from entering the browser. Narrative text remains the analyst's responsibility.
     result = {key: report[key] for key in ("title", "summary", "findings", "caveats")}
+    result["sources"] = [{"description": s["description"]} for s in report["sources"]]
     result["tables"] = [
         {key: t[key] for key in ("id", "title", "columns", "rows", "units")} for t in report["tables"]
     ]
@@ -55,6 +56,8 @@ def workbook_bytes(data: dict, plan=None) -> bytes:
     overview.title = "Read me"
     overview.append(["Analysis", plan.title if plan else data["title"]])
     overview.append(["Summary", plan.introduction if plan else data["summary"]])
+    for source in data.get("sources", []):
+        overview.append(["Data source", source["description"]])
     if plan and plan.context:
         for key, value in plan.context.model_dump().items():
             overview.append([key.capitalize(), value])
@@ -392,6 +395,8 @@ def show_dashboard(path: Path) -> None:
         )
         st.text("Table search affects this view only. Charts and the workbook retain the full analysis.")
     with limits:
+        for source in data.get("sources", []):
+            st.text(source["description"], width="stretch")
         for metric in data["metrics"]:
             st.header(plain(metric["label"]))
             st.text(metric["definition"], width="stretch")
@@ -475,6 +480,8 @@ def show_designed_dashboard(data, plan):
 
     def about():
         st.title("About the data")
+        for source in data.get("sources", []):
+            st.text(source["description"])
         for metric in data["metrics"]:
             st.subheader(plain(metric["label"]))
             st.text(metric["definition"])

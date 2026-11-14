@@ -10,7 +10,7 @@ import httpx
 import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
 from langsmith import tracing_context
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from backintel.bench.usage import BudgetExceeded, PlanRunBudget, UsageTracker
 from backintel.providers import chatgpt_plan as plan
@@ -169,6 +169,11 @@ def test_real_sse_tool_turns_track_tokens_without_fake_dollar_cost(tmp_path, mon
         return OpenAI(**kwargs, http_client=httpx.Client(transport=httpx.MockTransport(handle)))
 
     monkeypatch.setattr(plan, "OpenAI", client)
+    monkeypatch.setattr(
+        plan,
+        "AsyncOpenAI",
+        lambda **kw: AsyncOpenAI(**kw, http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle))),
+    )
     model = plan.plan_model("test-model-not-invoked", credentials(tmp_path), max_retries=0)
     bound = model.bind_tools(
         [
@@ -236,3 +241,83 @@ def test_quota_failure_stops_campaign_without_retry_or_billing_fallback(tmp_path
     unknown.on_chat_model_start({}, [], run_id=run_id)
     unknown.on_llm_error(RuntimeError("transport"), run_id=run_id)
     assert not unknown.budget.can_admit()
+
+
+@pytest.mark.parametrize("stage", ["refresh", "stream"])
+def test_async_plan_cancellation_closes_io_without_background_inference(tmp_path, monkeypatch, stage):
+    saved = credentials(tmp_path)
+    if stage == "refresh":
+        saved.save(saved.load() | {"expires_at": 0})
+    seen, stopped = [], []
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            seen.append("stream")
+            await asyncio.sleep(60)
+            yield b"unreachable"
+
+        async def aclose(self):
+            stopped.append("stream")
+
+    async def handle(request):
+        if str(request.url) == plan.TOKEN_URL:
+            seen.append("refresh")
+            try:
+                await asyncio.sleep(60)
+            finally:
+                stopped.append("refresh")
+        assert stage == "stream", "Cancelled credential refresh must not start inference"
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Stream())
+
+    class MockClient(httpx.AsyncClient):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs, transport=httpx.MockTransport(handle))
+
+    monkeypatch.setattr(plan.httpx, "AsyncClient", MockClient)
+    monkeypatch.setattr(plan, "AsyncOpenAI", lambda **kw: AsyncOpenAI(**kw, http_client=MockClient()))
+    model = plan.plan_model("test-model-not-invoked", saved, max_retries=0)
+
+    async def run():
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(0.2):
+                await model.ainvoke("test")
+        assert not [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
+
+    started = time.monotonic()
+    with tracing_context(enabled=False):
+        asyncio.run(run())
+    assert time.monotonic() - started < 2
+    assert seen == [stage] and stopped == [stage]
+    assert saved._lock.acquire(blocking=False)
+    saved._lock.release()
+
+
+def test_async_token_refresh_serializes_and_saves_rotated_credentials(tmp_path, monkeypatch):
+    saved = credentials(tmp_path)
+    saved.save(saved.load() | {"expires_at": 0})
+    calls = []
+
+    async def handle(request):
+        calls.append(request)
+        await asyncio.sleep(0)
+        return httpx.Response(
+            200,
+            json={
+                "access_token": "renewed-test-token",
+                "refresh_token": "rotated-test-token",
+                "expires_in": 3600,
+            },
+        )
+
+    class MockClient(httpx.AsyncClient):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs, transport=httpx.MockTransport(handle))
+
+    monkeypatch.setattr(plan.httpx, "AsyncClient", MockClient)
+
+    async def run():
+        return await asyncio.gather(saved.aaccess_token(), saved.aaccess_token())
+
+    assert asyncio.run(run()) == ["renewed-test-token", "renewed-test-token"]
+    assert len(calls) == 1 and str(calls[0].url) == plan.TOKEN_URL
+    assert saved.load()["refresh_token"] == "rotated-test-token"

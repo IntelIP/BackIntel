@@ -70,9 +70,11 @@ def test_generated_app_is_constant_and_workbook_excludes_execution_metadata(tmp_
     generate_dashboard(report_spec, target)
     assert (target / "app.py").read_text() == LAUNCHER
     data = json.loads((target / "dashboard.json").read_text())
-    assert not {"run_id", "sources", "evidence"} & data.keys()
+    assert not {"run_id", "evidence"} & data.keys()
+    assert data["sources"] == [{"description": s["description"]} for s in report_spec["sources"]]
     assert "evidence_ids" not in data["tables"][0]
     book = load_workbook(io.BytesIO(workbook_bytes(data)))
+    assert ("Data source", report_spec["sources"][0]["description"]) in list(book.worksheets[0].values)
     assert book.worksheets[1]["B5"].value == 14850
     assert book.worksheets[2]["A2"].value == "=1+2"
     assert book.worksheets[2]["A2"].data_type == "s"
@@ -124,6 +126,7 @@ def test_all_chart_types_and_table_exploration(tmp_path, report_spec, monkeypatc
         str(Path(dashboard.__file__).with_name("streamlit_app.py")), default_timeout=15
     ).run()
     assert not app.exception
+    assert report_spec["sources"][0]["description"] in [item.value for item in app.text]
     assert len(app.get("plotly_chart")) == 5
     assert app.metric[0].value == "14,850"
     app.selectbox[0].select(1).run()

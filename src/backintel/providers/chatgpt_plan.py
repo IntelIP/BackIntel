@@ -11,6 +11,7 @@ with `store: false` and `stream: true`; usage stops at the plan's limits.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import contextlib
 import fcntl
@@ -34,7 +35,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_openai import ChatOpenAI
 from langchain_openai.chat_models.base import _construct_lc_result_from_responses_api
-from openai import APIError, APIStatusError, OpenAI
+from openai import APIError, APIStatusError, AsyncOpenAI, OpenAI
 from pydantic import PrivateAttr
 
 ISSUER = "https://auth.openai.com"
@@ -184,6 +185,43 @@ class PlanCredentials:
                 return record["access_token"]
             return self._refresh(record, now)["access_token"]
 
+    async def aaccess_token(self, now: Callable[[], float] = time.time) -> str:
+        """Refresh under the same locks without blocking cancellation of an async run."""
+        self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+        while not self._lock.acquire(blocking=False):
+            await asyncio.sleep(0.05)
+        try:
+            with (self.home / "refresh.lock").open("w") as handle:
+                try:
+                    while True:
+                        try:
+                            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            break
+                        except BlockingIOError:
+                            await asyncio.sleep(0.05)
+                    record = self.load()
+                    if not record or not record.get("refresh_token"):
+                        raise SignInRequired("Sign in with ChatGPT first: backintel chatgpt login")
+                    if PLAN_SCOPE not in record.get("scopes", []):
+                        raise SignInRequired("ChatGPT plan usage was not granted; sign in again.")
+                    if record["expires_at"] - now() > REFRESH_MARGIN_SECONDS:
+                        return record["access_token"]
+                    async with httpx.AsyncClient(timeout=30, trust_env=False) as client:
+                        response = await client.post(
+                            TOKEN_URL,
+                            data={
+                                "grant_type": "refresh_token",
+                                "client_id": record["client_id"],
+                                "refresh_token": record["refresh_token"],
+                                "resource": RESOURCE,
+                            },
+                        )
+                    return self._refreshed(record, response, now)["access_token"]
+                finally:
+                    fcntl.flock(handle, fcntl.LOCK_UN)
+        finally:
+            self._lock.release()
+
     def models(self) -> list[dict]:
         """Read the selected account's catalog without making an inference request."""
         with httpx.Client(timeout=30, trust_env=False) as client:
@@ -209,6 +247,9 @@ class PlanCredentials:
                     "resource": RESOURCE,
                 },
             )
+        return self._refreshed(record, response, now)
+
+    def _refreshed(self, record: dict, response: httpx.Response, now: Callable[[], float]) -> dict:
         if response.status_code != 200:
             code = _error_code(response)
             if code == "invalid_client":
@@ -468,23 +509,26 @@ class PlanChatOpenAI(ChatOpenAI):
         finally:
             client.close()
 
+    def _response_result(self, response) -> ChatResult:
+        usage = response.usage.model_dump(exclude_none=True) if response.usage else {}
+        result = _construct_lc_result_from_responses_api(
+            response,
+            metadata={"billing_mode": "chatgpt_plan", "token_usage": usage},
+            output_version="responses/v1",
+        )
+        result.llm_output = {
+            "token_usage": usage,
+            "model_name": response.model,
+            "billing": "chatgpt_plan",
+        }
+        return result
+
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
         payload = self._get_request_payload(messages, stop=stop, **kwargs)
         for attempt in range(self.max_retries + 1):
             response, failure = self._stream_once(payload)
             if response is not None:
-                usage = response.usage.model_dump(exclude_none=True) if response.usage else {}
-                result = _construct_lc_result_from_responses_api(
-                    response,
-                    metadata={"billing_mode": "chatgpt_plan", "token_usage": usage},
-                    output_version="responses/v1",
-                )
-                result.llm_output = {
-                    "token_usage": usage,
-                    "model_name": response.model,
-                    "billing": "chatgpt_plan",
-                }
-                return result
+                return self._response_result(response)
             code, detail = failure
             if (code in TRANSIENT or code.startswith("http_5")) and attempt < self.max_retries:
                 time.sleep(BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)])
@@ -492,10 +536,62 @@ class PlanChatOpenAI(ChatOpenAI):
             raise PlanUsageStopped(code, detail)
         raise AssertionError("unreachable")
 
-    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
-        import asyncio
+    async def _astream_once(self, payload: dict):
+        timeout_s = float(self.request_timeout)
+        try:
+            # A real async stream is essential: cancelling a to_thread wrapper leaves
+            # its paid request running and asyncio.run waits for that worker at exit.
+            async with asyncio.timeout(timeout_s):
+                async with AsyncOpenAI(
+                    api_key=await self._credentials.aaccess_token(),
+                    base_url=RESOURCE,
+                    max_retries=0,
+                    timeout=httpx.Timeout(timeout_s, read=min(timeout_s, STREAM_IDLE_SECONDS), connect=15),
+                ) as client:
+                    async with await client.responses.create(**payload) as stream:
+                        items = {}
+                        async for event in stream:
+                            if event.type == "response.output_item.done":
+                                items[event.output_index] = event.item
+                            if event.type == "response.completed":
+                                response = event.response
+                                if not response.output and items:
+                                    response = response.model_copy(
+                                        update={"output": [items[i] for i in sorted(items)]}
+                                    )
+                                return response, None
+                            if event.type in {"response.failed", "response.incomplete"}:
+                                error = getattr(event.response, "error", None)
+                                details = getattr(event.response, "incomplete_details", None)
+                                code = (
+                                    getattr(error, "code", None)
+                                    or getattr(details, "reason", None)
+                                    or event.type
+                                )
+                                return None, (code, event.type)
+                    return None, ("transport_error", "stream ended without completion")
+        except APIStatusError as error:
+            body = error.body if isinstance(error.body, dict) else {}
+            nested = body.get("error") if isinstance(body.get("error"), dict) else body
+            code = (nested or {}).get("code") or (
+                "admission_unavailable" if error.status_code == 503 else f"http_{error.status_code}"
+            )
+            return None, (code, str((nested or {}).get("message") or ""))
+        except (APIError, TimeoutError) as error:
+            return None, ("transport_error", f"{type(error).__name__}: {str(error)[:300]}")
 
-        return await asyncio.to_thread(self._generate, messages, stop, None, **kwargs)
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        payload = self._get_request_payload(messages, stop=stop, **kwargs)
+        for attempt in range(self.max_retries + 1):
+            response, failure = await self._astream_once(payload)
+            if response is not None:
+                return self._response_result(response)
+            code, detail = failure
+            if (code in TRANSIENT or code.startswith("http_5")) and attempt < self.max_retries:
+                await asyncio.sleep(BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS) - 1)])
+                continue
+            raise PlanUsageStopped(code, detail)
+        raise AssertionError("unreachable")
 
 
 def plan_model(

@@ -213,12 +213,13 @@ def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, stor
     monkeypatch.setattr(artifacts, "verify_bundle", verify)
     import backintel.presentation.review as dashboard_review
 
-    def review(directory, output, **kwargs):
+    async def review(directory, output, **kwargs):
         assert verified, "Design review must follow verified numerical export"
+        assert 0 < kwargs["timeout_s"] < 900
         reviewed.append(directory)
         return {"ready": False, "status": "needs_revision", "selected": str(directory)}
 
-    monkeypatch.setattr(dashboard_review, "review_dashboard", review)
+    monkeypatch.setattr(dashboard_review, "review_dashboard_async", review)
     output = tmp_path / "delivery"
     result = asyncio.run(
         run_analysis(

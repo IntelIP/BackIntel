@@ -425,7 +425,7 @@ async def run_analysis(
                 max_model_calls=max_model_calls,
                 max_tool_calls=max_tool_calls,
             )
-            async with asyncio.timeout(timeout_s):
+            async with asyncio.timeout(max(0, timeout_s - (time.monotonic() - started))):
                 async for update in graph.astream(
                     {"messages": [{"role": "user", "content": brief.model_dump_json()}]},
                     config={
@@ -479,10 +479,9 @@ async def run_analysis(
 
             record["dashboard"] = generate_dashboard(rendered["spec"], output / "dashboard")
             if dashboard_reviewer is not None:
-                from backintel.presentation.review import review_dashboard
+                from backintel.presentation.review import review_dashboard_async
 
-                record["dashboard_review"] = await asyncio.to_thread(
-                    review_dashboard,
+                record["dashboard_review"] = await review_dashboard_async(
                     output / "dashboard",
                     output / "dashboard-review",
                     brief=brief.model_dump_json(),
@@ -490,6 +489,7 @@ async def run_analysis(
                     reviser=model,
                     reviewer_id=dashboard_reviewer_id,
                     reviser_id=model_id,
+                    timeout_s=timeout_s - (time.monotonic() - started),
                 )
                 record["dashboard"]["ready"] = record["dashboard_review"]["ready"]
                 record["dashboard"]["reviewed_path"] = record["dashboard_review"]["selected"]

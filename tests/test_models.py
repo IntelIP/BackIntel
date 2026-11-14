@@ -8,7 +8,13 @@ from langsmith import tracing_context
 from openai import AsyncOpenAI, OpenAI
 
 from backintel.bench.usage import BudgetExceeded, RunBudget, UsageTracker
-from backintel.models import ModelPolicyError, build_model, parse_model_id, usage_from_message
+from backintel.models import (
+    ModelPolicyError,
+    build_dashboard_reviewer,
+    build_model,
+    parse_model_id,
+    usage_from_message,
+)
 
 
 def test_parse_model_id():
@@ -19,13 +25,17 @@ def test_parse_model_id():
 
 def test_native_anthropic_review_configuration():
     pytest.importorskip("langchain_anthropic")
-    model = build_model(
-        "anthropic/claude-haiku-5-5", env={"ANTHROPIC_API_KEY": "test-placeholder"}, max_retries=0
+    model = build_dashboard_reviewer(
+        "anthropic/claude-haiku-5-5", env={"ANTHROPIC_API_KEY": "test-placeholder"}
     )
     assert model.model == "claude-haiku-5-5"
     assert model.max_retries == 0 and model.max_tokens == 8192
     with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
-        build_model("anthropic/claude-haiku-5-5", env={})
+        build_dashboard_reviewer("anthropic/claude-haiku-5-5", env={})
+    with pytest.raises(ValueError, match="Unknown provider"):
+        build_model("anthropic/claude-haiku-5-5", env={"ANTHROPIC_API_KEY": "test-placeholder"})
+    with pytest.raises(ModelPolicyError):
+        build_dashboard_reviewer("openai/test", env={})
 
 
 def test_openrouter_vendor_policy():

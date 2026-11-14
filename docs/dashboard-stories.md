@@ -160,11 +160,18 @@ review produces a nonzero CLI exit even when the numerical analysis completed.
 
 The writer defaults to the configured Sol specialist, with medium reasoning. The reviewer
 defaults to `anthropic/claude-haiku-5-5` using the existing `ANTHROPIC_API_KEY` in Doppler.
-No OpenRouter route or new model account is involved. The review uses up to three reviewer
+Native Anthropic is available only through the dashboard reviewer factory; the shared
+analyst and benchmark model factory retains its existing providers. No OpenRouter route
+or new model account is involved. The review uses up to three reviewer
 calls and two writer calls, with provider retries disabled. Review calls are separate from
 the analyst's call budget. The standalone command limits requests to 120 seconds and
 native reviewer output to 8,192 tokens (including reasoning); the inherited analysis writer
-timeout can be up to 300 seconds. `--max-revisions 0` reviews without revising. Provider token usage is recorded;
+timeout can be up to 300 seconds. Automatic review shares the remaining `analyze --timeout`
+budget, including browser capture, critique and revision. Standalone review has a 900-second
+whole-loop limit. Expiry cancels active model I/O and browser work, closes the preview server,
+retains any previously assessed candidate as provisional, and records `timed_out`. Cleanup
+allows five seconds for the preview server to exit before killing it. `--max-revisions 0`
+reviews without revising. Provider token usage is recorded;
 an unreported dollar charge is unknown, never assumed zero. Subscription writer usage
 continues to count against the existing ChatGPT plan.
 
@@ -188,7 +195,9 @@ quality certification. The rubric and example judgments live in
 A revision is a strict `DesignPlan`: named sections, one/two-column grouping, titles,
 captions, display labels and optional columns in place of an existing bar/line chart.
 Native Streamlit page navigation renders it. Values, units, chart bindings and caveats
-remain fixed; every chart must appear exactly once. Arbitrary Python/HTML/CSS is rejected.
+remain fixed; every chart must appear exactly once. Source descriptions remain visible in
+About the data (or Definitions & limits), the workbook and the review context; source IDs,
+snapshots and execution metadata stay out of those reader-facing views. Arbitrary Python/HTML/CSS is rejected.
 New calculations, new chart bindings and unsupported interactions are unresolved work,
 not edits the loop can invent. Workbooks retain identical analytical tables while their
 read-me uses the revised narrative. This is runtime revision, not model-weight training.

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
+import math
 import time
 from pathlib import Path
 
@@ -12,7 +14,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langsmith import trace
 
 from backintel.bench.usage import PlanRunBudget, UsageTracker
-from backintel.presentation.capture import capture_dashboard
+from backintel.presentation.capture import capture_dashboard_async
 from backintel.presentation.dashboard import LAUNCHER, workbook_bytes
 from backintel.presentation.design import DesignPlan, DesignReview, validate_plan
 
@@ -43,15 +45,15 @@ def _messages(instruction: str, payload: dict, capture: dict, folder: Path):
     return [SystemMessage(content=instruction), HumanMessage(content=content)]
 
 
-def _call(model, schema, instruction, payload, capture, folder, usage, name):
+async def _call(model, schema, instruction, payload, capture, folder, usage, name):
     attachments = {
         Path(v["file"]).stem: ("image/png", (folder / v["file"]).read_bytes()) for v in capture["views"]
     }
-    with trace(
+    async with trace(
         name, inputs={"brief": payload["brief"], "checks": capture["checks"]}, attachments=attachments
     ) as run:
         method = "json_schema" if schema is DesignReview else "function_calling"
-        value = model.with_structured_output(schema, method=method, include_raw=True).invoke(
+        value = await model.with_structured_output(schema, method=method, include_raw=True).ainvoke(
             _messages(instruction, payload, capture, folder), config={"callbacks": [usage]}
         )
         parsed = parse_response(value, schema)
@@ -62,24 +64,24 @@ def _call(model, schema, instruction, payload, capture, folder, usage, name):
         from langsmith.utils import tracing_is_enabled
 
         if schema is DesignReview and tracing_is_enabled() is True:
-            from langsmith import Client
+            from langsmith import AsyncClient
 
-            client = Client()
-            session_id = run.session_id or client.read_project(project_name=run.session_name).id
-            for rating in parsed.ratings:
-                client.create_feedback(
+            async with AsyncClient() as client:
+                session_id = run.session_id or (await client.read_project(project_name=run.session_name)).id
+                for rating in parsed.ratings:
+                    await client.create_feedback(
+                        run_id=run.id,
+                        session_id=session_id,
+                        key="dashboard_" + rating.criterion,
+                        score=rating.score,
+                        comment=rating.evidence,
+                    )
+                await client.create_feedback(
                     run_id=run.id,
                     session_id=session_id,
-                    key="dashboard_" + rating.criterion,
-                    score=rating.score,
-                    comment=rating.evidence,
+                    key="dashboard_accepted",
+                    score=parsed.passed and not capture["failures"],
                 )
-            client.create_feedback(
-                run_id=run.id,
-                session_id=session_id,
-                key="dashboard_accepted",
-                score=parsed.passed and not capture["failures"],
-            )
     return parsed
 
 
@@ -109,7 +111,12 @@ def parse_response(value, schema):
     return schema.model_validate(value)
 
 
-def review_dashboard(
+def review_dashboard(directory: Path, output: Path, **kwargs) -> dict:
+    """Synchronous CLI entry point; async callers await review_dashboard_async directly."""
+    return asyncio.run(review_dashboard_async(directory, output, **kwargs))
+
+
+async def review_dashboard_async(
     directory: Path,
     output: Path,
     *,
@@ -119,7 +126,8 @@ def review_dashboard(
     reviewer_id: str,
     reviser_id: str,
     max_revisions: int = 2,
-    capture=capture_dashboard,
+    capture=capture_dashboard_async,
+    timeout_s: float = 900,
 ) -> dict:
     """Initial review + at most two revisions. Never overwrite the original delivery.
 
@@ -127,6 +135,9 @@ def review_dashboard(
     checks cannot pass. The best assessed candidate remains available even after a failure.
     The immutable benchmark and numerical analysis are not rerun by this process.
     """
+    started = time.monotonic()
+    if not math.isfinite(timeout_s) or timeout_s <= 0:
+        raise TimeoutError("No analysis time remains for dashboard review.")
     if type(max_revisions) is not int or not 0 <= max_revisions <= 2:
         raise ValueError("max_revisions must be 0, 1 or 2.")
     if not reviewer_id.startswith("anthropic/") or not reviser_id.startswith(("chatgpt-plan/", "openai/")):
@@ -166,85 +177,90 @@ def review_dashboard(
         "input_sha256": hashlib.sha256(source).hexdigest(),
         "rubric_sha256": hashlib.sha256(rules.encode()).hexdigest(),
     }
-    started = time.monotonic()
     best = None
     try:
-        for attempt in range(max_revisions + 1):
-            folder = output / f"candidate-{attempt}"
-            folder.mkdir()
-            (folder / "dashboard.json").write_bytes(source)
-            (folder / "app.py").write_text(LAUNCHER)
-            if attempt:
-                prior = best
-                plan = _call(
-                    reviser,
-                    DesignPlan,
-                    rules + "\nROLE: Revise the presentation using the specific review feedback. "
-                    "Return only a DesignPlan. Keep every chart exactly once. No numerical, table, "
-                    "unit, binding or source edits. Retain useful sections; fix demonstrated weaknesses.",
+        async with asyncio.timeout(max(0, timeout_s - (time.monotonic() - started))):
+            for attempt in range(max_revisions + 1):
+                if time.monotonic() - started >= timeout_s:
+                    raise TimeoutError("Whole-run deadline reached during dashboard review.")
+                folder = output / f"candidate-{attempt}"
+                folder.mkdir()
+                (folder / "dashboard.json").write_bytes(source)
+                (folder / "app.py").write_text(LAUNCHER)
+                if attempt:
+                    prior = best
+                    plan = await _call(
+                        reviser,
+                        DesignPlan,
+                        rules + "\nROLE: Revise the presentation using the specific review feedback. "
+                        "Return only a DesignPlan. Keep every chart exactly once. No numerical, table, "
+                        "unit, binding or source edits. Retain useful sections; fix demonstrated weaknesses.",
+                        {
+                            "brief": brief,
+                            "data": data,
+                            "current_plan": prior["plan"],
+                            "review": prior["review"].model_dump(),
+                            "browser_failures": prior["capture"]["failures"],
+                        },
+                        prior["capture"],
+                        prior["folder"] / "screenshots",
+                        reviser_usage,
+                        "dashboard.revise",
+                    )
+                    plan = validate_plan(plan.model_dump(), data)
+                if plan:
+                    (folder / "presentation.json").write_text(plan.model_dump_json(indent=2))
+                (folder / "analysis.xlsx").write_bytes(workbook_bytes(data, plan))
+                evidence = await capture(folder, folder / "screenshots")
+                if not evidence["views"]:
+                    raise ValueError("No rendered views were captured; visual review cannot proceed.")
+                assessed = await _call(
+                    reviewer,
+                    DesignReview,
+                    rules + "\nROLE: Independent visual reviewer. Inspect every supplied screenshot "
+                    "and the interaction checks. Cite view names as evidence. Grade before seeing any "
+                    "previous score. Use blocking_issues for misleading claims/labels, hidden material "
+                    "limitations or unusable content. Propose concrete revisions. Do not reward verbosity.",
                     {
                         "brief": brief,
-                        "data": data,
-                        "current_plan": prior["plan"],
-                        "review": prior["review"].model_dump(),
-                        "browser_failures": prior["capture"]["failures"],
+                        "verified_data": data,
+                        "plan": plan.model_dump() if plan else None,
+                        "browser_checks": evidence,
                     },
-                    prior["capture"],
-                    prior["folder"] / "screenshots",
-                    reviser_usage,
-                    "dashboard.revise",
+                    evidence,
+                    folder / "screenshots",
+                    reviewer_usage,
+                    "dashboard.review",
                 )
-                plan = validate_plan(plan.model_dump(), data)
-            if plan:
-                (folder / "presentation.json").write_text(plan.model_dump_json(indent=2))
-            (folder / "analysis.xlsx").write_bytes(workbook_bytes(data, plan))
-            evidence = capture(folder, folder / "screenshots")
-            if not evidence["views"]:
-                raise ValueError("No rendered views were captured; visual review cannot proceed.")
-            assessed = _call(
-                reviewer,
-                DesignReview,
-                rules + "\nROLE: Independent visual reviewer. Inspect every supplied screenshot "
-                "and the interaction checks. Cite view names as evidence. Grade before seeing any "
-                "previous score. Use blocking_issues for misleading claims/labels, hidden material "
-                "limitations or unusable content. Propose concrete revisions. Do not reward verbosity.",
-                {
-                    "brief": brief,
-                    "verified_data": data,
+                passed = assessed.passed and not evidence["failures"]
+                current = {
+                    "folder": folder,
                     "plan": plan.model_dump() if plan else None,
-                    "browser_checks": evidence,
-                },
-                evidence,
-                folder / "screenshots",
-                reviewer_usage,
-                "dashboard.review",
-            )
-            passed = assessed.passed and not evidence["failures"]
-            current = {
-                "folder": folder,
-                "plan": plan.model_dump() if plan else None,
-                "review": assessed,
-                "capture": evidence,
-                "quality": (-len(evidence["failures"]), *assessed.quality),
-            }
-            if best is None or current["quality"] > best["quality"]:
-                best = current
-            record["rounds"].append(
-                {
-                    "candidate": folder.name,
-                    "review": assessed.model_dump(),
-                    "browser": evidence,
-                    "passed": passed,
+                    "review": assessed,
+                    "capture": evidence,
+                    "quality": (-len(evidence["failures"]), *assessed.quality),
                 }
-            )
-            record["selected"] = str(best["folder"].resolve())
-            record["status"] = "needs_revision"
-            if passed:
-                record.update(status="passed", ready=True, selected=str(folder.resolve()))
-                break
+                if best is None or current["quality"] > best["quality"]:
+                    best = current
+                record["rounds"].append(
+                    {
+                        "candidate": folder.name,
+                        "review": assessed.model_dump(),
+                        "browser": evidence,
+                        "passed": passed,
+                    }
+                )
+                record["selected"] = str(best["folder"].resolve())
+                record["status"] = "needs_revision"
+                if passed:
+                    record.update(status="passed", ready=True, selected=str(folder.resolve()))
+                    break
+    except asyncio.CancelledError:
+        record.update(status="cancelled", ready=False, error="Dashboard review cancelled.")
+        raise
     except Exception as error:
         record.update(
-            status="review_error",
+            status="timed_out" if isinstance(error, TimeoutError) else "review_error",
             ready=False,
             error_type=type(error).__name__,
             error="Review stopped before acceptance. The retained candidate is provisional.",
