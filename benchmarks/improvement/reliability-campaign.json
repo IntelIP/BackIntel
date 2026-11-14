@@ -187,7 +187,7 @@
     "campaign_responses_executed": 92,
     "estimated_native_checks_usd": 0.24891425,
     "actual_native_invoice_usd": null,
-    "remaining_gate": "Original candidate rejected by two reserved regressions. PR13 implements fixes; revised live qualification and the requested $6 cumulative allowance remain pending.",
+    "remaining_gate": "Latest report-binding revision 19a89013cd62b4d0 needs a 63-response qualification with fresh generation 3. Shared $2.05 allocation requires requested $7 cumulative cap; pending approval.",
     "campaign_execution": "All 92 responses completed; original/development accepted, reserved rejected for two mandatory regressions. Revision prepared separately; no revised inference yet.",
     "candidate_commit": "b0569942267e9530f0ff77fbd80263111085dbe5",
     "candidate_source_version": "1812b58dfccbd6f9",
@@ -294,12 +294,47 @@
       "fix_pr": "https://github.com/IntelIP/BackIntel/pull/13",
       "revised_candidate_source": "d0d476e04fc7f378",
       "revised_candidate_commit": "661646fe8842e67e6734c2eb887dc056843cbffb",
-      "revised_live_responses": 0,
+      "revised_live_responses": 46,
       "proposed_new_responses": 63,
       "proposed_retained_baseline_responses": 29,
       "proposed_new_allocation_usd": 2.15,
       "requested_cumulative_allowance_usd": 6,
-      "approval_status": "pending"
+      "approval_status": "prior_$6_request_superseded_by_generation3_request"
+    },
+    "revision_checkpoint": {
+      "measured_candidate_source": "d0d476e04fc7f378",
+      "new_responses": 46,
+      "new_supported": 45,
+      "new_calls": 353,
+      "retained_baseline_responses": 29,
+      "fresh_baseline_responses": 0,
+      "original_supported": 12,
+      "development_supported": 17,
+      "fresh_generation2_supported": 16,
+      "fresh_generation2_cases": 17,
+      "status": "candidate_rejected_paired_reserved_incomplete",
+      "new_inference_estimated_cost_usd": 1.413655,
+      "goal_used_or_encumbered_usd": 4.92681681225,
+      "existing_goal_limit_usd": 5,
+      "remaining_existing_allowance_usd": 0.07318318775,
+      "report": "results/reliability-revision-20261114.md",
+      "machine_report": "results/reliability-revision-20261114.json"
+    },
+    "next_revision": {
+      "candidate_source": "19a89013cd62b4d0",
+      "candidate_commit": "f1d88cb89fb58a98c719223e715bc7528a6b37c2",
+      "fix_pr": "https://github.com/IntelIP/BackIntel/pull/13",
+      "offline_tests_passed": 275,
+      "optional_tests_skipped": 15,
+      "hosted_ci_run": 43553327225,
+      "new_responses_required": 63,
+      "retained_baseline_responses": 29,
+      "reserved_generation": 3,
+      "proposed_shared_allocation_usd": 2.05,
+      "requested_cumulative_allowance_usd": 7,
+      "maximum_total_with_proposal_usd": 6.97681681225,
+      "approval_status": "pending",
+      "live_model_calls": 0
     }
   }
 }

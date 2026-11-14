@@ -27,6 +27,9 @@ shell lookups in all four cases, with no measured task regression. Both arms ref
 costs without rendering a substitute report. These are small controlled trials; the broader
 92-response reliability comparison completed with two mandatory reserved regressions,
 so the measured candidate remains rejected and a revised qualification is required. See
+the [revised checkpoint](../results/reliability-revision-20261114.md) for the subsequent
+45/46 candidate result and remaining report-binding failure. Fresh generation-3
+qualification of the latest implementation remains pending. See
 [current capabilities and measured outcomes](../README.md#what-has-been-measured).
 
 ## Next achievable increments

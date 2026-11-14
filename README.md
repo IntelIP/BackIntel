@@ -246,11 +246,19 @@ implementation requires fresh qualification; it has no live acceptance result ye
 See the [complete comparison and LangSmith traces](results/reliability-native-20261114.md)
 and [release qualification package](docs/v0.0.1-release.md).
 
+The following revision passed 12/12 original and 17/17 development responses, then
+16/17 fresh reserved candidate responses. Its remaining failure was an explicit report
+value binding; the fresh baseline arm did not run. The latest code fixes that binding
+for SQL and structured Python output and passes 275 offline tests, but has no live
+qualification yet. See the [revision checkpoint](results/reliability-revision-20261114.md).
+
 | Experiment | Observed result | Scope |
 | --- | --- | --- |
 | Native original regressions | Baseline 9/12; candidate 12/12 | Six cases, two trials per arm; frozen improvement gate passed |
 | Native controlled development | Baseline 15/17; candidate 17/17 | Two improvements, no deterministic regression |
 | Native reserved acceptance | Baseline 17/17; candidate 15/17 | Candidate rejected for two mandatory regressions; full failed results retained |
+| Revised original/development | Candidate 12/12 and 17/17 | Reused unchanged baselines 9/12 and 15/17; both gates passed |
+| Revised fresh reserved generation 2 | Candidate 16/17; baseline not run | One evidence-binding failure; paired qualification incomplete |
 | Historical Olist storage matrix | 143/144 supported responses | GPT-6 Luna; 24 questions repeated across six stores on the earlier runtime |
 | Historical UCI storage runs | 80/80 | 20 questions on four stores; repetitions are not independent domains |
 | Historical standing reports and replay | 15/17 | Three standing reports plus 14 historical replay cases; no live scheduler |

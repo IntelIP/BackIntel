@@ -7,6 +7,24 @@ contains case identities and gates without expected answers. Linear owns executi
 
 ## Current native follow-up — 2026-11-14 UTC
 
+The first revised candidate (`d0d476e04fc7f378`) completed 46 new responses within the
+existing $5 allowance: 12/12 original, 17/17 development, and 16/17 generation-2 reserved
+candidate responses. The 17 fresh baseline responses did not run. The stable-period
+answer had correct facts but put its explicit SQL status label in the unit column,
+so the independent evidence check rejected it. [Revision checkpoint and all LangSmith
+links](../results/reliability-revision-20261114.md) preserve that failure separately.
+
+PR13 now fixes explicit SQL/structured-Python metric/value associations. Its 275 offline
+tests and hosted CI pass; it has no live result. Frozen source `19a89013cd62b4d0` at
+`f1d88cb89fb58a98c719223e715bc7528a6b37c2` has a zero-call generation-3 proposal at
+`data/output/reliability-native-refresh-20261114-r3/`. It requires 63 new responses and
+reuses 29 unchanged baselines. A shared $2.05 cap would keep cumulative usage/reserves
+below $6.97681681225; the requested increase from $5 to $7 is pending and supersedes
+the earlier $6 request. Current usage/reserves is $4.92681681225. No further inference
+or release is authorized by this preparation.
+
+The following checkpoints describe the earlier freezes and their historical allocations.
+
 All **92 original planned responses completed**. The original-regression comparison
 passed (candidate 12/12 versus baseline 9/12), and development passed (17/17 versus
 15/17). Reserved acceptance rejected the candidate (15/17 versus baseline 17/17):
@@ -19,9 +37,9 @@ Goal usage plus retained reservations is $3.51316181225 of the original $5 allow
 leaving $1.48683818775. PR13 implements both runtime fixes and prepares distinct reserved
 worlds; its 263 passing tests are implementation evidence, not live acceptance. The
 revised source is `d0d476e04fc7f378` at `661646fe8842e67e6734c2eb887dc056843cbffb`.
-A separate frozen proposal needs 63 new responses and reuses 29 unchanged baseline
-records under their actual identities. Its proposed $2.15 allocation needs an increase
-to $6 cumulative; approval remains pending. No revised model calls have run. The
+A separate frozen proposal originally needed 63 new responses and reused 29 unchanged
+baseline records under their actual identities. Its initial $2.15/$6 funding proposal
+was superseded by the staged execution and next revision described above. The
 original plans and the earlier zero-call revision proposal remain retained unchanged.
 
 The following commands and allocation records describe the completed first native
