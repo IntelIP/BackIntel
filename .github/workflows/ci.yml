@@ -14,9 +14,10 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install 3.12
-      - run: uv sync --frozen
-      - run: uv run ruff check src tests scripts
-      - run: uv run ruff format --check src tests scripts
+      - run: uv sync --frozen --extra dashboard --extra dashboard-review
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run ruff check src tests scripts dashboards
+      - run: uv run ruff format --check src tests scripts dashboards
       - run: uv run vulture src --min-confidence 100
       - run: uv run pytest -q
   secrets:

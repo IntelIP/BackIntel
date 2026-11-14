@@ -361,6 +361,8 @@ async def run_analysis(
     max_tool_calls: int = 50,
     timeout_s: int = 900,
     scripted: bool = False,
+    dashboard_reviewer: BaseChatModel | None = None,
+    dashboard_reviewer_id: str | None = None,
 ) -> dict:
     """Execute one bounded brief and persist its record and collected artifact bundle.
 
@@ -423,7 +425,7 @@ async def run_analysis(
                 max_model_calls=max_model_calls,
                 max_tool_calls=max_tool_calls,
             )
-            async with asyncio.timeout(timeout_s):
+            async with asyncio.timeout(max(0, timeout_s - (time.monotonic() - started))):
                 async for update in graph.astream(
                     {"messages": [{"role": "user", "content": brief.model_dump_json()}]},
                     config={
@@ -473,6 +475,36 @@ async def run_analysis(
                 publisher.export_artifacts(output / "artifacts")
                 record["render_resources"] = publisher.resource_usage()
             record["artifacts"] = verify_bundle(output / "artifacts" / "report")
+            from backintel.presentation.dashboard import generate_dashboard_async
+
+            record["dashboard"] = await generate_dashboard_async(
+                rendered["spec"], output / "dashboard", deadline=started + timeout_s
+            )
+            if dashboard_reviewer is not None:
+                from backintel.presentation.review import review_dashboard_async
+
+                try:
+                    record["dashboard_review"] = await review_dashboard_async(
+                        output / "dashboard",
+                        output / "dashboard-review",
+                        brief=brief.model_dump_json(),
+                        reviewer=dashboard_reviewer,
+                        reviser=model,
+                        reviewer_id=dashboard_reviewer_id,
+                        reviser_id=model_id,
+                        timeout_s=timeout_s - (time.monotonic() - started),
+                    )
+                except Exception as error:
+                    # Optional presentation assessment is separate from analytical completion.
+                    record["dashboard_review"] = {
+                        "status": "timed_out" if isinstance(error, TimeoutError) else "review_error",
+                        "ready": False,
+                        "selected": None,
+                        "error_type": type(error).__name__,
+                        "error": "Dashboard review unavailable; analytical delivery remains complete.",
+                    }
+                record["dashboard"]["ready"] = record["dashboard_review"]["ready"]
+                record["dashboard"]["reviewed_path"] = record["dashboard_review"]["selected"]
             record["status"] = "completed"
     except asyncio.CancelledError:
         record.update(status="cancelled", error="Run cancelled; sandbox stopped.")

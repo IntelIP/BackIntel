@@ -4,6 +4,8 @@
   Google models are allowed, per the technology-selection policy of 2026-10-30.
 - `chatgpt-plan/<model>`: the operator's ChatGPT plan after `backintel chatgpt login`.
 - `openai/<model>`: OpenAI directly with OPENAI_API_KEY.
+
+Native Anthropic access is isolated to build_dashboard_reviewer, not the shared factory.
 """
 
 from __future__ import annotations
@@ -189,6 +191,24 @@ def build_model(
             raise RuntimeError("OPENAI_API_KEY is not set.")
         return ChatOpenAI(model=name, api_key=key, max_retries=max_retries, timeout=timeout_s, **transport)
     raise ValueError(f"Unknown provider {provider!r}; use openrouter, chatgpt-plan or openai.")
+
+
+def build_dashboard_reviewer(
+    model_id: str, *, env: dict[str, str] | None = None, timeout_s: float = 120
+) -> BaseChatModel:
+    """Native Anthropic is opt-in for the independent dashboard critic only."""
+    provider, name = parse_model_id(model_id)
+    if provider != "anthropic":
+        raise ModelPolicyError("The dashboard reviewer requires native Anthropic.")
+    if not math.isfinite(timeout_s) or timeout_s <= 0:
+        raise ValueError("timeout_s must be finite and positive")
+    env = os.environ if env is None else env
+    key = env.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set (run under Doppler).")
+    from langchain_anthropic import ChatAnthropic
+
+    return ChatAnthropic(model_name=name, api_key=key, max_tokens=8192, max_retries=0, timeout=timeout_s)
 
 
 def usage_from_message(message) -> dict:

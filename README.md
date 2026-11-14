@@ -23,6 +23,7 @@ not a product version. Code is available under the [MIT license](LICENSE).
 | Data engineering | Schema discovery, bounded profiling, read-only source queries and transformations inside a run | No production ETL orchestration, source writes or customer connector service |
 | Data science | Descriptive analysis and executable calculation checks using Python/SQL | Forecasting, causal inference and trained predictive workflows are not validated capabilities |
 | Reporting | HTML reports; bar, line, scatter, histogram and heatmap charts; PNG/SVG; offline interactive HTML; CSV and XLSX | Local file bundles with bounded tables; no hosted dashboard or automated delivery service |
+| Dashboard stories | Automatic Streamlit dashboard and business workbook from completed analysis reports | Trusted local app over report tables; hosting and arbitrary custom app generation remain planned |
 | Repeated analysis | Standing questions and historical snapshot replays that hide future observations | Replayed invocations, not a durable scheduler |
 | Improvement | Versioned cases, reproducible evidence, LangSmith traces/scores and supervised candidate comparisons | No automatic weight training, deployment or self-promotion |
 
@@ -140,6 +141,24 @@ data/output/retail-report/
 Use a **new output directory** for every run. A valid refusal explains the missing inputs;
 it does not export a substitute report. A failed or unfinished analysis is not a successful
 delivery. The example's figures are computed from the downloaded source, not hardcoded.
+
+### Explore a dashboard story
+
+The first Streamlit presentation turns the retained taxi analysis into a business story,
+with readable measure names, focused charts, monthly exploration and a clean workbook.
+Run IDs, hashes and execution traces stay outside the business view. See
+[dashboard stories](docs/dashboard-stories.md) for setup, design guidance and current limits.
+Every successful `analyze` run now also creates a `dashboard/` directory. Open it with
+`uv run --extra dashboard backintel dashboard serve data/output/retail-report/dashboard`.
+Existing reports can be converted with `backintel dashboard generate --report /path/to/report.json
+--output /path/to/new-dashboard`. Generation makes no additional model calls.
+
+An optional **visual design reviewer** inspects the rendered dashboard at desktop and
+phone widths, checks navigation and downloads, and asks the writer for at most two
+presentation revisions. Add `--review-dashboard` to `analyze`, or review a retained
+dashboard with `backintel dashboard review`. The analyst/writer stays on Sol; the reviewer
+uses the native Anthropic account. Scores and screenshots can be traced in LangSmith.
+See [review setup, limits and commands](docs/dashboard-stories.md#design-review-and-revision).
 
 ### Configuration and credentials
 

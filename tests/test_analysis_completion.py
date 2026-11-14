@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sqlite3
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -148,3 +149,145 @@ def test_recovered_completion_exports_verified_bundle(tmp_path, store):
     bundle = output / "artifacts" / "report"
     assert verify_bundle(bundle) == record["artifacts"]
     assert json.loads((bundle / "report.json").read_text())["tables"][0]["rows"] == [[3]]
+    assert record["dashboard"]["status"] == "generated"
+    assert (output / "dashboard" / "app.py").is_file()
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        "completed",
+        "cannot_answer",
+        "export_failure",
+        "generation_timeout",
+        "review_error",
+        "review_timeout",
+        "table_only",
+    ],
+)
+def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, store, monkeypatch, outcome):
+    import backintel.analysis as analysis
+    import backintel.artifacts as artifacts
+    import backintel.presentation.dashboard as dashboard
+
+    clock = SimpleNamespace(now=100.0)
+    if outcome == "generation_timeout":
+        simulated_time = SimpleNamespace(monotonic=lambda: clock.now)
+        monkeypatch.setattr(analysis, "time", simulated_time)
+        monkeypatch.setattr(dashboard, "time", simulated_time)
+
+    spec = json.loads((Path(__file__).parents[1] / "examples/analysis-report.json").read_text())
+    if outcome == "table_only":
+        spec["charts"] = []
+    verified = []
+    reviewed = []
+
+    class Sandbox:
+        env = {}
+
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def close(self):
+            pass
+
+        def resource_usage(self):
+            return {"profile": {}}
+
+        def write_file(self, *args):
+            return SimpleNamespace(exit_code=0)
+
+        def run_python(self, *args):
+            return SimpleNamespace(exit_code=0)
+
+        def export_artifacts(self, *args):
+            if outcome == "export_failure":
+                raise ValueError("export failed")
+
+    def build(model, store, sandbox, identity, rendered, **kwargs):
+        rendered.update(spec=spec, spec_sha256="test", reproduction={})
+
+        async def stream(*args, **kwargs):
+            yield {
+                "structured_response": {
+                    "status": "cannot_answer" if outcome == "cannot_answer" else "completed",
+                    "summary": "Example",
+                    "reason": "Missing input",
+                }
+            }
+
+        return SimpleNamespace(astream=stream)
+
+    def verify(path):
+        verified.append(path)
+        if outcome == "generation_timeout":
+            clock.now += 901  # Export used the original 900-second budget.
+        return {"verified": True}
+
+    monkeypatch.setattr(analysis, "AnalysisSandbox", Sandbox)
+    monkeypatch.setattr(analysis, "build_analysis_agent", build)
+    monkeypatch.setattr(artifacts, "verify_bundle", verify)
+    import backintel.presentation.review as dashboard_review
+
+    actual_review = dashboard_review.review_dashboard_async
+
+    async def review(directory, output, **kwargs):
+        assert verified, "Design review must follow verified numerical export"
+        assert 0 < kwargs["timeout_s"] < 900
+        reviewed.append(directory)
+        if outcome == "review_error":
+            raise ValueError("Review cannot start")
+        if outcome == "review_timeout":
+            raise TimeoutError("No review budget remains")
+        if outcome == "table_only":
+            return await actual_review(directory, output, **{**kwargs, "reviser_id": "openai/scripted-test"})
+        return {"ready": False, "status": "needs_revision", "selected": str(directory)}
+
+    monkeypatch.setattr(dashboard_review, "review_dashboard_async", review)
+    output = tmp_path / "delivery"
+    result = asyncio.run(
+        run_analysis(
+            AnalysisBrief(objective="Analyze assigned data"),
+            model=CompletionTestModel(responses=[completion()]),
+            model_id="scripted",
+            store=store,
+            output=output,
+            scripted=True,
+            dashboard_reviewer=None if outcome == "generation_timeout" else object(),
+            dashboard_reviewer_id="anthropic/test-not-invoked",
+        )
+    )
+    if outcome in {"completed", "review_error", "review_timeout", "table_only"}:
+        assert verified
+        assert result["status"] == "completed", result.get("error")
+        assert (output / "dashboard/app.py").is_file()
+        assert reviewed and not result["dashboard"]["ready"]
+        assert result["dashboard_review"]["status"] == (
+            "needs_revision"
+            if outcome == "completed"
+            else "timed_out"
+            if outcome == "review_timeout"
+            else "review_error"
+        )
+        if outcome != "completed":
+            assert result["dashboard_review"]["selected"] is None
+        if outcome == "table_only":
+            assert result["dashboard_review"]["error_type"] == "ValueError"
+        assert json.loads((output / "run.json").read_text())["status"] == "completed"
+    elif outcome == "generation_timeout":
+        assert verified and result["status"] == "failed"
+        assert "deadline reached during dashboard generation" in result["error"]
+        assert json.loads((output / "run.json").read_text())["status"] == "failed"
+        assert not (output / "dashboard").exists()
+        assert not reviewed
+    else:
+        assert result["status"] == ("failed" if outcome == "export_failure" else "cannot_answer")
+        assert not verified
+        assert not (output / "dashboard").exists()
+        assert not reviewed
