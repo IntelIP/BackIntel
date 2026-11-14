@@ -33,7 +33,10 @@ passed an offline check with public networking blocked.
 
 All three native plans were frozen before any campaign inference at
 `data/output/reliability-native-20261114/` in the canonical checkout. The original-regression
-batch has been invoked; Linear and retained stage results carry execution status. Baseline
+batch is complete after explicit interruption recovery: candidate 12/12 fully supported,
+baseline 9/12, three improvements and zero frozen quality-gate regressions. The verdict is
+`accept_for_review`; [full evidence and recovery accounting](../results/original-regression-native-20261114.md).
+The 34-response development and 34-response reserved batches remain frozen and unstarted. Baseline
 source is `368cd43ab7c6df81`, candidate `1812b58dfccbd6f9`, scorer `c100f51adc12873d`,
 judge `b44929467d85`. The machine-readable `native_followup.native_plans` preserves each
 manifest/policy hash and selected output path. Historical OpenRouter plans are untouched.
@@ -58,7 +61,11 @@ uv run python scripts/run_improvement_cycle.py --execute \
 
 Use 850 calls for development/reserved. Never invoke an already-started output directory;
 the runner deliberately refuses overwriting its execution record. The aggregate admission
-record is `campaign-freeze.json`. Completed experiments determine analyst quality; freezing
+record is `campaign-freeze.json`. The original interrupted batch keeps its full $1
+allowance encumbered; the separately bounded recovery used $0.4056835 of a $1 cap.
+The recovery’s `recovery-plan.json` and `final-accounting.json` preserve that distinction.
+Prior usage plus completed recovery and retained reservations total $1.71356956225 against
+the original $5 authorization. No old manifest, policy, output or expected grade changed. Completed experiments determine analyst quality; freezing
 92 responses and passing judge controls do not establish that campaign results have passed.
 
 The OpenRouter settings, source identities and prepared plan hashes below are **historical

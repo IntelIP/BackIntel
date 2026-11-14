@@ -184,11 +184,11 @@
     "controls_matched": 10,
     "controls_total": 10,
     "native_campaign_prepared": true,
-    "campaign_responses_executed": null,
+    "campaign_responses_executed": 24,
     "estimated_native_checks_usd": 0.24891425,
     "actual_native_invoice_usd": null,
-    "remaining_gate": "Complete the fresh paired campaign and assess mandatory gates; targeted evaluator gate has passed.",
-    "campaign_execution": "originals batch invoked; await retained results for completed response count",
+    "remaining_gate": "Run the frozen 34-response development and 34-response reserved batches. Original regression comparison accepted for review.",
+    "campaign_execution": "Originals complete after explicit interruption recovery; development/reserved frozen and unstarted.",
     "candidate_commit": "b0569942267e9530f0ff77fbd80263111085dbe5",
     "candidate_source_version": "1812b58dfccbd6f9",
     "baseline_source_version": "368cd43ab7c6df81",
@@ -232,6 +232,32 @@
         "reservation_usd": 0.05
       }
     ],
-    "control_experiment": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/37a4b33b-7b2c-4fe8-93f1-1585356b9b33"
+    "control_experiment": "https://smith.langchain.com/o/90b24546-f3e2-4f48-af72-b06e73b27b49/projects/p/37a4b33b-7b2c-4fe8-93f1-1585356b9b33",
+    "original_comparison": {
+      "verdict": "accept_for_review",
+      "baseline_supported": 9,
+      "candidate_supported": 12,
+      "responses_per_arm": 12,
+      "quality_regressions": 0,
+      "improved_case_trials": 3,
+      "readback_runs": 24,
+      "readback_feedback_records": 144,
+      "baseline_records_hash": "1a4835f5d226fbaf9f18e4c8c9204f4cfc421e373d3e928baa349732b3ba5fda",
+      "candidate_records_hash": "64db657835df8b14eb9a23722f1196911cabf19e0ae81ac8e04233d32ee52d27",
+      "report": "results/original-regression-native-20261114.md"
+    },
+    "recovery": {
+      "preserved_completed_answers": 2,
+      "replaced_incomplete_attempts": 1,
+      "previously_unstarted_slots": 9,
+      "new_estimated_usd": 0.4056835,
+      "new_model_calls": 86,
+      "new_admission_cap_usd": 1,
+      "original_batch_limit_still_encumbered_usd": 1,
+      "observed_original_partial_attempt_usd": 0.029098,
+      "retained_unknown_remainder_usd": 0.39023725,
+      "goal_used_or_encumbered_usd": 1.71356956225,
+      "goal_remaining_before_other_batches_usd": 3.28643043775
+    }
   }
 }
