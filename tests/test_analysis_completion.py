@@ -153,7 +153,18 @@ def test_recovered_completion_exports_verified_bundle(tmp_path, store):
     assert (output / "dashboard" / "app.py").is_file()
 
 
-@pytest.mark.parametrize("outcome", ["completed", "cannot_answer", "export_failure", "generation_timeout"])
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        "completed",
+        "cannot_answer",
+        "export_failure",
+        "generation_timeout",
+        "review_error",
+        "review_timeout",
+        "table_only",
+    ],
+)
 def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, store, monkeypatch, outcome):
     import backintel.analysis as analysis
     import backintel.artifacts as artifacts
@@ -166,6 +177,8 @@ def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, stor
         monkeypatch.setattr(dashboard, "time", simulated_time)
 
     spec = json.loads((Path(__file__).parents[1] / "examples/analysis-report.json").read_text())
+    if outcome == "table_only":
+        spec["charts"] = []
     verified = []
     reviewed = []
 
@@ -222,10 +235,18 @@ def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, stor
     monkeypatch.setattr(artifacts, "verify_bundle", verify)
     import backintel.presentation.review as dashboard_review
 
+    actual_review = dashboard_review.review_dashboard_async
+
     async def review(directory, output, **kwargs):
         assert verified, "Design review must follow verified numerical export"
         assert 0 < kwargs["timeout_s"] < 900
         reviewed.append(directory)
+        if outcome == "review_error":
+            raise ValueError("Review cannot start")
+        if outcome == "review_timeout":
+            raise TimeoutError("No review budget remains")
+        if outcome == "table_only":
+            return await actual_review(directory, output, **{**kwargs, "reviser_id": "openai/scripted-test"})
         return {"ready": False, "status": "needs_revision", "selected": str(directory)}
 
     monkeypatch.setattr(dashboard_review, "review_dashboard_async", review)
@@ -242,12 +263,23 @@ def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, stor
             dashboard_reviewer_id="anthropic/test-not-invoked",
         )
     )
-    if outcome == "completed":
+    if outcome in {"completed", "review_error", "review_timeout", "table_only"}:
         assert verified
         assert result["status"] == "completed", result.get("error")
         assert (output / "dashboard/app.py").is_file()
         assert reviewed and not result["dashboard"]["ready"]
-        assert result["dashboard_review"]["status"] == "needs_revision"
+        assert result["dashboard_review"]["status"] == (
+            "needs_revision"
+            if outcome == "completed"
+            else "timed_out"
+            if outcome == "review_timeout"
+            else "review_error"
+        )
+        if outcome != "completed":
+            assert result["dashboard_review"]["selected"] is None
+        if outcome == "table_only":
+            assert result["dashboard_review"]["error_type"] == "ValueError"
+        assert json.loads((output / "run.json").read_text())["status"] == "completed"
     elif outcome == "generation_timeout":
         assert verified and result["status"] == "failed"
         assert "deadline reached during dashboard generation" in result["error"]

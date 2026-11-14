@@ -32,7 +32,10 @@ def report():
     tables = {
         "monthly": (
             ["Month", "Trips", "Gross_fare_USD", "Trips_per_day", "Mean_fare_USD"],
-            [[date, 100, 1000, rate, 10] for date, rate in zip(MONTHS, [100, 110, 120], strict=True)],
+            [
+                [date, trips, trips * 10, rate, 10]
+                for date, trips, rate in zip(MONTHS, [3100, 3080, 3720], [100, 110, 120], strict=True)
+            ],
         ),
         "weekly_hours": (
             ["Weekday", "Hour", "Trips_per_occurrence"],
@@ -42,18 +45,25 @@ def report():
         "zones": (
             ["Pickup_zone", "Trips", "Gross_fare_USD", "Trip_share_pct", "Fare_share_pct"],
             [
-                ["LaGuardia Airport", 6, 300, 2, 10],
-                ["JFK Airport", 9, 600, 3, 20],
-                ["=Untrusted label", 10, 10, 3.33, 0.33],
-                *[[f"Zone {i}", 1, 10, 0.33, 0.33] for i in range(7)],
+                ["LaGuardia Airport", 198, 9900, 2, 10],
+                ["JFK Airport", 297, 19800, 3, 20],
+                ["=Untrusted label", 10, 10, 0.10, 0.01],
+                *[[f"Zone {i}", 1, 10, 0.01, 0.01] for i in range(7)],
             ],
         ),
         "fare_bands": (["Fare_band", "Trip_share_pct"], [[band, 20] for band in FARE_BANDS]),
         "segments": (
             ["Month", "Pickup_segment", "Trips", "Gross_fare_USD", "Trip_share_pct", "Fare_share_pct"],
             [
-                [date[:7], area, index + 1, 10 * (index + 4), index + 1, index + 4]
-                for index, date in enumerate(MONTHS)
+                [
+                    date[:7],
+                    area,
+                    index + 1,
+                    10 * (index + 4),
+                    round(100 * (index + 1) / trips, 2),
+                    round(100 * (index + 4) / trips, 2),
+                ]
+                for index, (date, trips) in enumerate(zip(MONTHS, [3100, 3080, 3720], strict=True))
                 for area in ["JFK", "LaGuardia"]
             ],
         ),
@@ -62,7 +72,7 @@ def report():
             [
                 [name, count]
                 for name, count in zip(
-                    QUALITY_LABELS, [1000, 900, 800, 700, 310, 300, 10, 80, 30, 0], strict=True
+                    QUALITY_LABELS, [11000, 10800, 10500, 10000, 9910, 9900, 10, 800, 300, 0], strict=True
                 )
             ],
         ),
@@ -95,7 +105,7 @@ def test_projection_and_business_workbook_keep_values_without_execution_metadata
         "Definitions",
     ]
     assert book["Monthly overview"]["C1"].value == "Metered fares ($)"
-    assert book["Monthly overview"]["C2"].value == 1000
+    assert book["Monthly overview"]["C2"].value == 31000
     assert book["Pickup zones"]["A4"].value == "=Untrusted label"
     assert book["Pickup zones"]["A4"].data_type == "s"
     assert not any("private-" in str(cell.value) for sheet in book for row in sheet for cell in row)
@@ -137,7 +147,7 @@ def test_streamlit_month_control_updates_the_scoped_view(report, tmp_path, monke
     assert app.metric[3].value == "100"
     after = json.loads(app.get("plotly_chart")[-1].proto.spec)
     assert before["data"][0]["x"] != after["data"][0]["x"]
-    assert app.metric[0].value == "0.00m"  # Quarterly summary does not change with the local filter.
+    assert app.metric[0].value == "0.01m"  # Quarterly summary does not change with the local filter.
 
 
 @pytest.mark.parametrize("contents", [None, "{broken", '{"tables": {}}'])
@@ -223,7 +233,7 @@ def test_quality_labels_preserve_source_counts_across_row_and_column_order(repor
     assert quality["rows"] == [
         [count, name]
         for count, name in zip(
-            [1000, 900, 800, 700, 310, 300, 10, 80, 30, 0], QUALITY_LABELS.values(), strict=True
+            [11000, 10800, 10500, 10000, 9910, 9900, 10, 800, 300, 0], QUALITY_LABELS.values(), strict=True
         )
     ]
 
@@ -312,6 +322,15 @@ def test_growth_story_follows_measured_direction(report, tmp_path, monkeypatch, 
     from streamlit.testing.v1 import AppTest
 
     monthly = next(t for t in report["tables"] if t["id"] == "monthly")
+    # Change March's pace while keeping the quarterly population and fare total fixed.
+    monthly["rows"][-1][1:4] = [rate * 31, rate * 310, rate]
+    february_trips = 9900 - 3100 - rate * 31
+    monthly["rows"][1][1:4] = [february_trips, february_trips * 10, round(february_trips / 28, 2)]
+    segments = next(t for t in report["tables"] if t["id"] == "segments")
+    totals = {row[0][:7]: row for row in monthly["rows"]}
+    for row in segments["rows"]:
+        row[4] = round(100 * row[2] / totals[row[0]][1], 2)
+        row[5] = round(100 * row[3] / totals[row[0]][2], 2)
     monthly["rows"][-1][monthly["columns"].index("Trips_per_day")] = rate
     path = tmp_path / "story.json"
     path.write_text(json.dumps(prepare_story(report)))
@@ -332,9 +351,26 @@ def test_airport_charts_cannot_disagree_with_retained_totals(report, table, colu
         prepare_story(report)
 
 
-@pytest.mark.parametrize("row,value", [(0, 100), (4, 299), (5, 299), (6, 311), (7, 301)])
+@pytest.mark.parametrize("row,value", [(0, 100), (4, 9899), (5, 9899), (6, 9911), (7, 9901)])
 def test_coverage_counts_reconcile_with_retained_population(report, row, value):
     quality = next(t for t in report["tables"] if t["id"] == "quality")
     quality["rows"][row][1] = value
     with pytest.raises(ValueError, match="Coverage|coverage"):
+        prepare_story(report)
+
+
+@pytest.mark.parametrize("column,value", [("Trips_per_day", 1), ("Mean_fare_USD", 50)])
+def test_monthly_rates_reconcile_with_retained_totals(report, column, value):
+    monthly = next(t for t in report["tables"] if t["id"] == "monthly")
+    monthly["rows"][0][monthly["columns"].index(column)] = value
+    with pytest.raises(ValueError, match="Monthly rates disagree"):
+        prepare_story(report)
+
+
+@pytest.mark.parametrize("shares", [[50] * 5, [10] * 5, [0] * 5])
+def test_fare_bands_must_cover_the_full_population(report, shares):
+    bands = next(t for t in report["tables"] if t["id"] == "fare_bands")
+    for row, share in zip(bands["rows"], shares, strict=True):
+        row[1] = share
+    with pytest.raises(ValueError, match="complete distribution"):
         prepare_story(report)

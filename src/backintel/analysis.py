@@ -483,16 +483,26 @@ async def run_analysis(
             if dashboard_reviewer is not None:
                 from backintel.presentation.review import review_dashboard_async
 
-                record["dashboard_review"] = await review_dashboard_async(
-                    output / "dashboard",
-                    output / "dashboard-review",
-                    brief=brief.model_dump_json(),
-                    reviewer=dashboard_reviewer,
-                    reviser=model,
-                    reviewer_id=dashboard_reviewer_id,
-                    reviser_id=model_id,
-                    timeout_s=timeout_s - (time.monotonic() - started),
-                )
+                try:
+                    record["dashboard_review"] = await review_dashboard_async(
+                        output / "dashboard",
+                        output / "dashboard-review",
+                        brief=brief.model_dump_json(),
+                        reviewer=dashboard_reviewer,
+                        reviser=model,
+                        reviewer_id=dashboard_reviewer_id,
+                        reviser_id=model_id,
+                        timeout_s=timeout_s - (time.monotonic() - started),
+                    )
+                except Exception as error:
+                    # Optional presentation assessment is separate from analytical completion.
+                    record["dashboard_review"] = {
+                        "status": "timed_out" if isinstance(error, TimeoutError) else "review_error",
+                        "ready": False,
+                        "selected": None,
+                        "error_type": type(error).__name__,
+                        "error": "Dashboard review unavailable; analytical delivery remains complete.",
+                    }
                 record["dashboard"]["ready"] = record["dashboard_review"]["ready"]
                 record["dashboard"]["reviewed_path"] = record["dashboard_review"]["selected"]
             record["status"] = "completed"

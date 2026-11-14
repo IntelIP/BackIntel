@@ -455,6 +455,8 @@ def plain(text: str) -> str:
 
 
 def display_number(value: float) -> str:
+    if 0 < abs(value) < 1:
+        return f"{value:.3g}"
     for magnitude, suffix in [(1e9, "bn"), (1e6, "m")]:
         if abs(value) >= magnitude:
             return f"{value / magnitude:,.2f}{suffix}"

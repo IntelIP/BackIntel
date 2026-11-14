@@ -14,6 +14,25 @@ from backintel.presentation.dashboard import LAUNCHER, generate_dashboard, proje
 from tests import test_artifacts
 
 
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (0.001, "0.001"),
+        (-0.001, "-0.001"),
+        (1e-12, "1e-12"),
+        (-1e-12, "-1e-12"),
+        (0, "0"),
+        (14.25, "14.25"),
+        (1000, "1,000"),
+        (1e6, "1.00m"),
+    ],
+)
+def test_kpi_formatting_preserves_small_nonzero_values(value, expected):
+    from backintel.presentation.dashboard import display_number
+
+    assert display_number(value) == expected
+
+
 def test_month_labels_preserve_source_dates_and_values():
     pytest.importorskip("plotly")
     from backintel.presentation.dashboard import category_labels, chart_figure

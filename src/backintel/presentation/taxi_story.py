@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import math
+from calendar import monthrange
 from decimal import Decimal
 from pathlib import Path
 
@@ -144,6 +145,18 @@ def validate_story(story: dict) -> None:
         raise ValueError("This story requires the complete January–March 2025 monthly view.")
     if monthly.Trips.sum() <= 0 or monthly.Gross_fare_USD.sum() <= 0:
         raise ValueError("Quarterly trip and fare totals must be positive.")
+    for row in monthly.to_dict("records"):
+        days = monthrange(2025, int(row["Month"][5:7]))[1]
+        trips, fare = Decimal(str(row["Trips"])), Decimal(str(row["Gross_fare_USD"]))
+        if trips <= 0:
+            raise ValueError("Monthly trip counts must be positive.")
+        expected = {"Trips_per_day": trips / days, "Mean_fare_USD": fare / trips}
+        if "Fare_per_day_USD" in row:
+            expected["Fare_per_day_USD"] = fare / days
+        if row.get("Calendar_days", days) != days or any(
+            abs(Decimal(str(row[field])) - value) > Decimal("0.01") for field, value in expected.items()
+        ):
+            raise ValueError("Monthly rates disagree with trip/fare totals or calendar days.")
     hours = frame(story, "weekly_hours")
     if set(zip(hours.Weekday, hours.Hour, strict=True)) != {
         (day, hour) for day in DAYS for hour in range(24)
@@ -155,6 +168,8 @@ def validate_story(story: dict) -> None:
         frame(story, "quality").Population
     ) != list(QUALITY_LABELS.values()):
         raise ValueError("Incomplete fare or coverage table.")
+    if abs(sum(Decimal(str(x)) for x in frame(story, "fare_bands").Trip_share_pct) - 100) > Decimal("0.025"):
+        raise ValueError("Fare-band trip shares must form a complete distribution.")
     if len(frame(story, "zones")) != 10:
         raise ValueError("The pickup-zone ranking must contain exactly ten rows.")
     for name, key, expected in [
