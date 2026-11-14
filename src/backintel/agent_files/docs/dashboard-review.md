@@ -38,7 +38,9 @@ leaves a reader unable to interpret the dashboard is a material story/usefulness
 
 All five must score at least 4, with no blocking issues or failed browser checks, to pass.
 Explain observed evidence before scoring and cite supplied view names. Keep each evidence
-explanation to one or two sentences and cite at most four views per criterion. Return no
+explanation to one or two sentences. Across the five ratings, cite every supplied view
+at least once, including every desktop/mobile page and scroll segment; a passing review
+with missing view coverage is rejected. A view may support more than one criterion. Return no
 more than five priority revisions; avoid a catalogue of minor polish. Do not fabricate
 interaction tests. Screenshot appearance does not prove a control works; use recorded
 browser checks. Do not claim statistical accuracy from pixels: compare labels/narrative

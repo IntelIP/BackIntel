@@ -236,3 +236,28 @@ def test_taxi_axes_fit_retained_values_above_old_ceilings(report):
     ]:
         assert chart.layout[axis].range[0] == 0
         assert chart.layout[axis].range[1] > max(chart.data[0][values])
+
+
+@pytest.mark.parametrize(
+    "table,column,value",
+    [
+        ("monthly", "Trips", 1.5),
+        ("quality", "Records", -1),
+        ("zones", "Trip_share_pct", 101),
+        ("segments", "Fare_share_pct", -0.5),
+        ("fare_bands", "Trip_share_pct", 100.1),
+        ("weekly_hours", "Trips_per_occurrence", -0.1),
+        ("monthly", "Gross_fare_USD", -1),
+        ("monthly", "Calendar_days", 0),
+        ("monthly", "Calendar_days", 32),
+    ],
+)
+def test_numeric_domains_reject_impossible_counts_rates_and_shares(report, table, column, value):
+    source = next(t for t in report["tables"] if t["id"] == table)
+    if column not in source["columns"]:
+        source["columns"].append(column)
+        for row in source["rows"]:
+            row.append(31)
+    source["rows"][0][source["columns"].index(column)] = value
+    with pytest.raises(ValueError, match="Negative|Fractional|Percentage|Calendar days"):
+        prepare_story(report)

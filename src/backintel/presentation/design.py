@@ -79,6 +79,8 @@ class DesignReview(StrictModel):
             raise ValueError("Review must grade each criterion exactly once.")
         if any(not set(r.views) <= view_names for r in self.ratings):
             raise ValueError("Review cited a screenshot that was not supplied.")
+        if self.passed and {view for rating in self.ratings for view in rating.views} != view_names:
+            raise ValueError("A passing review must cover every supplied screenshot.")
         if not self.passed and not (self.blocking_issues or self.revisions):
             raise ValueError("A failing review must provide actionable feedback.")
         return self

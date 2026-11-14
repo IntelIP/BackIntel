@@ -28,6 +28,38 @@ show_dashboard(Path(__file__).with_name("dashboard.json"))
 """
 
 
+def streamlit_command(port: int) -> list[str]:
+    """One installed renderer and explicit theme for readers and visual review."""
+    options = {
+        "server.address": "127.0.0.1",
+        "server.port": str(port),
+        "server.headless": "true",
+        "browser.gatherUsageStats": "false",
+        "server.fileWatcherType": "none",
+        "client.toolbarMode": "minimal",
+        "client.showErrorDetails": "false",
+        "theme.base": "light",
+        "theme.primaryColor": "#176581",
+        "theme.backgroundColor": "#FAF9F6",
+        "theme.secondaryBackgroundColor": "#F0EEE8",
+        "theme.textColor": "#203646",
+        "theme.font": "sans-serif",
+        "theme.headingFont": "serif",
+        "theme.baseFontSize": "17",
+        "theme.baseRadius": "small",
+        "theme.borderColor": "#D9D6CD",
+        "theme.showWidgetBorder": "true",
+    }
+    return [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(Path(__file__).with_name("streamlit_app.py")),
+        *(item for key, value in options.items() for item in ("--" + key, value)),
+    ]
+
+
 def label(name: str, unit: str = "") -> str:
     words = name.replace("_", " ").strip()
     words = words[0].upper() + words[1:]

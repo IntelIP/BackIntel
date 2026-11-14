@@ -276,7 +276,6 @@ def cmd_dashboard(args, settings):
     import importlib.util
     import os
     import subprocess
-    import sys
     from pathlib import Path
 
     from backintel.artifacts import MAX_SPEC_BYTES
@@ -330,42 +329,7 @@ def cmd_dashboard(args, settings):
     if not data.is_file() or data.stat().st_size > MAX_SPEC_BYTES:
         raise ValueError("Select a generated dashboard directory containing dashboard.json.")
     # Always execute our installed entry point, never a Python file supplied by a report.
-    entry = Path(dashboard.__file__).with_name("streamlit_app.py")
-    command = [
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        str(entry),
-        "--server.address",
-        "127.0.0.1",
-        "--server.port",
-        str(args.port),
-        "--server.headless",
-        "true",
-        "--browser.gatherUsageStats",
-        "false",
-        "--server.fileWatcherType",
-        "none",
-        "--client.toolbarMode",
-        "minimal",
-        "--client.showErrorDetails",
-        "false",
-        "--theme.base",
-        "light",
-        "--theme.primaryColor",
-        "#176581",
-        "--theme.backgroundColor",
-        "#FAF9F6",
-        "--theme.secondaryBackgroundColor",
-        "#F0EEE8",
-        "--theme.textColor",
-        "#203646",
-        "--theme.headingFont",
-        "serif",
-        "--theme.baseFontSize",
-        "17",
-    ]
+    command = dashboard.streamlit_command(args.port)
     try:
         code = subprocess.call(command, env={**os.environ, "BACKINTEL_DASHBOARD_DATA": str(data)})
     except KeyboardInterrupt:

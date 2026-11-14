@@ -187,6 +187,13 @@ def test_serve_uses_trusted_entry_and_loopback(tmp_path, monkeypatch):
     assert str(tmp_path / "app.py") not in command
     assert command[command.index("--server.address") + 1] == "127.0.0.1"
     assert command[4].endswith("presentation/streamlit_app.py")
+    import tomllib
+
+    settings = tomllib.loads((Path(__file__).parents[1] / ".streamlit/config.toml").read_text())
+    for section in ("theme", "client"):
+        for key, value in settings[section].items():
+            expected = str(value).lower() if isinstance(value, bool) else str(value)
+            assert command[command.index(f"--{section}.{key}") + 1] == expected
     assert options["env"]["BACKINTEL_DASHBOARD_DATA"] == str(tmp_path.resolve() / "dashboard.json")
 
 

@@ -9,11 +9,12 @@ import json
 import os
 import socket
 import subprocess
-import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
+
+from backintel.presentation.dashboard import streamlit_command
 
 
 @contextlib.asynccontextmanager
@@ -25,23 +26,7 @@ async def dashboard_server(directory: Path):
     # No provider/store credentials or arbitrary app.py from the output directory.
     env = {k: os.environ[k] for k in ("PATH", "HOME", "SYSTEMROOT") if k in os.environ}
     env["BACKINTEL_DASHBOARD_DATA"] = str(directory.resolve() / "dashboard.json")
-    command = [
-        sys.executable,
-        "-m",
-        "streamlit",
-        "run",
-        str(Path(__file__).with_name("streamlit_app.py")),
-        "--server.address",
-        "127.0.0.1",
-        "--server.port",
-        str(port),
-        "--server.headless",
-        "true",
-        "--browser.gatherUsageStats",
-        "false",
-        "--server.fileWatcherType",
-        "none",
-    ]
+    command = streamlit_command(port)
     with (directory / "browser-server.log").open("w") as log:
         process = subprocess.Popen(command, env=env, stdout=log, stderr=log)
         try:

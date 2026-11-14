@@ -193,7 +193,7 @@ def test_plan_final_json_recovery_is_validated(delivery):
         parse_response({"raw": raw, "parsed": None}, DesignPlan)
 
 
-def test_designed_dashboard_real_browser_and_download(delivery, tmp_path):
+def test_designed_dashboard_real_browser_and_download(delivery, tmp_path, monkeypatch):
     pytest.importorskip("playwright")
     pytest.importorskip("streamlit")
     from backintel.presentation.capture import capture_dashboard
@@ -214,6 +214,7 @@ def test_designed_dashboard_real_browser_and_download(delivery, tmp_path):
     (delivery / "presentation.json").write_text(json.dumps(presentation))
     # Poisoning the generated launcher must not execute on the host.
     (delivery / "app.py").write_text("raise RuntimeError('untrusted')")
+    monkeypatch.chdir(tmp_path)  # No repository Streamlit configuration is available.
     result = capture_dashboard(delivery, tmp_path / "screenshots")
     assert not result["failures"]
     assert len(result["views"]) >= 2 * (len(presentation["sections"]) + 2)
@@ -302,6 +303,14 @@ def test_cancelled_capture_closes_owned_preview_server(delivery, monkeypatch):
     original = capture.subprocess.Popen
 
     def spawn(*args, **kwargs):
+        import tomllib
+
+        settings = tomllib.loads((Path(__file__).parents[1] / ".streamlit/config.toml").read_text())
+        command = args[0]
+        for section in ("theme", "client"):
+            for key, value in settings[section].items():
+                expected = str(value).lower() if isinstance(value, bool) else str(value)
+                assert command[command.index(f"--{section}.{key}") + 1] == expected
         process = original(*args, **kwargs)
         processes.append(process)
         return process
@@ -341,3 +350,21 @@ def test_capture_waits_for_a_later_chart_to_render():
                 await browser.close()
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_passing_review_requires_every_desktop_and_mobile_capture(delivery, tmp_path, complete):
+    review = rating(4)
+    if complete:
+        review.ratings[-1].views.append("mobile/Story")
+
+    async def two_views(directory, output):
+        result = await captured(directory, output)
+        result["views"].append({"name": "mobile/Story", "file": "desktop.png"})
+        return result
+
+    result = run_loop(delivery, tmp_path, Scripted(review), Scripted(), capture=two_views, max_revisions=0)
+    assert result["ready"] is complete
+    if not complete:
+        assert result["status"] == "review_error"
+        assert "every supplied screenshot" in result["detail"]

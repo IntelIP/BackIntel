@@ -124,6 +124,14 @@ def validate_story(story: dict) -> None:
                         raise ValueError(f"Nonnumeric value in {name}.{column}.")
                     if not math.isfinite(value):
                         raise ValueError(f"Non-finite value in {name}.{column}.")
+                    if value < 0:
+                        raise ValueError(f"Negative value in {name}.{column}.")
+                    if column in {"Trips", "Records", "Calendar_days", "Hour"} and value % 1:
+                        raise ValueError(f"Fractional count in {name}.{column}.")
+                    if column.endswith("_pct") and value > 100:
+                        raise ValueError(f"Percentage outside 0–100 in {name}.{column}.")
+                    if column == "Calendar_days" and not 1 <= value <= 31:
+                        raise ValueError("Calendar days must be between 1 and 31.")
     monthly = frame(story, "monthly")
     if list(monthly.Month) != list(MONTHS) or (monthly.Trips_per_day <= 0).any():
         raise ValueError("This story requires the complete January–March 2025 monthly view.")
