@@ -160,9 +160,16 @@ def validate_story(story: dict) -> None:
         if data.duplicated((["Month"] if name == "segments" else []) + [key]).any():
             raise ValueError("Repeated pickup areas.")
     segments = frame(story, "segments")
+    if set(segments.Month) != {date[:7] for date in MONTHS}:
+        raise ValueError("Airport mix must cover only January–March 2025.")
     for month in (date[:7] for date in MONTHS):
         if not set(AIRPORTS) <= set(segments[segments.Month == month].Pickup_segment):
             raise ValueError("Incomplete monthly airport coverage.")
+    zones = frame(story, "zones")
+    airports = zones[zones.Pickup_zone.isin(["JFK Airport", "LaGuardia Airport"])]
+    for column in ("Trips", "Gross_fare_USD"):
+        if sum(Decimal(str(x)) for x in airports[column]) > sum(Decimal(str(x)) for x in monthly[column]):
+            raise ValueError("Airport totals cannot exceed the quarterly trip or fare totals.")
 
 
 def prepare_story(report: dict) -> dict:

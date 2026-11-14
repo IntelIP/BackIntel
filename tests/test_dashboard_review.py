@@ -369,3 +369,83 @@ def test_passing_review_requires_every_desktop_and_mobile_capture(delivery, tmp_
     if not complete:
         assert result["status"] == "review_error"
         assert "every supplied screenshot" in result["detail"]
+
+
+def test_review_only_cli_needs_no_writer_credentials(delivery, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from backintel import cli, models
+    from backintel.presentation import review
+
+    reviewer = Scripted(rating(4))
+    monkeypatch.setattr(models, "build_dashboard_reviewer", lambda _: reviewer)
+
+    def forbidden_writer(*args, **kwargs):
+        pytest.fail("Review-only mode must not construct or authenticate a writer")
+
+    monkeypatch.setattr(models, "build_model", forbidden_writer)
+    monkeypatch.setattr(
+        review, "review_dashboard", lambda *a, **kw: review_dashboard(*a, capture=captured, **kw)
+    )
+    brief = tmp_path / "brief.txt"
+    brief.write_text("Explain the operating pattern.")
+    cli.cmd_dashboard(
+        SimpleNamespace(
+            action="review",
+            directory=str(delivery),
+            output=str(tmp_path / "review"),
+            brief=str(brief),
+            reviewer_model="anthropic/claude-haiku-5-5",
+            writer_model=None,
+            max_revisions=0,
+        ),
+        SimpleNamespace(analysis_model="unused/writer"),
+    )
+    record = json.loads((tmp_path / "review/review.json").read_text())
+    assert record["ready"] and record["reviser"] is None and reviewer.calls == 1
+
+
+@pytest.mark.parametrize("failure", ["project", "feedback"])
+def test_feedback_upload_failure_preserves_local_assessment(delivery, tmp_path, monkeypatch, failure):
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace
+
+    import langsmith
+    import langsmith.utils
+
+    from backintel.presentation import review
+
+    @asynccontextmanager
+    async def local_trace(*args, **kwargs):
+        yield SimpleNamespace(id="run", session_id=None, session_name="project", end=lambda **kw: None)
+
+    calls = []
+
+    class UnavailableFeedback:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def read_project(self, **kwargs):
+            calls.append("project")
+            if failure == "project":
+                raise RuntimeError("private service error")
+            return SimpleNamespace(id="project")
+
+        async def create_feedback(self, **kwargs):
+            calls.append("feedback")
+            raise RuntimeError("private service error")
+
+    monkeypatch.setattr(review, "trace", local_trace)
+    monkeypatch.setattr(langsmith.utils, "tracing_is_enabled", lambda: True)
+    monkeypatch.setattr(langsmith, "AsyncClient", UnavailableFeedback)
+    result = run_loop(delivery, tmp_path, Scripted(rating(4)), None, max_revisions=0)
+    assert failure in calls
+    assert result["ready"] and result["status"] == "passed"
+    assert result["rounds"][0]["review"]["ratings"][0]["score"] == 4
+    assert result["observability_warnings"][0]["error_type"] == "RuntimeError"
+    retained = (tmp_path / "review/review.json").read_text()
+    assert json.loads(retained)["observability_warnings"] == result["observability_warnings"]
+    assert "private service error" not in retained

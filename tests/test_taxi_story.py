@@ -261,3 +261,47 @@ def test_numeric_domains_reject_impossible_counts_rates_and_shares(report, table
     source["rows"][0][source["columns"].index(column)] = value
     with pytest.raises(ValueError, match="Negative|Fractional|Percentage|Calendar days"):
         prepare_story(report)
+
+
+@pytest.mark.parametrize("column", ["Trips", "Gross_fare_USD"])
+def test_combined_airport_totals_cannot_exceed_the_quarter(report, column):
+    monthly = next(t for t in report["tables"] if t["id"] == "monthly")
+    zones = next(t for t in report["tables"] if t["id"] == "zones")
+    total = sum(row[monthly["columns"].index(column)] for row in monthly["rows"])
+    position = zones["columns"].index(column)
+    for row in zones["rows"][:2]:
+        row[position] = total // 2
+    assert prepare_story(report)  # Exactly 100% remains valid.
+    zones["rows"][0][position] += 1
+    with pytest.raises(ValueError, match="Airport totals"):
+        prepare_story(report)
+
+
+def test_airport_mix_rejects_extra_months(report):
+    segments = next(t for t in report["tables"] if t["id"] == "segments")
+    segments["rows"].append(["2025-04", "JFK", 1, 4])
+    with pytest.raises(ValueError, match="only January"):
+        prepare_story(report)
+
+
+@pytest.mark.parametrize(
+    "rate,value,heading,phrase",
+    [
+        (90, "-10.0%", "A slower pace by March", "activity fell"),
+        (100, "+0.0%", "A steady pace from January to March", "activity was unchanged"),
+        (120, "+20.0%", "A stronger pace by March", "activity rose"),
+    ],
+)
+def test_growth_story_follows_measured_direction(report, tmp_path, monkeypatch, rate, value, heading, phrase):
+    from streamlit.testing.v1 import AppTest
+
+    monthly = next(t for t in report["tables"] if t["id"] == "monthly")
+    monthly["rows"][-1][monthly["columns"].index("Trips_per_day")] = rate
+    path = tmp_path / "story.json"
+    path.write_text(json.dumps(prepare_story(report)))
+    monkeypatch.setenv("BACKINTEL_STORY_DATA", str(path))
+    app = AppTest.from_file(str(Path(__file__).parents[1] / "dashboards/taxi/streamlit_app.py")).run()
+    assert not app.exception
+    assert app.metric[2].value == value
+    assert app.header[0].value == heading
+    assert any(phrase in element.value for element in app.markdown)

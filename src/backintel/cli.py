@@ -287,13 +287,15 @@ def cmd_dashboard(args, settings):
 
         if not args.reviewer_model.startswith("anthropic/"):
             raise ValueError("The design reviewer uses the native Anthropic account, independently of Sol.")
-        writer_id = args.writer_model or settings.analysis_model
-        if not writer_id.startswith(("chatgpt-plan/", "openai/")):
-            raise ValueError(
-                "Use the existing OpenAI/ChatGPT writer; the reviewer must be a different family."
-            )
+        writer_id, writer = None, None
+        if args.max_revisions:
+            writer_id = args.writer_model or settings.analysis_model
+            if not writer_id.startswith(("chatgpt-plan/", "openai/")):
+                raise ValueError(
+                    "Use the existing OpenAI/ChatGPT writer; the reviewer must be a different family."
+                )
+            writer = build_model(writer_id, reasoning_effort="medium", max_retries=0, timeout_s=120)
         reviewer = build_dashboard_reviewer(args.reviewer_model)
-        writer = build_model(writer_id, reasoning_effort="medium", max_retries=0, timeout_s=120)
         result = review_dashboard(
             Path(args.directory),
             Path(args.output),

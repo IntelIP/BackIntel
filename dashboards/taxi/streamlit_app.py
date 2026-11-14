@@ -67,7 +67,7 @@ heading, download = st.columns([4, 1], vertical_alignment="bottom")
 with heading:
     st.title("Plan the next shift with evidence")
     st.markdown(
-        "A busier quarter, an evening peak and an airport tradeoff. "
+        "Daily activity, busy hours and the airport tradeoff. "
         "Use the patterns to plan a focused operational trial."
     )
 with download:
@@ -93,7 +93,7 @@ fare.metric(
 )
 growth.metric(
     "Daily activity, January → March",
-    f"+{totals['daily_growth']:.1f}%",
+    f"{totals['daily_growth']:+.1f}%",
     help="Change in trips per calendar day, using comparable monthly populations.",
 )
 st.divider()
@@ -103,11 +103,25 @@ monthly = frame(story, "monthly").set_index("Month")
 with story_tab:
     text, visual = st.columns([1, 1.7], gap="large", vertical_alignment="center")
     with text:
-        st.header("A stronger pace by March")
+        direction = "rose" if totals["daily_growth"] > 0 else "fell"
+        st.header(
+            "A stronger pace by March"
+            if totals["daily_growth"] > 0
+            else "A slower pace by March"
+            if totals["daily_growth"] < 0
+            else "A steady pace from January to March"
+        )
         st.write(
-            f"Average daily trip activity rose from **{monthly.loc['2025-01-01'].Trips_per_day:,.0f} "
-            f"in January** to **{monthly.loc['2025-03-01'].Trips_per_day:,.0f} in March**. "
-            "Comparing daily rates accounts for February’s shorter month."
+            (
+                f"Average daily trip activity {direction} from "
+                f"**{monthly.loc['2025-01-01'].Trips_per_day:,.0f} "
+                f"in January** to **{monthly.loc['2025-03-01'].Trips_per_day:,.0f} in March**. "
+                if totals["daily_growth"] != 0
+                else "Average daily trip activity was unchanged at "
+                f"**{monthly.loc['2025-01-01'].Trips_per_day:,.0f} "
+                "in January and March**. "
+            )
+            + "Comparing daily rates accounts for February’s shorter month."
         )
         st.write(
             "Use this as a historical baseline when planning shifts. It does not establish "

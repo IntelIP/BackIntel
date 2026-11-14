@@ -45,7 +45,7 @@ def _messages(instruction: str, payload: dict, capture: dict, folder: Path):
     return [SystemMessage(content=instruction), HumanMessage(content=content)]
 
 
-async def _call(model, schema, instruction, payload, capture, folder, usage, name):
+async def _call(model, schema, instruction, payload, capture, folder, usage, name, warnings):
     attachments = {
         Path(v["file"]).stem: ("image/png", (folder / v["file"]).read_bytes()) for v in capture["views"]
     }
@@ -66,21 +66,32 @@ async def _call(model, schema, instruction, payload, capture, folder, usage, nam
         if schema is DesignReview and tracing_is_enabled() is True:
             from langsmith import AsyncClient
 
-            async with AsyncClient() as client:
-                session_id = run.session_id or (await client.read_project(project_name=run.session_name)).id
-                for rating in parsed.ratings:
+            try:
+                async with AsyncClient() as client:
+                    session_id = (
+                        run.session_id or (await client.read_project(project_name=run.session_name)).id
+                    )
+                    for rating in parsed.ratings:
+                        await client.create_feedback(
+                            run_id=run.id,
+                            session_id=session_id,
+                            key="dashboard_" + rating.criterion,
+                            score=rating.score,
+                            comment=rating.evidence,
+                        )
                     await client.create_feedback(
                         run_id=run.id,
                         session_id=session_id,
-                        key="dashboard_" + rating.criterion,
-                        score=rating.score,
-                        comment=rating.evidence,
+                        key="dashboard_accepted",
+                        score=parsed.passed and not capture["failures"],
                     )
-                await client.create_feedback(
-                    run_id=run.id,
-                    session_id=session_id,
-                    key="dashboard_accepted",
-                    score=parsed.passed and not capture["failures"],
+            except Exception as error:
+                warnings.append(
+                    {
+                        "stage": name,
+                        "error_type": type(error).__name__,
+                        "message": "LangSmith feedback upload failed; the local assessment was retained.",
+                    }
                 )
     return parsed
 
@@ -124,7 +135,7 @@ async def review_dashboard_async(
     reviewer,
     reviser,
     reviewer_id: str,
-    reviser_id: str,
+    reviser_id: str | None,
     max_revisions: int = 2,
     capture=capture_dashboard_async,
     timeout_s: float = 900,
@@ -140,11 +151,14 @@ async def review_dashboard_async(
         raise TimeoutError("No analysis time remains for dashboard review.")
     if type(max_revisions) is not int or not 0 <= max_revisions <= 2:
         raise ValueError("max_revisions must be 0, 1 or 2.")
-    if not reviewer_id.startswith("anthropic/") or not reviser_id.startswith(("chatgpt-plan/", "openai/")):
+    if not reviewer_id.startswith("anthropic/") or (
+        max_revisions
+        and (reviser is None or not reviser_id or not reviser_id.startswith(("chatgpt-plan/", "openai/")))
+    ):
         raise ValueError(
             "Use a native Anthropic reviewer and an OpenAI/ChatGPT writer of a different family."
         )
-    if any(getattr(m, "max_retries", 0) != 0 for m in (reviewer, reviser)):
+    if any(getattr(m, "max_retries", 0) != 0 for m in ([reviewer, reviser] if max_revisions else [reviewer])):
         raise ValueError("Provider retries must be disabled for the bounded design loop.")
     if not brief.strip() or len(brief) > 12000:
         raise ValueError("Supply a business brief of 1–12000 characters.")
@@ -162,7 +176,7 @@ async def review_dashboard_async(
     output.mkdir(parents=True, mode=0o700)
     reviewer_usage = UsageTracker()
     reviser_usage = UsageTracker(
-        PlanRunBudget(max(1, max_revisions)) if reviser_id.startswith("chatgpt-plan/") else None
+        PlanRunBudget(max_revisions) if max_revisions and reviser_id.startswith("chatgpt-plan/") else None
     )
     rules = PROMPT_PATH.read_text()
     record = {
@@ -170,7 +184,8 @@ async def review_dashboard_async(
         "ready": False,
         "max_revisions": max_revisions,
         "reviewer": reviewer_id,
-        "reviser": reviser_id,
+        "reviser": reviser_id if max_revisions else None,
+        "observability_warnings": [],
         "rounds": [],
         "selected": None,
         "score_meaning": "Automated rubric judgment, not human-calibrated design certification",
@@ -206,6 +221,7 @@ async def review_dashboard_async(
                         prior["folder"] / "screenshots",
                         reviser_usage,
                         "dashboard.revise",
+                        record["observability_warnings"],
                     )
                     plan = validate_plan(plan.model_dump(), data)
                 if plan:
@@ -231,6 +247,7 @@ async def review_dashboard_async(
                     folder / "screenshots",
                     reviewer_usage,
                     "dashboard.review",
+                    record["observability_warnings"],
                 )
                 passed = assessed.passed and not evidence["failures"]
                 current = {
