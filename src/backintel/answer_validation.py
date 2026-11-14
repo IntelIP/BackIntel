@@ -126,15 +126,78 @@ def validate_answer_shape(answer: AnalystAnswer) -> None:
         raise ValueError("An answered response must cite the exact executable evidence.")
 
 
+def _number_matches(target: float, cell) -> bool:
+    if cell is None or isinstance(cell, bool):
+        return False
+    try:
+        value = float(cell.replace(",", "") if isinstance(cell, str) else cell)
+    except (ValueError, TypeError, OverflowError):
+        return False
+    return math.isfinite(value) and math.isclose(value, target, rel_tol=1e-4, abs_tol=0.011)
+
+
+def _report_value_matches(value, cell) -> bool:
+    if isinstance(value, str):
+        if not isinstance(cell, str):
+            return False
+        target, observed = (" ".join(v.split()).casefold() for v in (value, cell))
+        return observed == target or target in observed or (len(observed) >= 3 and observed in target)
+    if isinstance(value, bool):
+        return isinstance(cell, bool) and value == cell
+    return value is not None and _number_matches(float(value), cell)
+
+
+def _collect_report_bindings(bindings: dict[str, list], columns, rows) -> None:
+    names = [" ".join(name.split()).casefold() for name in columns]
+    tall = "metric" in names and "value" in names
+    # A wide table with several rows can describe several populations; its column
+    # names alone do not bind any one value to the global report metric.
+    if not tall and len(rows) != 1:
+        return
+    for row in rows:
+        pairs = (
+            [(row[names.index("metric")], row[names.index("value")])]
+            if tall
+            else zip(names, row, strict=True)
+        )
+        for key, cell in pairs:
+            if isinstance(key, str) and key.strip():
+                bindings.setdefault(" ".join(key.split()).casefold(), []).append(cell)
+
+
+def _collect_python_report_bindings(bindings: dict[str, list], text: str) -> None:
+    documents = []
+    try:
+        documents.append(json.loads(text))
+    except (ValueError, RecursionError):
+        for line in text.splitlines():
+            try:
+                documents.append(json.loads(line))
+            except (ValueError, RecursionError):
+                continue
+    rows = [
+        row
+        for document in documents
+        for row in (document if isinstance(document, list) else [document])
+        if isinstance(row, dict)
+    ]
+    for row in rows:
+        if len(rows) > 1 and not {"metric", "value"}.issubset(" ".join(k.split()).casefold() for k in row):
+            continue
+        _collect_report_bindings(bindings, list(row), [list(row.values())])
+
+
 def validate_answer_evidence(answer: AnalystAnswer, store: Store, sandbox: PythonSandbox) -> None:
     """Execute every cited item under the same read-only bindings used by analysis tools.
 
     Numeric answers must also appear in executed output, allowing display rounding.
+    Explicit SQL/JSON report bindings may not contradict the reported metric values.
     This does not establish correctness or lineage: independent evaluators still check
     reference values, missing/extra requested metrics, and unsupported claims.
     """
     problems = []
     numeric_output = []
+    report_bindings: dict[str, list] = {}
     for index, item in enumerate(answer.evidence, 1):
         try:
             if item.kind == "python":
@@ -148,6 +211,8 @@ def validate_answer_evidence(answer: AnalystAnswer, store: Store, sandbox: Pytho
                     problems.append(f"Evidence {index}: program failed: {result.stderr[-300:]}")
                 else:
                     numeric_output.extend(NUMERIC_OUTPUT.findall(result.stdout))
+                    if answer.answer_type == "report":
+                        _collect_python_report_bindings(report_bindings, result.stdout)
             else:
                 code = item.code
                 if isinstance(store, MultiStore):
@@ -163,21 +228,25 @@ def validate_answer_evidence(answer: AnalystAnswer, store: Store, sandbox: Pytho
                     raise QueryRefused("Evidence names a store that is not connected.")
                 result = store.query(code)
                 numeric_output.extend(cell for row in result.rows for cell in row)
+                if answer.answer_type == "report":
+                    _collect_report_bindings(report_bindings, result.columns, result.rows)
         except (QueryRefused, NotImplementedError) as error:
             problems.append(f"Evidence {index}: query failed: {str(error)[:300]}")
     if problems:
         raise ValueError("; ".join(problems))
+    if answer.status == "answered" and answer.answer_type == "report":
+        for row in answer.rows:
+            observed = report_bindings.get(" ".join(row["metric"].split()).casefold(), [])
+            if observed and not all(_report_value_matches(row["value"], cell) for cell in observed):
+                raise ValueError(
+                    f"Executable output contradicts reported metric {row['metric']!r}. "
+                    "Return that metric's reported value in the value column, with units or "
+                    "formatting in a separate column. A label in the unit column, another "
+                    "metric, or a second query cannot repair a contradictory value binding."
+                )
     if answer.status == "answered" and answer.answer_type == "number":
-        for cell in numeric_output:
-            if cell is None or isinstance(cell, bool):
-                continue
-            try:
-                value = float(cell.replace(",", "") if isinstance(cell, str) else cell)
-            except (ValueError, TypeError, OverflowError):
-                continue
-            # Same display-rounding allowance as the existing independent evidence check.
-            if math.isfinite(value) and math.isclose(value, answer.value, rel_tol=1e-4, abs_tol=0.011):
-                return
+        if any(_number_matches(answer.value, cell) for cell in numeric_output):
+            return
         raise ValueError(
             "Cited evidence executes but does not output the reported numeric value in its "
             "reported units. Include any unit conversion or rounding in the executable "

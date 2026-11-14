@@ -154,11 +154,15 @@ def _financial_cases(b: _Builder, variant: int) -> None:
     year, month = (2024, 3) if not variant else (2025, 7)
     if variant == 2:
         sales, expenses, year, month = "receipts", "expenditures", 2026, 2
+    elif variant == 3:
+        sales, expenses, year, month = "sales_postings", "expense_postings", 2026, 5
     period = f"{year}-{month:02d}"
     start, end = f"{period}-01", f"{year}-{month + 1:02d}-01"
     numbers = [12000, 8000, -1500, 5000] if not variant else [17003, 9401, -1107, 6309]
     if variant == 2:
         numbers = [14127, 8263, -2609, 10033]
+    elif variant == 3:
+        numbers = [11029, 19241, -3717, 9013]
     rows = [
         (f"E{i + 71}", f"{period}-{day:02d}", amount, "GBP")
         for i, (day, amount) in enumerate(zip((2, 8, 15, 23), numbers, strict=True))
@@ -171,6 +175,8 @@ def _financial_cases(b: _Builder, variant: int) -> None:
     costs = [10100, 3300, 700] if not variant else [11011, 5401, 1207]
     if variant == 2:
         costs = [8451, 2067, 999]
+    elif variant == 3:
+        costs = [16007, 3901, 1723]
     cost_rows = [
         (f"C{i + 31}", f"{period}-{day:02d}", amount, "GBP")
         for i, (day, amount) in enumerate(zip((3, 10, 21), costs, strict=True))
@@ -284,6 +290,9 @@ def _report_cases(b: _Builder, variant: int) -> None:
     if variant == 2:
         order_table, review_table = "dispatches", "ratings"
         durations, people = [7, 3, 9, 4, 6], (1, 2, 2, 2, 3)
+    elif variant == 3:
+        order_table, review_table, base = "consignments", "customer_reviews", datetime(2026, 3, 1, 8)
+        durations, people = [5, 7, 2, 9, 8], (1, 1, 1, 2, 4)
     estimates = [4, 5, 5, 8, 5]
     rows = [
         (
@@ -309,6 +318,8 @@ def _report_cases(b: _Builder, variant: int) -> None:
     ]
     if variant == 2:
         reviews = [(r[0], r[1], score) for r, score in zip(reviews, (4, 1, 5, 3, 2, 4, 1), strict=True)]
+    elif variant == 3:
+        reviews = [(r[0], r[1], score) for r, score in zip(reviews, (2, 4, 1, 5, 3, 2, 4), strict=True)]
     schema = (
         "order_id TEXT, customer_person_id TEXT, status TEXT, purchased_at TEXT, delivered_at "
         "TEXT, estimated_at TEXT"
@@ -405,12 +416,16 @@ def _replay_cases(b: _Builder, variant: int) -> None:
     year, previous_month = (2024, 5) if not variant else (2025, 8)
     if variant == 2:
         year, previous_month = 2026, 8
+    elif variant == 3:
+        year, previous_month = 2026, 1
     current_month = previous_month + 1
     previous, current = f"{year}-{previous_month:02d}", f"{year}-{current_month:02d}"
     cutoff = datetime(year, current_month + 1, 1)
     durations = [3, 4, 5, 4] if not variant else [5, 6, 7, 6]
     if variant == 2:
         durations = [7, 8, 9, 8]
+    elif variant == 3:
+        durations = [2, 3, 4, 3]
     schema = "order_id TEXT, purchased_at TEXT, delivered_at TEXT, estimated_at TEXT"
     for name, shift, duplicate, delay in (
         ("stable", 0, False, "none"),
@@ -522,8 +537,10 @@ def _price_replay_cases(b: _Builder, variant: int) -> None:
     prices = (1000, 2000) if not variant else (1750, 3500)
     if variant == 2:
         previous, current, prices = "2026-08", "2026-09", (1375, 3125)
+    elif variant == 3:
+        previous, current, prices = "2026-01", "2026-02", (1625, 2875)
     for name, changed in (("mix-only", False), ("shift", True)):
-        multiplier = 17 if variant == 2 else 16
+        multiplier = {2: 17, 3: 18}.get(variant, 16)
         current_prices = (prices[0] * multiplier // 10 if changed else prices[0], prices[1])
         rows = [
             ("L41", previous + "-10", "P11", 100, prices[0]),
@@ -586,8 +603,8 @@ def build_acceptance(
     """Build owned immutable SQLite fixtures and hidden reference manifest without any model calls."""
     if split not in ("development", "acceptance"):
         raise ValueError("split must be development or acceptance")
-    if reserved_generation not in (1, 2) or (split != "acceptance" and reserved_generation != 1):
-        raise ValueError("Reserved generation must be 1 or 2 and applies only to acceptance")
+    if reserved_generation not in (1, 2, 3) or (split != "acceptance" and reserved_generation != 1):
+        raise ValueError("Reserved generation must be 1, 2 or 3 and applies only to acceptance")
     version = VERSION if reserved_generation == 1 else f"{VERSION}-reserved-{reserved_generation}"
     builder = _Builder(
         settings,

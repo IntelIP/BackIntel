@@ -28,7 +28,7 @@ values and asks the analyst to decline with the missing-information reason. It d
 infer answerability from hidden references or fabricate a complete report. Historical
 records remain parseable by the permissive persisted contract.
 
-Offline verification passed 263 tests with 15 optional skips, including a real installed
+The initial implementation's offline verification included a real installed
 graph that rejects an omitted conversion and then accepts corrected SQL. Additional
 tests cover SQL and Python mismatches, printed versus unprinted values, display rounding
 and notation, plus partial-report rejection followed by a proper refusal. Ruff, Vulture,
@@ -43,16 +43,53 @@ report distributions and price/delivery inputs. Thirteen answerable references a
 independently checked by SQL; four cases require refusal. Its 17 worlds are controlled
 variants, not new customer domains. Old manifests and database files remain intact.
 
-The prepared follow-up uses 63 new responses: 12 candidate original regressions, 17
+The initial prepared follow-up used 63 new responses: 12 candidate original regressions, 17
 candidate development responses, and 34 fresh reserved baseline/candidate responses.
 The 29 original/development baseline records retain their actual unchanged source and
 data/evaluator identities; they are reused rather than relabeled or regenerated.
-Models, scoring rules and tolerances remain fixed. The proposed additional allocation
-is $2.15, subject to the cumulative allowance: the existing $5 authorization does not
-cover the full proposed envelope. No additional spending is approved by this document.
+Models, scoring rules and tolerances remained fixed. Its initial proposed additional
+allocation was $2.15, subject to the cumulative allowance. Later staged execution used
+the existing allowance as recorded below; no additional spending is approved here.
 
 Local freeze: `data/output/reliability-native-refresh-20261114-r2/proposal.json` in the
 canonical operator checkout. It retains source/manifest/policy/data/reference hashes and
-the proposed caps. It supersedes the first zero-call preparation, which preceded the
-second observed failure; both remain retained. No live revised-candidate result or
-v0.0.1 release is claimed.
+the proposed caps. It superseded the first zero-call preparation, which preceded the
+second observed failure; both remain retained. The following checkpoint supersedes
+the preparation-only state. No v0.0.1 release is claimed.
+
+## Generation-2 result and report-binding revision
+
+The d0d476e04fc7f378 candidate passed 12/12 original and 17/17 development responses,
+then 16/17 fresh reserved candidate responses. The generation-2 baseline arm did not
+run. All 46 new records are valid; one mandatory reserved result failed evidence
+reproduction even though its reported facts were correct. The status label was in the
+SQL unit column while the explicitly named metric's value was numeric. The original
+data, score and rejected result remain unchanged.
+
+Runtime finalization now also checks explicit report metric/value associations in SQL
+and structured Python JSON/JSON-lines output. A label in a unit column or a matching
+value under another metric does not repair a contradictory binding. A second query
+with the correct value cannot erase a contradictory cited result. Single wide rows
+are recognized; several wide population rows are not arbitrarily mapped to one global
+metric. Unstructured Python output still has independent evidence grading. No runtime
+code imports oracle answers or the benchmark scorer.
+
+The existing finalization feedback asks the analyst to repair its executable output.
+Real installed-graph regression checks exercise this repair with unrelated local data.
+The current code passes 275 tests with 15 optional skips, plus Ruff/Vulture/secret checks.
+The scalar-output and unavailable-metric guards remain in place. The frozen independent
+evaluator and tolerances are unchanged; output consistency is not full data lineage or
+an independent correctness proof.
+
+Generation 2 is consumed regression evidence. Explicit generation 3 supplies 17 distinct
+reserved worlds for the next frozen candidate, preserving both earlier generations and
+all old manifests. Thirteen numerical references are independently checked by SQL;
+four scenarios require refusal. No generation-3 model inference has run.
+
+The completed revised inference used $1.413655 in conservative estimates. Cumulative
+goal usage and retained reservations is $4.92681681225 of the existing $5 authorization.
+The next full qualification requires 63 new responses and can reuse 29 unchanged
+baseline records. A proposed shared $2.05 cap would keep the total below $7, subject
+to owner approval; it supersedes the earlier $6 request because another candidate
+revision and fresh reserved generation are now required. No new allowance is implied
+by this document, and no release acceptance is claimed.

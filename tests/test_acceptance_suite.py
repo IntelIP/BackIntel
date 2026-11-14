@@ -125,7 +125,23 @@ def test_refreshed_reserved_worlds_preserve_old_evidence_and_have_independent_ch
     assert refreshed.reference_hash == rebuilt.reference_hash
 
 
-@pytest.mark.parametrize("split,generation", [("development", 2), ("acceptance", 3)])
+def test_third_reserved_generation_retains_both_consumed_generations(tmp_path):
+    settings, first = build(tmp_path, "acceptance")
+    second = build_acceptance(settings, "acceptance", output=tmp_path / "second", reserved_generation=2)
+    original_files = {p: p.read_bytes() for p in (first.manifest_path, second.manifest_path)}
+    third = build_acceptance(settings, "acceptance", output=tmp_path / "third", reserved_generation=3)
+    assert len(third.scenarios) == 17
+    assert all(p.read_bytes() == data for p, data in original_files.items())
+    previous_stores = {s.store for suite in (first, second) for s in suite.scenarios}
+    assert previous_stores.isdisjoint(s.store for s in third.scenarios)
+    assert third.reference_hash not in {first.reference_hash, second.reference_hash}
+    manifest = json.loads(third.manifest_path.read_text())
+    assert len(manifest["reference_checks"]) == 13
+    assert all(c["matches"] for c in manifest["reference_checks"])
+    assert all(verify_acceptance_data(suite, settings) for suite in (first, second, third))
+
+
+@pytest.mark.parametrize("split,generation", [("development", 2), ("acceptance", 4)])
 def test_reserved_refresh_cannot_silently_replace_development_or_choose_arbitrary_worlds(
     tmp_path, split, generation
 ):
