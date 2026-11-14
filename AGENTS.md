@@ -33,6 +33,12 @@ infrastructure last. The agent's value is measured, not asserted.
   Owner-selected specialist default: `chatgpt-plan/gpt-6.1-sol`, medium reasoning. The `analyze`
   CLI resolves `--model`, then `BACKINTEL_ANALYSIS_MODEL`, then that built-in default.
   Scripted integration proves wiring, not live model quality; automatic delegation stays off.
+- `presentation/review.py`: optional rendered dashboard review after verified export,
+  also available through `dashboard review`. Native Anthropic reviewer, existing Sol
+  writer, at most two presentation-only revisions. Host-owned Playwright capture and
+  strict DesignPlan validation preserve numerical tables and chart bindings. Review
+  acceptance is separate from analytical completion. Install dashboard/dashboard-review
+  extras and Chromium; no browser capability is added to the offline analytical VM.
 - Contract (`contracts.py`): the analyst returns an `AnalystAnswer` with `evidence` (the exact
   SQL or Python that produced the number), `method` and `caveats`. Code re-executes the
   evidence; an answer that cannot be reproduced from its evidence is scored as unsupported.

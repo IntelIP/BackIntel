@@ -361,6 +361,8 @@ async def run_analysis(
     max_tool_calls: int = 50,
     timeout_s: int = 900,
     scripted: bool = False,
+    dashboard_reviewer: BaseChatModel | None = None,
+    dashboard_reviewer_id: str | None = None,
 ) -> dict:
     """Execute one bounded brief and persist its record and collected artifact bundle.
 
@@ -473,6 +475,24 @@ async def run_analysis(
                 publisher.export_artifacts(output / "artifacts")
                 record["render_resources"] = publisher.resource_usage()
             record["artifacts"] = verify_bundle(output / "artifacts" / "report")
+            from backintel.presentation.dashboard import generate_dashboard
+
+            record["dashboard"] = generate_dashboard(rendered["spec"], output / "dashboard")
+            if dashboard_reviewer is not None:
+                from backintel.presentation.review import review_dashboard
+
+                record["dashboard_review"] = await asyncio.to_thread(
+                    review_dashboard,
+                    output / "dashboard",
+                    output / "dashboard-review",
+                    brief=brief.model_dump_json(),
+                    reviewer=dashboard_reviewer,
+                    reviser=model,
+                    reviewer_id=dashboard_reviewer_id,
+                    reviser_id=model_id,
+                )
+                record["dashboard"]["ready"] = record["dashboard_review"]["ready"]
+                record["dashboard"]["reviewed_path"] = record["dashboard_review"]["selected"]
             record["status"] = "completed"
     except asyncio.CancelledError:
         record.update(status="cancelled", error="Run cancelled; sandbox stopped.")

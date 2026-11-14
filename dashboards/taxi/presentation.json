@@ -1,0 +1,82 @@
+{
+  "title": "Planning taxi shifts with trip data",
+  "introduction": "The first proposed test is evening shift coverage. Compare airport and city pickup areas before moving vehicles.",
+  "context": {
+    "audience": "A historical case study for a taxi fleet manager.",
+    "decision": "The decision: when and where should we test different shift coverage?",
+    "coverage": "NYC Taxi and Limousine Commission yellow-taxi records, Jan–Mar 2025: 10.46 million trips after payment, fare and duration checks. This is citywide activity, not one company's fleet.",
+    "limitation": "Recorded trips do not reveal unmet demand, idle vehicles or operating costs. These records cannot establish profit."
+  },
+  "sections": [
+    {
+      "title": "1. The starting point",
+      "takeaway": "Daily trips increased across the quarter. Daily averages make months of different lengths comparable.",
+      "columns": 1,
+      "charts": [{
+        "chart": 0,
+        "title": "Average recorded trips per day",
+        "reading_guide": "One column per month; height shows its trip count divided by calendar days.",
+        "caption": "About 105,600 trips per day in January versus 124,100 in March. This establishes a busier historical baseline; it does not explain the increase or forecast the next quarter. Next, look at when those trips occurred.",
+        "encoding": "column",
+        "x_label": "Month",
+        "y_label": "Average recorded trips"
+      }]
+    },
+    {
+      "title": "2. When trips happen",
+      "takeaway": "Evenings are the first timing pattern to investigate. A small shift overlap is a more testable proposal than adding vehicles based on trip counts alone.",
+      "columns": 1,
+      "charts": [{
+        "chart": 1,
+        "title": "Which hours were busiest?",
+        "reading_guide": "Read down for the hour and across for the weekday. Darker cells mean more recorded pickups in an average occurrence of that hour. Times are New York local time.",
+        "caption": "Thursday 6–7 pm averaged 10,289 pickups across the city; Friday 6–7 pm averaged 9,761. These are averages across the quarter, not counts for one date. A suggested test is a limited evening overlap, measuring pickup waits and net receipts per available vehicle-hour against unchanged shifts.",
+        "encoding": "original",
+        "x_label": "Hour",
+        "y_label": "Day"
+      }]
+    },
+    {
+      "title": "3. Where to compare",
+      "takeaway": "Airports generate large fares, but a long airport queue could offset that advantage. Compare an airport waiting location with a city pickup area before moving vehicles.",
+      "columns": 1,
+      "charts": [{
+        "chart": 2,
+        "title": "Ten pickup areas with the most metered fares",
+        "reading_guide": "Longer bars mean a larger sum of meter fares from trips starting in that area. This measures fare volume, not the number of passengers or driver profit.",
+        "caption": "JFK contributed $24.33m and LaGuardia $11.49m. Yet Midtown Center had 485,609 trip records versus JFK's 383,928. An airport-versus-city test must include waiting, driving and repositioning time. The chart shows only the ten leading areas.",
+        "encoding": "original",
+        "x_label": "Pickup area",
+        "y_label": "Metered fares"
+      }]
+    },
+    {
+      "title": "4. The everyday trips",
+      "takeaway": "Do not focus only on high fares. Trips with meter fares below $20 make up most recorded trips, so a city route remains a useful comparison for any airport test.",
+      "columns": 1,
+      "charts": [{
+        "chart": 3,
+        "title": "How much did a typical trip cost on the meter?",
+        "reading_guide": "Each bar is the percentage of all eligible trip records in a meter-fare band. $10–<20 means at least $10 and less than $20. A fare band is not a distance band.",
+        "caption": "44.71% of trips had meter fares from $10 to under $20; another 28.45% were below $10. High ticket size alone does not establish productivity. Meter fares exclude separate taxes, tolls, tips and surcharges.",
+        "encoding": "original",
+        "x_label": "Meter fare",
+        "y_label": "Share of trip records"
+      }]
+    },
+    {
+      "title": "5. Check the monthly mix",
+      "takeaway": "Airport contribution changes by month. Recheck the mix when evaluating a trial instead of assuming the same airport share all year.",
+      "columns": 1,
+      "charts": [{
+        "chart": 4,
+        "title": "Where each month's meter fares came from",
+        "reading_guide": "Each cell is a percentage of that month's total meter fares. Read across a row to compare months. Use the printed percentages for the two airport rows; other pickup areas account for most fares.",
+        "caption": "JFK's share was 13.93% in January, 11.59% in February and 12.28% in March. These are shares of fares, not trips or profit. The next operational step is a small timing or location test with fresh data and measured costs—not a fleet-wide rollout from this historical quarter.",
+        "encoding": "original",
+        "x_label": "Month",
+        "y_label": "Pickup group"
+      }]
+    }
+  ]
+}

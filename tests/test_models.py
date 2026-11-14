@@ -17,6 +17,17 @@ def test_parse_model_id():
         parse_model_id("gpt-6-luna")
 
 
+def test_native_anthropic_review_configuration():
+    pytest.importorskip("langchain_anthropic")
+    model = build_model(
+        "anthropic/claude-haiku-5-5", env={"ANTHROPIC_API_KEY": "test-placeholder"}, max_retries=0
+    )
+    assert model.model == "claude-haiku-5-5"
+    assert model.max_retries == 0 and model.max_tokens == 8192
+    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+        build_model("anthropic/claude-haiku-5-5", env={})
+
+
 def test_openrouter_vendor_policy():
     env = {"OPENROUTER_API_KEY": "test"}
     assert build_model("openrouter/openai/gpt-6-luna", env=env).model_name == "openai/gpt-6-luna"

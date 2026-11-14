@@ -4,6 +4,7 @@
   Google models are allowed, per the technology-selection policy of 2026-10-30.
 - `chatgpt-plan/<model>`: the operator's ChatGPT plan after `backintel chatgpt login`.
 - `openai/<model>`: OpenAI directly with OPENAI_API_KEY.
+- `anthropic/<model>`: Anthropic directly with ANTHROPIC_API_KEY (dashboard-review extra).
 """
 
 from __future__ import annotations
@@ -188,7 +189,18 @@ def build_model(
         if not key:
             raise RuntimeError("OPENAI_API_KEY is not set.")
         return ChatOpenAI(model=name, api_key=key, max_retries=max_retries, timeout=timeout_s, **transport)
-    raise ValueError(f"Unknown provider {provider!r}; use openrouter, chatgpt-plan or openai.")
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        key = env.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise RuntimeError("ANTHROPIC_API_KEY is not set (run under Doppler).")
+        if responses_api or first_party_only:
+            raise ValueError("Native Anthropic uses its Messages API, without gateway routing.")
+        return ChatAnthropic(
+            model_name=name, api_key=key, max_tokens=8192, max_retries=max_retries, timeout=timeout_s
+        )
+    raise ValueError(f"Unknown provider {provider!r}; use openrouter, chatgpt-plan, openai or anthropic.")
 
 
 def usage_from_message(message) -> dict:

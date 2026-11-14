@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sqlite3
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -148,3 +149,97 @@ def test_recovered_completion_exports_verified_bundle(tmp_path, store):
     bundle = output / "artifacts" / "report"
     assert verify_bundle(bundle) == record["artifacts"]
     assert json.loads((bundle / "report.json").read_text())["tables"][0]["rows"] == [[3]]
+    assert record["dashboard"]["status"] == "generated"
+    assert (output / "dashboard" / "app.py").is_file()
+
+
+@pytest.mark.parametrize("outcome", ["completed", "cannot_answer", "export_failure"])
+def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, store, monkeypatch, outcome):
+    import backintel.analysis as analysis
+    import backintel.artifacts as artifacts
+
+    spec = json.loads((Path(__file__).parents[1] / "examples/analysis-report.json").read_text())
+    verified = []
+    reviewed = []
+
+    class Sandbox:
+        env = {}
+
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def close(self):
+            pass
+
+        def resource_usage(self):
+            return {"profile": {}}
+
+        def write_file(self, *args):
+            return SimpleNamespace(exit_code=0)
+
+        def run_python(self, *args):
+            return SimpleNamespace(exit_code=0)
+
+        def export_artifacts(self, *args):
+            if outcome == "export_failure":
+                raise ValueError("export failed")
+
+    def build(model, store, sandbox, identity, rendered, **kwargs):
+        rendered.update(spec=spec, spec_sha256="test", reproduction={})
+
+        async def stream(*args, **kwargs):
+            yield {
+                "structured_response": {
+                    "status": "cannot_answer" if outcome == "cannot_answer" else "completed",
+                    "summary": "Example",
+                    "reason": "Missing input",
+                }
+            }
+
+        return SimpleNamespace(astream=stream)
+
+    def verify(path):
+        verified.append(path)
+        return {"verified": True}
+
+    monkeypatch.setattr(analysis, "AnalysisSandbox", Sandbox)
+    monkeypatch.setattr(analysis, "build_analysis_agent", build)
+    monkeypatch.setattr(artifacts, "verify_bundle", verify)
+    import backintel.presentation.review as dashboard_review
+
+    def review(directory, output, **kwargs):
+        assert verified, "Design review must follow verified numerical export"
+        reviewed.append(directory)
+        return {"ready": False, "status": "needs_revision", "selected": str(directory)}
+
+    monkeypatch.setattr(dashboard_review, "review_dashboard", review)
+    output = tmp_path / "delivery"
+    result = asyncio.run(
+        run_analysis(
+            AnalysisBrief(objective="Analyze assigned data"),
+            model=CompletionTestModel(responses=[completion()]),
+            model_id="scripted",
+            store=store,
+            output=output,
+            scripted=True,
+            dashboard_reviewer=object(),
+            dashboard_reviewer_id="anthropic/test-not-invoked",
+        )
+    )
+    if outcome == "completed":
+        assert verified
+        assert result["status"] == "completed", result.get("error")
+        assert (output / "dashboard/app.py").is_file()
+        assert reviewed and not result["dashboard"]["ready"]
+        assert result["dashboard_review"]["status"] == "needs_revision"
+    else:
+        assert result["status"] == ("failed" if outcome == "export_failure" else "cannot_answer")
+        assert not verified
+        assert not (output / "dashboard").exists()
+        assert not reviewed

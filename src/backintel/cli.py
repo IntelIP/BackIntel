@@ -228,6 +228,22 @@ def cmd_analyze(args, settings):
         first_party_only=not plan,
         timeout_s=min(args.timeout, 300),
     )
+    reviewer = None
+    if args.review_dashboard:
+        import importlib.util
+
+        from backintel.presentation.review import DEFAULT_REVIEWER
+
+        if not model_id.startswith(("chatgpt-plan/", "openai/")):
+            raise ValueError(
+                "Design review requires the OpenAI/ChatGPT writer and native Anthropic reviewer."
+            )
+        if any(
+            importlib.util.find_spec(name) is None
+            for name in ("playwright", "streamlit", "langchain_anthropic")
+        ):
+            raise ValueError("Install extras first: uv sync --extra dashboard --extra dashboard-review")
+        reviewer = build_model(DEFAULT_REVIEWER, max_retries=0, timeout_s=120)
     store = open_store(args.store, settings)
     try:
         record = asyncio.run(
@@ -242,13 +258,118 @@ def cmd_analyze(args, settings):
                 max_model_calls=args.max_model_calls,
                 max_tool_calls=args.max_tool_calls,
                 timeout_s=args.timeout,
+                dashboard_reviewer=reviewer,
+                dashboard_reviewer_id=DEFAULT_REVIEWER if reviewer else None,
             )
         )
     finally:
         store.close()
     print(json.dumps({k: v for k, v in record.items() if k != "messages"}, indent=2))
-    if record["status"] == "failed":
+    if record["status"] == "failed" or (
+        args.review_dashboard and not record.get("dashboard_review", {}).get("ready")
+    ):
         raise SystemExit(1)
+
+
+def cmd_dashboard(args, settings):
+    import importlib.util
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from backintel.artifacts import MAX_SPEC_BYTES
+    from backintel.presentation import dashboard
+
+    if args.action == "review":
+        from backintel.models import build_model
+        from backintel.presentation.review import review_dashboard
+
+        if not args.reviewer_model.startswith("anthropic/"):
+            raise ValueError("The design reviewer uses the native Anthropic account, independently of Sol.")
+        writer_id = args.writer_model or settings.analysis_model
+        if not writer_id.startswith(("chatgpt-plan/", "openai/")):
+            raise ValueError(
+                "Use the existing OpenAI/ChatGPT writer; the reviewer must be a different family."
+            )
+        reviewer = build_model(args.reviewer_model, max_retries=0, timeout_s=120)
+        writer = build_model(writer_id, reasoning_effort="medium", max_retries=0, timeout_s=120)
+        result = review_dashboard(
+            Path(args.directory),
+            Path(args.output),
+            brief=Path(args.brief).read_text(),
+            reviewer=reviewer,
+            reviser=writer,
+            reviewer_id=args.reviewer_model,
+            reviser_id=writer_id,
+            max_revisions=args.max_revisions,
+        )
+        print(json.dumps(result, indent=2))
+        if not result["ready"]:
+            raise SystemExit(1)
+        return
+    if args.action == "generate":
+        source = Path(args.report)
+        if source.stat().st_size > MAX_SPEC_BYTES:
+            raise ValueError("Report exceeds the specification size limit.")
+        presentation = None
+        if args.presentation:
+            plan_path = Path(args.presentation)
+            if plan_path.stat().st_size > MAX_SPEC_BYTES:
+                raise ValueError("Presentation exceeds the specification size limit.")
+            presentation = json.loads(plan_path.read_text())
+        result = dashboard.generate_dashboard(
+            json.loads(source.read_text()), Path(args.output), presentation=presentation
+        )
+        print(f"Dashboard ready: {result['path']}")
+        return
+    if importlib.util.find_spec("streamlit") is None or importlib.util.find_spec("plotly") is None:
+        raise ValueError("Install the presentation packages with: uv sync --frozen --extra dashboard")
+    data = Path(args.directory).resolve() / "dashboard.json"
+    if not data.is_file() or data.stat().st_size > MAX_SPEC_BYTES:
+        raise ValueError("Select a generated dashboard directory containing dashboard.json.")
+    # Always execute our installed entry point, never a Python file supplied by a report.
+    entry = Path(dashboard.__file__).with_name("streamlit_app.py")
+    command = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(entry),
+        "--server.address",
+        "127.0.0.1",
+        "--server.port",
+        str(args.port),
+        "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
+        "false",
+        "--server.fileWatcherType",
+        "none",
+        "--client.toolbarMode",
+        "minimal",
+        "--client.showErrorDetails",
+        "false",
+        "--theme.base",
+        "light",
+        "--theme.primaryColor",
+        "#176581",
+        "--theme.backgroundColor",
+        "#FAF9F6",
+        "--theme.secondaryBackgroundColor",
+        "#F0EEE8",
+        "--theme.textColor",
+        "#203646",
+        "--theme.headingFont",
+        "serif",
+        "--theme.baseFontSize",
+        "17",
+    ]
+    try:
+        code = subprocess.call(command, env={**os.environ, "BACKINTEL_DASHBOARD_DATA": str(data)})
+    except KeyboardInterrupt:
+        code = 130
+    raise SystemExit(code)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -340,6 +461,11 @@ def main(argv: list[str] | None = None) -> None:
     analyze.add_argument("--max-model-calls", type=int, default=24)
     analyze.add_argument("--max-tool-calls", type=int, default=50)
     analyze.add_argument(
+        "--review-dashboard",
+        action="store_true",
+        help="automatically inspect and revise the generated dashboard (native Anthropic reviewer)",
+    )
+    analyze.add_argument(
         "--max-cost-usd", type=float, help="approved API admission budget; required for OpenRouter"
     )
     analyze.add_argument(
@@ -348,6 +474,32 @@ def main(argv: list[str] | None = None) -> None:
         help="OpenRouter per-call reservation; use provider key limits for a hard spend cap",
     )
     analyze.set_defaults(func=cmd_analyze)
+
+    dashboard = sub.add_parser("dashboard", help="generate or locally serve a Streamlit analysis")
+    actions = dashboard.add_subparsers(dest="action", required=True)
+    generate = actions.add_parser(
+        "generate", help="turn a retained report into a dashboard without inference"
+    )
+    generate.add_argument("--report", required=True)
+    generate.add_argument("--output", required=True)
+    generate.add_argument("--presentation", help="optional validated DesignPlan JSON for the retained charts")
+    serve = actions.add_parser("serve", help="serve a generated dashboard on loopback")
+    serve.add_argument("directory")
+    serve.add_argument("--port", type=int, default=8504)
+    from backintel.presentation.review import DEFAULT_REVIEWER
+
+    review = actions.add_parser("review", help="inspect rendered pages and revise their design at most twice")
+    review.add_argument("directory")
+    review.add_argument(
+        "--brief", required=True, help="text or JSON file describing the reader's business question"
+    )
+    review.add_argument(
+        "--output", required=True, help="new directory for candidates, screenshots and review"
+    )
+    review.add_argument("--max-revisions", type=int, choices=(0, 1, 2), default=2)
+    review.add_argument("--reviewer-model", default=DEFAULT_REVIEWER)
+    review.add_argument("--writer-model", help="defaults to the configured analysis specialist")
+    dashboard.set_defaults(func=cmd_dashboard)
 
     from backintel.bench.commands import add_commands
 

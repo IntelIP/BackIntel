@@ -25,6 +25,13 @@ dependencies = [
 [project.scripts]
 backintel = "backintel.cli:main"
 
+[project.optional-dependencies]
+dashboard = ["streamlit==1.67.0", "plotly==7.1.0"]
+dashboard-review = [
+    "langchain-anthropic>=1.4,<2",
+    "playwright>=1.58,<2",
+]
+
 [dependency-groups]
 dev = [
   "pytest>=8,<10",

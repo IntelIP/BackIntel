@@ -60,6 +60,11 @@ Generated artifacts are presentation of the analysis, not a separate calculation
 
 ## Choose a visual that answers the question
 
+Read `/skills/analysis/dashboard-storytelling/SKILL.md` for presentation work. Use business
+titles, human-readable measure names and a story/exploration/definitions structure. Keep
+run IDs, hashes, traces and manifests in engineering records, outside business views and
+business sheets. The existing renderer's engineering bundle is retained separately; the host also generates a Streamlit dashboard after verified export. Do not delete required provenance.
+
 | Question | Useful starting point | Check |
 | --- | --- | --- |
 | How does a metric change over time? | Line chart | Ordered dates, honest intervals, incomplete periods and units. |
