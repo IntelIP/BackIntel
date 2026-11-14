@@ -159,22 +159,71 @@ def generate_dashboard(spec: dict, destination: Path, *, presentation: dict | No
     return {"path": str(destination), "entrypoint": "app.py", "status": "generated"}
 
 
+def _remaining(deadline: float) -> float:
+    if not math.isfinite(deadline):
+        raise ValueError("Dashboard generation requires a finite deadline.")
+    seconds = deadline - time.monotonic()
+    if seconds <= 0:
+        raise TimeoutError("Whole-run deadline reached during dashboard generation.")
+    return seconds
+
+
+async def _run_renderer(command: list[str], staging: Path, deadline: float) -> None:
+    env = {k: os.environ[k] for k in ("PATH", "HOME", "SYSTEMROOT") if k in os.environ}
+    _remaining(deadline)
+    # Synchronous creation retains ownership if the awaiting task is cancelled.
+    with (staging / "generation.log").open("w+") as log:
+        process = subprocess.Popen(command, cwd=staging, env=env, stdout=log, stderr=log)
+        try:
+            while process.poll() is None:
+                await asyncio.sleep(min(0.05, _remaining(deadline)))
+            _remaining(deadline)
+            if process.returncode:
+                log.seek(0)
+                raise RuntimeError("Dashboard generation failed: " + log.read(2000))
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+
+
+async def workbook_bytes_async(data: dict, destination: Path, *, plan=None, deadline: float) -> None:
+    """Serialize review workbooks in the same owned, cancellable worker as generation."""
+    _remaining(deadline)
+    with tempfile.TemporaryDirectory(prefix=".workbook-", dir=destination.parent) as temporary:
+        staging = Path(temporary).resolve()
+        (staging / "input.json").write_text(
+            json.dumps(
+                {
+                    "data": data,
+                    "plan": plan.model_dump() if plan else None,
+                },
+                ensure_ascii=False,
+                allow_nan=False,
+            )
+        )
+        script = """
+import json
+from pathlib import Path
+from backintel.presentation.dashboard import workbook_bytes
+from backintel.presentation.design import validate_plan
+source = json.loads(Path('input.json').read_text())
+data = source['data']
+plan = validate_plan(source['plan'], data) if source['plan'] is not None else None
+Path('analysis.xlsx').write_bytes(workbook_bytes(data, plan))
+"""
+        await _run_renderer([sys.executable, "-c", script], staging, deadline)
+        _remaining(deadline)
+        (staging / "analysis.xlsx").rename(destination)
+
+
 async def generate_dashboard_async(spec: dict, destination: Path, *, deadline: float) -> dict:
     """Bound CPU-heavy workbook generation by the analysis's absolute monotonic deadline.
 
     A thread cannot be stopped during workbook styling/serialization. Use the existing
     trusted CLI in an owned process, and publish only after it finishes within budget.
     """
-    if not math.isfinite(deadline):
-        raise ValueError("Dashboard generation requires a finite deadline.")
-
-    def remaining():
-        seconds = deadline - time.monotonic()
-        if seconds <= 0:
-            raise TimeoutError("Whole-run deadline reached during dashboard generation.")
-        return seconds
-
-    remaining()
+    _remaining(deadline)
     destination = Path(destination)
     if destination.exists():
         raise ValueError("Use a new dashboard directory; existing deliveries are preserved.")
@@ -195,23 +244,8 @@ async def generate_dashboard_async(spec: dict, destination: Path, *, deadline: f
             "--output",
             str(generated),
         ]
-        env = {k: os.environ[k] for k in ("PATH", "HOME", "SYSTEMROOT") if k in os.environ}
-        remaining()
-        # Synchronous creation retains ownership if the awaiting task is cancelled.
-        with (staging / "generation.log").open("w+") as log:
-            process = subprocess.Popen(command, cwd=staging, env=env, stdout=log, stderr=log)
-            try:
-                while process.poll() is None:
-                    await asyncio.sleep(min(0.05, remaining()))
-                remaining()
-                if process.returncode:
-                    log.seek(0)
-                    raise RuntimeError("Dashboard generation failed: " + log.read(2000))
-            finally:
-                if process.poll() is None:
-                    process.kill()
-                process.wait(timeout=5)
-        remaining()
+        await _run_renderer(command, staging, deadline)
+        _remaining(deadline)
         if destination.exists():
             raise ValueError("Use a new dashboard directory; existing deliveries are preserved.")
         generated.rename(destination)

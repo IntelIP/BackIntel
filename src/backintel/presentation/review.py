@@ -15,7 +15,7 @@ from langsmith import trace
 
 from backintel.bench.usage import PlanRunBudget, UsageTracker
 from backintel.presentation.capture import capture_dashboard_async
-from backintel.presentation.dashboard import LAUNCHER, workbook_bytes
+from backintel.presentation.dashboard import LAUNCHER, workbook_bytes_async
 from backintel.presentation.design import DesignPlan, DesignReview, validate_plan
 
 PROMPT_PATH = Path(__file__).parents[1] / "agent_files" / "docs" / "dashboard-review.md"
@@ -226,7 +226,9 @@ async def review_dashboard_async(
                     plan = validate_plan(plan.model_dump(), data)
                 if plan:
                     (folder / "presentation.json").write_text(plan.model_dump_json(indent=2))
-                (folder / "analysis.xlsx").write_bytes(workbook_bytes(data, plan))
+                await workbook_bytes_async(
+                    data, folder / "analysis.xlsx", plan=plan, deadline=started + timeout_s
+                )
                 evidence = await capture(folder, folder / "screenshots")
                 if not evidence["views"]:
                     raise ValueError("No rendered views were captured; visual review cannot proceed.")

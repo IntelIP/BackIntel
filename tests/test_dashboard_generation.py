@@ -221,7 +221,8 @@ def test_bounded_generation_uses_real_cli_and_preserves_tables(tmp_path, report_
 
 
 @pytest.mark.parametrize("stop", ["deadline", "cancel"])
-def test_stalled_workbook_is_stopped_without_publishing(tmp_path, report_spec, monkeypatch, stop):
+@pytest.mark.parametrize("mode", ["dashboard", "review"])
+def test_stalled_workbook_is_stopped_without_publishing(tmp_path, report_spec, monkeypatch, stop, mode):
     from backintel.presentation import dashboard
 
     # Run the real generator, but stall precisely inside its workbook builder.
@@ -247,18 +248,27 @@ main()
     monkeypatch.setenv("OPENAI_API_KEY", "test-secret-must-not-reach-generator")
 
     def spawn(command, **kwargs):
-        assert command[1:5] == ["-m", "backintel.cli", "dashboard", "generate"]
         assert "OPENAI_API_KEY" not in kwargs["env"]
-        process = original([command[0], "-c", script, *command[3:]], **kwargs)
+        if mode == "dashboard":
+            assert command[1:5] == ["-m", "backintel.cli", "dashboard", "generate"]
+            replacement = [command[0], "-c", script, *command[3:]]
+        else:
+            assert command[1] == "-c"
+            replacement = [command[0], "-c", script.removesuffix("main()\n") + command[2]]
+        process = original(replacement, **kwargs)
         processes.append(process)
         directories.append(Path(kwargs["cwd"]))
         return process
 
     monkeypatch.setattr(dashboard.subprocess, "Popen", spawn)
-    target = tmp_path / "dashboard"
+    target = tmp_path / ("dashboard" if mode == "dashboard" else "analysis.xlsx")
 
     async def run():
-        task = asyncio.create_task(dashboard.generate_dashboard_async(report_spec, target, deadline=deadline))
+        task = asyncio.create_task(
+            dashboard.generate_dashboard_async(report_spec, target, deadline=deadline)
+            if mode == "dashboard"
+            else dashboard.workbook_bytes_async(project_report(report_spec), target, deadline=deadline)
+        )
         try:
             async with asyncio.timeout(15):
                 while not directories or not (directories[0] / "workbook-started").exists():
@@ -286,6 +296,7 @@ main()
     assert processes and all(p.poll() is not None for p in processes)
     assert not target.exists()
     assert not list(tmp_path.glob(".dashboard-*"))
+    assert not list(tmp_path.glob(".workbook-*"))
 
 
 def test_histogram_hover_shows_bin_bounds_and_counts():

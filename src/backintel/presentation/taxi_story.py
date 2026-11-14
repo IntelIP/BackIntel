@@ -105,7 +105,14 @@ def validate_story(story: dict) -> None:
         "weekly_hours": {"Weekday", "Hour", "Trips_per_occurrence"},
         "zones": {"Pickup_zone", "Trips", "Gross_fare_USD", "Trip_share_pct", "Fare_share_pct"},
         "fare_bands": {"Fare_band", "Trip_share_pct"},
-        "segments": {"Month", "Pickup_segment", "Trip_share_pct", "Fare_share_pct"},
+        "segments": {
+            "Month",
+            "Pickup_segment",
+            "Trips",
+            "Gross_fare_USD",
+            "Trip_share_pct",
+            "Fare_share_pct",
+        },
         "quality": {"Population", "Records"},
     }
     for name, columns in required.items():
@@ -170,6 +177,35 @@ def validate_story(story: dict) -> None:
     for column in ("Trips", "Gross_fare_USD"):
         if sum(Decimal(str(x)) for x in airports[column]) > sum(Decimal(str(x)) for x in monthly[column]):
             raise ValueError("Airport totals cannot exceed the quarterly trip or fare totals.")
+    comparisons = [(zones, monthly)] + [
+        (segments[segments.Month == date[:7]], monthly[monthly.Month == date]) for date in MONTHS
+    ]
+    for rows, population in comparisons:
+        for column, share in (("Trips", "Trip_share_pct"), ("Gross_fare_USD", "Fare_share_pct")):
+            denominator = sum(Decimal(str(x)) for x in population[column])
+            if denominator <= 0 or sum(Decimal(str(x)) for x in rows[column]) > denominator:
+                raise ValueError("Pickup-area totals exceed or lack their stated population.")
+            # Source percentages are rounded to two decimal places.
+            if any(
+                abs(Decimal(str(pct)) - 100 * Decimal(str(value)) / denominator) > Decimal("0.01")
+                for value, pct in zip(rows[column], rows[share], strict=True)
+            ):
+                raise ValueError("Pickup-area shares disagree with their stated population.")
+            airport_rows = rows[rows.Pickup_segment.isin(AIRPORTS)] if "Month" in rows else airports
+            if airport_rows[share].sum() > 100.01:
+                raise ValueError("Combined airport shares exceed 100%.")
+    quality = frame(story, "quality").set_index("Population").Records
+    funnel = [quality[label] for label in list(QUALITY_LABELS.values())[:6]]
+    if any(later > earlier for earlier, later in zip(funnel, funnel[1:], strict=False)):
+        raise ValueError("Coverage funnel counts must not increase.")
+    # The retained SQL defines Eligible after the fare guardrail, not before it.
+    if (
+        funnel[-2] - quality["Records above the fare guardrail"] != funnel[-1]
+        or funnel[-1] != monthly.Trips.sum()
+    ):
+        raise ValueError("Coverage eligibility and fare exclusions disagree with retained trips.")
+    if any(quality[label] > funnel[-1] for label in list(QUALITY_LABELS.values())[7:]):
+        raise ValueError("Retained coverage subsets exceed eligible records.")
 
 
 def prepare_story(report: dict) -> dict:

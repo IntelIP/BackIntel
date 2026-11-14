@@ -261,7 +261,14 @@ def test_section_names_are_normalized_before_uniqueness_checks(delivery, name):
 
 
 @pytest.mark.parametrize("stage", ["capture", "reviewer", "writer"])
-def test_deadline_cancels_current_stage_and_prevents_more_calls(delivery, tmp_path, stage):
+def test_deadline_cancels_current_stage_and_prevents_more_calls(delivery, tmp_path, stage, monkeypatch):
+    from backintel.presentation import review
+
+    async def prepared_workbook(data, destination, **kwargs):
+        destination.write_bytes((delivery / "analysis.xlsx").read_bytes())
+
+    # Workbook worker cancellation is exercised separately; isolate this stage's deadline.
+    monkeypatch.setattr(review, "workbook_bytes_async", prepared_workbook)
     stopped = []
 
     async def stall():
@@ -449,3 +456,56 @@ def test_feedback_upload_failure_preserves_local_assessment(delivery, tmp_path, 
     retained = (tmp_path / "review/review.json").read_text()
     assert json.loads(retained)["observability_warnings"] == result["observability_warnings"]
     assert "private service error" not in retained
+
+
+@pytest.mark.parametrize("field", ["blocking_issues", "revisions"])
+@pytest.mark.parametrize("item", ["", " \t ", "x" * 1201])
+def test_review_feedback_must_be_nonblank_and_bounded(delivery, tmp_path, field, item):
+    bad = rating(2).model_dump()
+    bad[field] = [item]
+    writer = Scripted()
+    result = run_loop(delivery, tmp_path, Scripted(bad), writer)
+    assert result["status"] == "review_error" and writer.calls == 0
+
+
+def test_long_valid_baseline_reaches_visual_review(tmp_path, monkeypatch):
+    pytest.importorskip("playwright")
+    pytest.importorskip("streamlit")
+    from backintel.presentation.capture import capture_dashboard_async
+
+    monkeypatch.setenv("LANGSMITH_TRACING", "false")
+    spec = report_fixture.__wrapped__()
+    spec["tables"][1]["rows"] = [[f"Category {i}", i + 1, i + 1] for i in range(40)]
+    spec["charts"] = [
+        dict(
+            id=f"comparison-{i}",
+            title=f"Complete comparison {i}",
+            kind="bar",
+            table="segments",
+            x="Segment",
+            y="Revenue",
+        )
+        for i in range(12)
+    ]
+    delivery = tmp_path / "dashboard"
+    generate_dashboard(spec, delivery)
+
+    class CapturedReviewer(Scripted):
+        async def ainvoke(self, messages, **kwargs):
+            self.calls += 1
+            value = rating(4)
+            value.ratings[0].views = [
+                block["text"].removeprefix("Rendered view: ")
+                for block in messages[1].content
+                if block.get("type") == "text" and block["text"].startswith("Rendered view: ")
+            ]
+            for criterion in value.ratings[1:]:
+                criterion.views = value.ratings[0].views[:1]
+            return value
+
+    reviewer = CapturedReviewer()
+    result = run_loop(delivery, tmp_path, reviewer, None, max_revisions=0, capture=capture_dashboard_async)
+    assert result["ready"] and reviewer.calls == 1, result
+    views = result["rounds"][0]["browser"]["views"]
+    for width in ("desktop", "mobile"):
+        assert len([v for v in views if v["name"].startswith(width + "/The story/")]) > 20

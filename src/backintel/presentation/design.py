@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -71,8 +71,8 @@ class Rating(StrictModel):
 
 class DesignReview(StrictModel):
     ratings: list[Rating] = Field(min_length=5, max_length=5)
-    blocking_issues: list[str] = Field(max_length=12)
-    revisions: list[str] = Field(max_length=8)
+    blocking_issues: list[Annotated[str, Field(min_length=1, max_length=1200)]] = Field(max_length=12)
+    revisions: list[Annotated[str, Field(min_length=1, max_length=1200)]] = Field(max_length=8)
 
     def checked(self, view_names: set[str]) -> DesignReview:
         if sorted(r.criterion for r in self.ratings) != sorted(CRITERIA):

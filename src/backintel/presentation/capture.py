@@ -83,6 +83,7 @@ async def capture_dashboard_async(directory: Path, output: Path) -> dict:
     plan = validate_plan(json.loads(plan_path.read_text()), data) if plan_path.exists() else None
     output.mkdir(parents=True, exist_ok=False)
     evidence = {"views": [], "failures": [], "checks": []}
+    captured_bytes = 0
     async with dashboard_server(directory) as origin, async_playwright() as playwright:
         browser = await playwright.chromium.launch()
         try:
@@ -162,20 +163,21 @@ async def capture_dashboard_async(directory: Path, output: Path) -> dict:
                     # overlapping real viewports so offscreen content is actually painted.
                     scroller = page.locator('[data-testid="stMain"]')
                     height = await scroller.evaluate("e => e.scrollHeight")
-                    if height > 16000:
-                        raise ValueError(
-                            "Dashboard view is too tall to review completely; split it into sections."
-                        )
                     viewport = await scroller.evaluate("e => e.clientHeight")
                     positions = list(range(0, max(1, height - viewport), max(1, viewport - 100)))
                     positions.append(max(0, height - viewport))
                     for part, position in enumerate(sorted(set(positions)), 1):
+                        if len(evidence["views"]) >= 200:
+                            raise ValueError("Dashboard exceeds the 200-screenshot review limit.")
                         await scroller.evaluate("(e, y) => e.scrollTo(0, y)", position)
                         await page.wait_for_timeout(150)
                         filename = f"{size}-{index + 1}-{part}.png"
-                        await page.screenshot(
+                        screenshot = await page.screenshot(
                             path=str(output / filename), animations="disabled", timeout=15000
                         )
+                        captured_bytes += len(screenshot)
+                        if captured_bytes > 24_000_000:
+                            raise ValueError("Screenshots exceed the 24 MB review limit.")
                         evidence["views"].append(
                             {"name": f"{size}/{name}/{part}", "file": filename, "charts": expected}
                         )

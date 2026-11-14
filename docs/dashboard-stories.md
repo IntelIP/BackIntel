@@ -187,6 +187,8 @@ table values with the retained data. It closes the process/browser even after fa
 Overlapping viewport screenshots covering the full page and those checks go to a fresh
 reviewer context each round; the reviewer never sees earlier scores. Browser automation is trusted host code, not a
 new browser/network permission for the analytical sandbox.
+Capture is bounded to 200 viewport images and 24 MB per round; long pages are captured
+in full within those limits so the writer can reorganize them after review.
 
 The fixed rubric grades story, chart effectiveness, organization, craft and business
 usefulness from 1–5 with explicit anchors and illustrative examples. Each must reach 4,
@@ -205,6 +207,9 @@ snapshots and execution metadata stay out of those reader-facing views. Arbitrar
 New calculations, new chart bindings and unsupported interactions are unresolved work,
 not edits the loop can invent. Workbooks retain identical analytical tables while their
 read-me uses the revised narrative. This is runtime revision, not model-weight training.
+Every candidate workbook is generated in an owned worker process that is stopped on
+cancellation or deadline expiry. Review-only mode (`--max-revisions 0`) needs reviewer
+credentials only; it neither constructs nor authenticates a writer.
 
 Each candidate gets its own directory; the input delivery is untouched. `review.json`
 records scores, evidence, usage and the selected candidate. The host prefers fewer failed
@@ -219,6 +224,8 @@ With `LANGSMITH_TRACING=true`, screenshot attachments, model calls and criterion
 are recorded using the existing project. No tracing destination or credentials are
 changed. Engineering evidence stays in the review directory/LangSmith and out of business
 pages. The bounded loop works locally when tracing is disabled.
+Failed feedback uploads are recorded under `observability_warnings` without discarding
+the completed local assessment.
 
 The browser dependency is Microsoft's Playwright Python package, from the official
 [Microsoft repository](https://github.com/microsoft/playwright-python). The native Claude

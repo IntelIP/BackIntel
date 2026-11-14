@@ -38,27 +38,34 @@ def report():
             ["Weekday", "Hour", "Trips_per_occurrence"],
             [[day, f"{hour:02d}", hour + 1] for day in DAYS for hour in range(24)],
         ),
-        # Deliberately reverse airport order and use misleading rounded shares: the
-        # headline must calculate from counts and the full quarterly denominator.
+        # Deliberately reverse airport order; shares use the full quarterly denominator.
         "zones": (
             ["Pickup_zone", "Trips", "Gross_fare_USD", "Trip_share_pct", "Fare_share_pct"],
             [
                 ["LaGuardia Airport", 6, 300, 2, 10],
                 ["JFK Airport", 9, 600, 3, 20],
-                ["=Untrusted label", 10, 10, 90, 90],
-                *[[f"Zone {i}", 1, 10, 0.1, 0.1] for i in range(7)],
+                ["=Untrusted label", 10, 10, 3.33, 0.33],
+                *[[f"Zone {i}", 1, 10, 0.33, 0.33] for i in range(7)],
             ],
         ),
         "fare_bands": (["Fare_band", "Trip_share_pct"], [[band, 20] for band in FARE_BANDS]),
         "segments": (
-            ["Month", "Pickup_segment", "Trip_share_pct", "Fare_share_pct"],
+            ["Month", "Pickup_segment", "Trips", "Gross_fare_USD", "Trip_share_pct", "Fare_share_pct"],
             [
-                [date[:7], area, index + 1, index + 4]
+                [date[:7], area, index + 1, 10 * (index + 4), index + 1, index + 4]
                 for index, date in enumerate(MONTHS)
                 for area in ["JFK", "LaGuardia"]
             ],
         ),
-        "quality": (["Population", "Records"], [[name, 1000 - i] for i, name in enumerate(QUALITY_LABELS)]),
+        "quality": (
+            ["Population", "Records"],
+            [
+                [name, count]
+                for name, count in zip(
+                    QUALITY_LABELS, [1000, 900, 800, 700, 310, 300, 10, 80, 30, 0], strict=True
+                )
+            ],
+        ),
     }
     return {
         "run_id": "private-run-marker",
@@ -213,7 +220,12 @@ def test_quality_labels_preserve_source_counts_across_row_and_column_order(repor
     table["columns"] = ["Records", "Population"]
     table["rows"] = [[row[1], row[0]] for row in reversed(table["rows"])]
     quality = prepare_story(report)["tables"]["quality"]
-    assert quality["rows"] == [[1000 - i, name] for i, name in enumerate(QUALITY_LABELS.values())]
+    assert quality["rows"] == [
+        [count, name]
+        for count, name in zip(
+            [1000, 900, 800, 700, 310, 300, 10, 80, 30, 0], QUALITY_LABELS.values(), strict=True
+        )
+    ]
 
 
 @pytest.mark.parametrize("bad", ["unknown", "duplicate"])
@@ -269,8 +281,12 @@ def test_combined_airport_totals_cannot_exceed_the_quarter(report, column):
     zones = next(t for t in report["tables"] if t["id"] == "zones")
     total = sum(row[monthly["columns"].index(column)] for row in monthly["rows"])
     position = zones["columns"].index(column)
+    share = zones["columns"].index("Trip_share_pct" if column == "Trips" else "Fare_share_pct")
     for row in zones["rows"][:2]:
         row[position] = total // 2
+        row[share] = 50
+    for row in zones["rows"][2:]:
+        row[position] = row[share] = 0
     assert prepare_story(report)  # Exactly 100% remains valid.
     zones["rows"][0][position] += 1
     with pytest.raises(ValueError, match="Airport totals"):
@@ -279,7 +295,7 @@ def test_combined_airport_totals_cannot_exceed_the_quarter(report, column):
 
 def test_airport_mix_rejects_extra_months(report):
     segments = next(t for t in report["tables"] if t["id"] == "segments")
-    segments["rows"].append(["2025-04", "JFK", 1, 4])
+    segments["rows"].append(["2025-04", "JFK", 1, 40, 1, 4])
     with pytest.raises(ValueError, match="only January"):
         prepare_story(report)
 
@@ -305,3 +321,20 @@ def test_growth_story_follows_measured_direction(report, tmp_path, monkeypatch, 
     assert app.metric[2].value == value
     assert app.header[0].value == heading
     assert any(phrase in element.value for element in app.markdown)
+
+
+@pytest.mark.parametrize("table", ["zones", "segments"])
+@pytest.mark.parametrize("column", ["Trip_share_pct", "Fare_share_pct"])
+def test_airport_charts_cannot_disagree_with_retained_totals(report, table, column):
+    source = next(t for t in report["tables"] if t["id"] == table)
+    source["rows"][0][source["columns"].index(column)] = 90
+    with pytest.raises(ValueError, match="shares disagree"):
+        prepare_story(report)
+
+
+@pytest.mark.parametrize("row,value", [(0, 100), (4, 299), (5, 299), (6, 311), (7, 301)])
+def test_coverage_counts_reconcile_with_retained_population(report, row, value):
+    quality = next(t for t in report["tables"] if t["id"] == "quality")
+    quality["rows"][row][1] = value
+    with pytest.raises(ValueError, match="Coverage|coverage"):
+        prepare_story(report)
