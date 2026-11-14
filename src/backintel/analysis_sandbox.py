@@ -141,7 +141,9 @@ class AnalysisSandbox:
             raise RuntimeError(f"SmolVM operation failed: {result.stderr[:1000]}")
         return result.stdout
 
-    def _exec_command(self, arguments, *, input_data=False, timeout=30):
+    def _exec_command(self, arguments, *, pipe_io=False, timeout=30):
+        # Native pipes (-i without -t) preserve binary I/O without SmolVM 1.31.1's
+        # 11 MiB --stream output cap. Callers still enforce their own byte/deadline limits.
         return [
             self.engine,
             "machine",
@@ -154,7 +156,7 @@ class AnalysisSandbox:
             "/workspace",
             "--timeout",
             f"{max(1, int(timeout))}s",
-            *(["-i"] if input_data else ["--stream"]),
+            *(["-i"] if pipe_io else ["--stream"]),
             "--",
             "python",
             "-I",
@@ -325,7 +327,7 @@ class AnalysisSandbox:
             timeout = min(self.profile.command_timeout_s, remaining)
             started = time.monotonic()
             proc = subprocess.Popen(
-                self._exec_command(arguments, input_data=input_data is not None, timeout=timeout),
+                self._exec_command(arguments, pipe_io=input_data is not None, timeout=timeout),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.PIPE if input_data is not None else None,
@@ -438,9 +440,11 @@ class AnalysisSandbox:
             source_path = PurePosixPath(path)
             proc = subprocess.Popen(
                 self._exec_command(
-                    ["tar", "-C", str(source_path.parent), "-cf", "-", "--", source_path.name]
+                    ["tar", "-C", str(source_path.parent), "-cf", "-", "--", source_path.name],
+                    pipe_io=True,
                 ),
                 env=host_environment(),
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
@@ -504,8 +508,9 @@ class AnalysisSandbox:
             output.mkdir(parents=True, exist_ok=True)
             output = output.resolve()
             proc = subprocess.Popen(
-                self._exec_command(["tar", "-C", "/artifacts", "-cf", "-", "."], timeout=60),
+                self._exec_command(["tar", "-C", "/artifacts", "-cf", "-", "."], pipe_io=True, timeout=60),
                 env=host_environment(),
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
