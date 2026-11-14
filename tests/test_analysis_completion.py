@@ -153,10 +153,17 @@ def test_recovered_completion_exports_verified_bundle(tmp_path, store):
     assert (output / "dashboard" / "app.py").is_file()
 
 
-@pytest.mark.parametrize("outcome", ["completed", "cannot_answer", "export_failure"])
+@pytest.mark.parametrize("outcome", ["completed", "cannot_answer", "export_failure", "generation_timeout"])
 def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, store, monkeypatch, outcome):
     import backintel.analysis as analysis
     import backintel.artifacts as artifacts
+    import backintel.presentation.dashboard as dashboard
+
+    clock = SimpleNamespace(now=100.0)
+    if outcome == "generation_timeout":
+        simulated_time = SimpleNamespace(monotonic=lambda: clock.now)
+        monkeypatch.setattr(analysis, "time", simulated_time)
+        monkeypatch.setattr(dashboard, "time", simulated_time)
 
     spec = json.loads((Path(__file__).parents[1] / "examples/analysis-report.json").read_text())
     verified = []
@@ -206,6 +213,8 @@ def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, stor
 
     def verify(path):
         verified.append(path)
+        if outcome == "generation_timeout":
+            clock.now += 901  # Export used the original 900-second budget.
         return {"verified": True}
 
     monkeypatch.setattr(analysis, "AnalysisSandbox", Sandbox)
@@ -229,7 +238,7 @@ def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, stor
             store=store,
             output=output,
             scripted=True,
-            dashboard_reviewer=object(),
+            dashboard_reviewer=None if outcome == "generation_timeout" else object(),
             dashboard_reviewer_id="anthropic/test-not-invoked",
         )
     )
@@ -239,6 +248,12 @@ def test_completion_delivers_dashboard_only_after_verified_export(tmp_path, stor
         assert (output / "dashboard/app.py").is_file()
         assert reviewed and not result["dashboard"]["ready"]
         assert result["dashboard_review"]["status"] == "needs_revision"
+    elif outcome == "generation_timeout":
+        assert verified and result["status"] == "failed"
+        assert "deadline reached during dashboard generation" in result["error"]
+        assert json.loads((output / "run.json").read_text())["status"] == "failed"
+        assert not (output / "dashboard").exists()
+        assert not reviewed
     else:
         assert result["status"] == ("failed" if outcome == "export_failure" else "cannot_answer")
         assert not verified

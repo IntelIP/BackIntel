@@ -95,7 +95,11 @@ After clean export and bundle verification, `run_analysis` creates `dashboard/` 
 `app.py`, a business-data projection, `analysis.xlsx` and launch instructions. Generation
 uses the existing validated report and makes no model calls. Failure to generate fails
 completion; refusals and export failures do not deliver a dashboard. Existing engineering
-bundles and their integrity records remain separate.
+bundles and their integrity records remain separate. Automatic generation shares the original
+`analyze --timeout` deadline even when design review is disabled. The existing generator
+runs in an owned child process so workbook styling and serialization can be stopped on
+expiry or cancellation. Only an in-budget result is published; staged files are removed
+on failure, and the run cannot report analytical completion after generation times out.
 
 To convert any retained report without another agent run:
 

@@ -475,9 +475,11 @@ async def run_analysis(
                 publisher.export_artifacts(output / "artifacts")
                 record["render_resources"] = publisher.resource_usage()
             record["artifacts"] = verify_bundle(output / "artifacts" / "report")
-            from backintel.presentation.dashboard import generate_dashboard
+            from backintel.presentation.dashboard import generate_dashboard_async
 
-            record["dashboard"] = generate_dashboard(rendered["spec"], output / "dashboard")
+            record["dashboard"] = await generate_dashboard_async(
+                rendered["spec"], output / "dashboard", deadline=started + timeout_s
+            )
             if dashboard_reviewer is not None:
                 from backintel.presentation.review import review_dashboard_async
 

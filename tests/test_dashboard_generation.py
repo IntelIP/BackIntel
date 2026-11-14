@@ -1,8 +1,11 @@
 """Generic delivery and interaction checks, independent of taxi-specific presentation."""
 
+import asyncio
 import io
 import json
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from openpyxl import load_workbook
@@ -185,3 +188,94 @@ def test_serve_uses_trusted_entry_and_loopback(tmp_path, monkeypatch):
     assert command[command.index("--server.address") + 1] == "127.0.0.1"
     assert command[4].endswith("presentation/streamlit_app.py")
     assert options["env"]["BACKINTEL_DASHBOARD_DATA"] == str(tmp_path.resolve() / "dashboard.json")
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+def test_bounded_generation_uses_real_cli_and_preserves_tables(tmp_path, report_spec, invalid):
+    from backintel.presentation.dashboard import generate_dashboard_async
+
+    target = tmp_path / "dashboard"
+    if invalid:
+        report_spec["charts"][0]["table"] = "absent"
+        with pytest.raises(RuntimeError, match="Dashboard generation failed"):
+            asyncio.run(generate_dashboard_async(report_spec, target, deadline=time.monotonic() + 20))
+        assert not target.exists()
+    else:
+        result = asyncio.run(generate_dashboard_async(report_spec, target, deadline=time.monotonic() + 20))
+        assert result["status"] == "generated" and result["path"] == str(target)
+        data = json.loads((target / "dashboard.json").read_text())
+        assert data == project_report(report_spec)
+        book = load_workbook(target / "analysis.xlsx")
+        for sheet, table in zip(book.worksheets[1:], data["tables"], strict=True):
+            assert list(sheet.values)[1:] == [tuple(row) for row in table["rows"]]
+        with pytest.raises(ValueError, match="existing deliveries"):
+            asyncio.run(generate_dashboard_async(report_spec, target, deadline=time.monotonic() + 20))
+    assert not list(tmp_path.glob(".dashboard-*"))
+
+
+@pytest.mark.parametrize("stop", ["deadline", "cancel"])
+def test_stalled_workbook_is_stopped_without_publishing(tmp_path, report_spec, monkeypatch, stop):
+    from backintel.presentation import dashboard
+
+    # Run the real generator, but stall precisely inside its workbook builder.
+    script = """
+import time
+from pathlib import Path
+from backintel.presentation import dashboard
+from backintel.cli import main
+
+def stall(*args):
+    Path('workbook-started').touch()
+    time.sleep(60)
+    raise AssertionError('stalled workbook should have been stopped')
+
+dashboard.workbook_bytes = stall
+main()
+"""
+    original = dashboard.subprocess.Popen
+    processes, directories = [], []
+    clock = SimpleNamespace(now=time.monotonic())
+    deadline = clock.now + 20
+    monkeypatch.setattr(dashboard, "time", SimpleNamespace(monotonic=lambda: clock.now))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-secret-must-not-reach-generator")
+
+    def spawn(command, **kwargs):
+        assert command[1:5] == ["-m", "backintel.cli", "dashboard", "generate"]
+        assert "OPENAI_API_KEY" not in kwargs["env"]
+        process = original([command[0], "-c", script, *command[3:]], **kwargs)
+        processes.append(process)
+        directories.append(Path(kwargs["cwd"]))
+        return process
+
+    monkeypatch.setattr(dashboard.subprocess, "Popen", spawn)
+    target = tmp_path / "dashboard"
+
+    async def run():
+        task = asyncio.create_task(dashboard.generate_dashboard_async(report_spec, target, deadline=deadline))
+        try:
+            async with asyncio.timeout(15):
+                while not directories or not (directories[0] / "workbook-started").exists():
+                    if task.done():
+                        await task  # Surface child startup failures instead of hiding them behind a timeout.
+                        raise AssertionError("Generator ended before the workbook was reached")
+                    await asyncio.sleep(0.01)
+            if stop == "deadline":
+                clock.now = deadline + 1
+                with pytest.raises(TimeoutError, match="dashboard generation"):
+                    await asyncio.wait_for(task, 2)
+            else:
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    asyncio.run(run())
+    assert processes and all(p.poll() is not None for p in processes)
+    assert not target.exists()
+    assert not list(tmp_path.glob(".dashboard-*"))

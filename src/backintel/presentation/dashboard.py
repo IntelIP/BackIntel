@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import calendar
 import html
 import io
 import json
+import math
+import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import textwrap
+import time
 from datetime import date
 from pathlib import Path
 
@@ -118,6 +124,65 @@ def generate_dashboard(spec: dict, destination: Path, *, presentation: dict | No
     finally:
         if staging.exists():
             shutil.rmtree(staging)
+    return {"path": str(destination), "entrypoint": "app.py", "status": "generated"}
+
+
+async def generate_dashboard_async(spec: dict, destination: Path, *, deadline: float) -> dict:
+    """Bound CPU-heavy workbook generation by the analysis's absolute monotonic deadline.
+
+    A thread cannot be stopped during workbook styling/serialization. Use the existing
+    trusted CLI in an owned process, and publish only after it finishes within budget.
+    """
+    if not math.isfinite(deadline):
+        raise ValueError("Dashboard generation requires a finite deadline.")
+
+    def remaining():
+        seconds = deadline - time.monotonic()
+        if seconds <= 0:
+            raise TimeoutError("Whole-run deadline reached during dashboard generation.")
+        return seconds
+
+    remaining()
+    destination = Path(destination)
+    if destination.exists():
+        raise ValueError("Use a new dashboard directory; existing deliveries are preserved.")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".dashboard-", dir=destination.parent) as temporary:
+        staging = Path(temporary).resolve()
+        source = staging / "report.json"
+        source.write_text(json.dumps(spec, ensure_ascii=False, allow_nan=False))
+        generated = staging / "dashboard"
+        command = [
+            sys.executable,
+            "-m",
+            "backintel.cli",
+            "dashboard",
+            "generate",
+            "--report",
+            str(source),
+            "--output",
+            str(generated),
+        ]
+        env = {k: os.environ[k] for k in ("PATH", "HOME", "SYSTEMROOT") if k in os.environ}
+        remaining()
+        # Synchronous creation retains ownership if the awaiting task is cancelled.
+        with (staging / "generation.log").open("w+") as log:
+            process = subprocess.Popen(command, cwd=staging, env=env, stdout=log, stderr=log)
+            try:
+                while process.poll() is None:
+                    await asyncio.sleep(min(0.05, remaining()))
+                remaining()
+                if process.returncode:
+                    log.seek(0)
+                    raise RuntimeError("Dashboard generation failed: " + log.read(2000))
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=5)
+        remaining()
+        if destination.exists():
+            raise ValueError("Use a new dashboard directory; existing deliveries are preserved.")
+        generated.rename(destination)
     return {"path": str(destination), "entrypoint": "app.py", "status": "generated"}
 
 
