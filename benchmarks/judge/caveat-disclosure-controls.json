@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "purpose": "Prospective semantic controls for disclosure credit, authored before candidate inference; no human calibration claim.",
+  "fixture": {
+    "registered_sites": 10,
+    "temperatures_c": [10, 20, 30, 10, 20, 30]
+  },
+  "question": "The inventory contains 10 registered sites; only 6 sites have a temperature observation in the supplied extract. Report the mean temperature among those reporting sites and explain whether it describes all 10 registered sites.",
+  "evidence_sql": "SELECT AVG(temperature_c) FROM observations",
+  "cases": [
+    {
+      "case_id": "coverage-partial",
+      "text": "The mean among reporting sites is 20 degrees Celsius.",
+      "method": "Average the six recorded site temperatures, one observation per reporting site.",
+      "caveats": [],
+      "expected_caveat_score": 0.5,
+      "reason_review": "Credit the explicit reporting-site scope as partial; the requested consequence for all registered sites is missing."
+    },
+    {
+      "case_id": "coverage-disclosed",
+      "text": "The mean among reporting sites is 20 degrees Celsius. It does not establish the mean for all 10 registered sites: 4 have no observation, and their temperatures are unknown.",
+      "method": "Average the six recorded site temperatures, one observation per reporting site.",
+      "caveats": [],
+      "expected_caveat_score": 1.0,
+      "reason_review": "Full disclosure in answer text earns full credit despite an empty caveats array; no missing value is assumed."
+    },
+    {
+      "case_id": "coverage-denied",
+      "text": "The mean among reporting sites is 20 degrees Celsius. This establishes the mean for all 10 registered sites; the missing observations cannot change it.",
+      "method": "Average the six recorded site temperatures, one observation per reporting site.",
+      "caveats": [],
+      "expected_caveat_score": 0.0,
+      "reason_review": "The false broader claim overrides the correct subset label; do not award partial credit for contradictory disclosure."
+    },
+    {
+      "case_id": "coverage-boilerplate",
+      "text": "The mean is 20 degrees Celsius. Data quality should always be reviewed.",
+      "method": "Run AVG(temperature_c) on observations.",
+      "caveats": [],
+      "expected_caveat_score": 0.0,
+      "reason_review": "An unrelated caution and a raw query do not disclose the actual coverage gap or its consequence."
+    }
+  ]
+}
