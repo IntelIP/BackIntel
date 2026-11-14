@@ -15,6 +15,10 @@ not a product version. Code is available under the [MIT license](LICENSE).
 [Architecture](#how-it-works) · [Evaluation](#what-has-been-measured) ·
 [Roadmap](docs/roadmap.md) · [Contributing](#contributing)
 
+The reliability benchmark is [frozen](docs/reliability-campaign.md); historical failures
+remain recorded. The [taxi demonstration results and chart previews](results/taxi-demonstration-20261114/README.md)
+show measured analysis and an unresolved artifact-transfer failure.
+
 ## Capabilities today
 
 | Area | Implemented behavior | Current boundary |
@@ -63,8 +67,9 @@ have been used for testing; BackIntel has not trained or fine-tuned its models o
   runtime support has not been qualified. Python-only CI runs on Linux.
 - Docker for the initial sandbox image build/export and optional database services.
   Prepared SQLite/file analysis runs in SmolVM without Docker execution.
-- For live analysis, an authorized ChatGPT subscription connection or a configured
-  supported OpenRouter model. No model account is needed for the offline checks below.
+- For live analysis, native OpenAI/Anthropic API credentials, an authorized ChatGPT
+  subscription connection, or an explicitly selected supported OpenRouter model,
+  depending on the entry point. No model account is needed for the offline checks below.
 
 ### 1. Check out and verify the project
 
@@ -183,12 +188,17 @@ separate from this repository's code license; see the [benchmark specification](
 
 ```mermaid
 flowchart LR
-    Brief[Business brief] --> Agent[One Deep Agents graph]
-    Agent --> Query[Read-only store tools]
+    Question[Question: ask] --> Analyst[Analyst graph]
+    Brief[Business brief: analyze] --> Specialist[Specialist graph]
+    Analyst --> Query[Read-only store tools]
+    Specialist --> Query
     Query --> Data[Assigned sources]
-    Agent --> VM[SmolVM shell and Python]
+    Analyst --> VM[SmolVM Python]
+    Specialist --> Workspace[SmolVM shell and Python workspace]
     VM --> Data
-    Agent --> Check[Structured completion and reproduced tables]
+    Workspace --> Data
+    Analyst --> Answer[Structured answer and executable evidence]
+    Specialist --> Check[Structured completion and reproduced tables]
     Check --> Render[Clean renderer VM]
     Render --> Files[Report, charts, CSV and XLSX]
 ```
@@ -207,6 +217,8 @@ original limits; it is never silently converted into success.
 The standard specialist profile uses **2 CPUs and 2 GiB RAM**, with separate workspace,
 artifact and temporary-file quotas. A larger profile exists, but is not evidence of real
 large-data reliability. Aggregate capacity reservation across concurrent runs is not implemented.
+The benchmark analyst's Python commands use **1 CPU and 768 MiB RAM**, with a 120-second
+command limit. Each entry point remains independently invoked.
 
 ### Prompts, skills and tools
 
@@ -230,8 +242,27 @@ or causal-analysis capabilities.
 
 These are versioned development observations, not a production accuracy guarantee.
 
+The first native 92-response reliability comparison is complete. Its candidate passed
+44/46 responses versus baseline 41/46, but **reserved acceptance rejected it**: two
+mandatory cases regressed. The correct profit lacked executable major-unit output, and
+an unavailable-period report used `answered` with null required metrics. A revised
+implementation requires fresh qualification; it has no live acceptance result yet.
+See the [complete comparison and LangSmith traces](results/reliability-native-20261114.md)
+and [release qualification package](docs/v0.0.1-release.md).
+
+The following revision passed 12/12 original and 17/17 development responses, then
+16/17 fresh reserved candidate responses. Its remaining failure was an explicit report
+value binding; the fresh baseline arm did not run. The latest code fixes that binding
+for SQL and structured Python output and passes 277 offline tests, but has no live
+qualification yet. See the [revision checkpoint](results/reliability-revision-20261114.md).
+
 | Experiment | Observed result | Scope |
 | --- | --- | --- |
+| Native original regressions | Baseline 9/12; candidate 12/12 | Six cases, two trials per arm; frozen improvement gate passed |
+| Native controlled development | Baseline 15/17; candidate 17/17 | Two improvements, no deterministic regression |
+| Native reserved acceptance | Baseline 17/17; candidate 15/17 | Candidate rejected for two mandatory regressions; full failed results retained |
+| Revised original/development | Candidate 12/12 and 17/17 | Reused unchanged baselines 9/12 and 15/17; both gates passed |
+| Revised fresh reserved generation 2 | Candidate 16/17; baseline not run | One evidence-binding failure; paired qualification incomplete |
 | Historical Olist storage matrix | 143/144 supported responses | GPT-6 Luna; 24 questions repeated across six stores on the earlier runtime |
 | Historical UCI storage runs | 80/80 | 20 questions on four stores; repetitions are not independent domains |
 | Historical standing reports and replay | 15/17 | Three standing reports plus 14 historical replay cases; no live scheduler |

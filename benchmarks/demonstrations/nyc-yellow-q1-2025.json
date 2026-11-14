@@ -1,0 +1,356 @@
+{
+  "retrieved_at": "2026-11-14T04:32:37.429215+00:00",
+  "source": "NYC TLC yellow taxi Q1 2025",
+  "assets": [
+    {
+      "file": "taxi_zone_lookup.csv",
+      "url": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
+      "bytes": 12331,
+      "sha256": "1a99e105092230f8620f301edcca7f80d3080642ff404d28ed957d3fa222c8ed"
+    },
+    {
+      "file": "yellow_tripdata_2025-01.parquet",
+      "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2025-01.parquet",
+      "bytes": 59158238,
+      "sha256": "9af277e4c0d3f9deb30644da822981e1e7df6af58313170fd3aa8a474485488a",
+      "rows": 3475226,
+      "columns": [
+        {
+          "name": "VendorID",
+          "type": "int32"
+        },
+        {
+          "name": "tpep_pickup_datetime",
+          "type": "timestamp[us]"
+        },
+        {
+          "name": "tpep_dropoff_datetime",
+          "type": "timestamp[us]"
+        },
+        {
+          "name": "passenger_count",
+          "type": "int64"
+        },
+        {
+          "name": "trip_distance",
+          "type": "double"
+        },
+        {
+          "name": "RatecodeID",
+          "type": "int64"
+        },
+        {
+          "name": "store_and_fwd_flag",
+          "type": "large_string"
+        },
+        {
+          "name": "PULocationID",
+          "type": "int32"
+        },
+        {
+          "name": "DOLocationID",
+          "type": "int32"
+        },
+        {
+          "name": "payment_type",
+          "type": "int64"
+        },
+        {
+          "name": "fare_amount",
+          "type": "double"
+        },
+        {
+          "name": "extra",
+          "type": "double"
+        },
+        {
+          "name": "mta_tax",
+          "type": "double"
+        },
+        {
+          "name": "tip_amount",
+          "type": "double"
+        },
+        {
+          "name": "tolls_amount",
+          "type": "double"
+        },
+        {
+          "name": "improvement_surcharge",
+          "type": "double"
+        },
+        {
+          "name": "total_amount",
+          "type": "double"
+        },
+        {
+          "name": "congestion_surcharge",
+          "type": "double"
+        },
+        {
+          "name": "Airport_fee",
+          "type": "double"
+        },
+        {
+          "name": "cbd_congestion_fee",
+          "type": "double"
+        }
+      ],
+      "uncompressed_column_bytes": 92602414
+    },
+    {
+      "file": "yellow_tripdata_2025-02.parquet",
+      "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2025-02.parquet",
+      "bytes": 60343086,
+      "sha256": "037cba555a73663f3a51a2c27816e40e3feb364769942bdf122b9da31e377bd3",
+      "rows": 3577543,
+      "columns": [
+        {
+          "name": "VendorID",
+          "type": "int32"
+        },
+        {
+          "name": "tpep_pickup_datetime",
+          "type": "timestamp[us]"
+        },
+        {
+          "name": "tpep_dropoff_datetime",
+          "type": "timestamp[us]"
+        },
+        {
+          "name": "passenger_count",
+          "type": "int64"
+        },
+        {
+          "name": "trip_distance",
+          "type": "double"
+        },
+        {
+          "name": "RatecodeID",
+          "type": "int64"
+        },
+        {
+          "name": "store_and_fwd_flag",
+          "type": "large_string"
+        },
+        {
+          "name": "PULocationID",
+          "type": "int32"
+        },
+        {
+          "name": "DOLocationID",
+          "type": "int32"
+        },
+        {
+          "name": "payment_type",
+          "type": "int64"
+        },
+        {
+          "name": "fare_amount",
+          "type": "double"
+        },
+        {
+          "name": "extra",
+          "type": "double"
+        },
+        {
+          "name": "mta_tax",
+          "type": "double"
+        },
+        {
+          "name": "tip_amount",
+          "type": "double"
+        },
+        {
+          "name": "tolls_amount",
+          "type": "double"
+        },
+        {
+          "name": "improvement_surcharge",
+          "type": "double"
+        },
+        {
+          "name": "total_amount",
+          "type": "double"
+        },
+        {
+          "name": "congestion_surcharge",
+          "type": "double"
+        },
+        {
+          "name": "Airport_fee",
+          "type": "double"
+        },
+        {
+          "name": "cbd_congestion_fee",
+          "type": "double"
+        }
+      ],
+      "uncompressed_column_bytes": 94223289
+    },
+    {
+      "file": "yellow_tripdata_2025-03.parquet",
+      "url": "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2025-03.parquet",
+      "bytes": 69964745,
+      "sha256": "20c4b77cce457b7cfdae77c5069ca7dc91c167f876a41467f4502ab69487a186",
+      "rows": 4145257,
+      "columns": [
+        {
+          "name": "VendorID",
+          "type": "int32"
+        },
+        {
+          "name": "tpep_pickup_datetime",
+          "type": "timestamp[us]"
+        },
+        {
+          "name": "tpep_dropoff_datetime",
+          "type": "timestamp[us]"
+        },
+        {
+          "name": "passenger_count",
+          "type": "int64"
+        },
+        {
+          "name": "trip_distance",
+          "type": "double"
+        },
+        {
+          "name": "RatecodeID",
+          "type": "int64"
+        },
+        {
+          "name": "store_and_fwd_flag",
+          "type": "large_string"
+        },
+        {
+          "name": "PULocationID",
+          "type": "int32"
+        },
+        {
+          "name": "DOLocationID",
+          "type": "int32"
+        },
+        {
+          "name": "payment_type",
+          "type": "int64"
+        },
+        {
+          "name": "fare_amount",
+          "type": "double"
+        },
+        {
+          "name": "extra",
+          "type": "double"
+        },
+        {
+          "name": "mta_tax",
+          "type": "double"
+        },
+        {
+          "name": "tip_amount",
+          "type": "double"
+        },
+        {
+          "name": "tolls_amount",
+          "type": "double"
+        },
+        {
+          "name": "improvement_surcharge",
+          "type": "double"
+        },
+        {
+          "name": "total_amount",
+          "type": "double"
+        },
+        {
+          "name": "congestion_surcharge",
+          "type": "double"
+        },
+        {
+          "name": "Airport_fee",
+          "type": "double"
+        },
+        {
+          "name": "cbd_congestion_fee",
+          "type": "double"
+        }
+      ],
+      "uncompressed_column_bytes": 109555104
+    }
+  ],
+  "trip_rows": 11198026,
+  "download_bytes": 189478400,
+  "zone_lookup": {
+    "rows": 265,
+    "distinct_ids": 265,
+    "null_ids": 0
+  },
+  "terms": [
+    "https://www.nyc.gov/opendata/get-started/FAQs",
+    "https://www.nyc.gov/main/terms-of-use"
+  ],
+  "dictionary_url": "https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf",
+  "dictionary_binary_download": "HTTP 403; official text inspected via web parser, binary not present",
+  "model_calls": 0,
+  "purpose": "One real-data business-analysis demonstration; not a new benchmark campaign.",
+  "novelty": "Yellow taxi Q1 2025 is new to this demonstration. TLC green taxi January 2023 was previously prepared; source-family and model-pretraining novelty are not claimed.",
+  "rights": "NYC Open Data use statement under NYC.gov terms; preserve source, snapshot, attribution and modifications. Not an assertion of CC0 or MIT coverage for upstream data.",
+  "profile": {
+    "checks": [
+      {
+        "file": "yellow_tripdata_2025-01.parquet",
+        "query": "SELECT count(*) AS rows,\n    min(tpep_pickup_datetime)::VARCHAR AS min_pickup, max(tpep_pickup_datetime)::VARCHAR AS max_pickup,\n    count(*) FILTER(WHERE tpep_pickup_datetime IS NULL) AS null_pickup,\n    count(*) FILTER(WHERE strftime(tpep_pickup_datetime,'%Y-%m') <> '2025-01') AS out_of_file_month,\n    count(*) FILTER(WHERE tpep_dropoff_datetime <= tpep_pickup_datetime) AS nonpositive_duration,\n    count(*) FILTER(WHERE fare_amount < 0) AS negative_fare,\n    count(*) FILTER(WHERE trip_distance <= 0) AS nonpositive_distance,\n    count(*) FILTER(WHERE passenger_count IS NULL) AS missing_passenger_count,\n    count(*) FILTER(WHERE PULocationID IS NULL OR PULocationID NOT IN (SELECT LocationID FROM zones)) AS unmatched_pickup_zone,\n    count(*) FILTER(WHERE DOLocationID IS NULL OR DOLocationID NOT IN (SELECT LocationID FROM zones)) AS unmatched_dropoff_zone\n    FROM read_parquet('/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/dataset-discovery-20261114/nyc-yellow-q1-2025/yellow_tripdata_2025-01.parquet')",
+        "result": {
+          "rows": 3475226,
+          "min_pickup": "2024-12-31 20:47:55",
+          "max_pickup": "2025-02-01 00:00:44",
+          "null_pickup": 0,
+          "out_of_file_month": 22,
+          "nonpositive_duration": 2051,
+          "negative_fare": 144118,
+          "nonpositive_distance": 90893,
+          "missing_passenger_count": 540149,
+          "unmatched_pickup_zone": 0,
+          "unmatched_dropoff_zone": 0
+        }
+      },
+      {
+        "file": "yellow_tripdata_2025-02.parquet",
+        "query": "SELECT count(*) AS rows,\n    min(tpep_pickup_datetime)::VARCHAR AS min_pickup, max(tpep_pickup_datetime)::VARCHAR AS max_pickup,\n    count(*) FILTER(WHERE tpep_pickup_datetime IS NULL) AS null_pickup,\n    count(*) FILTER(WHERE strftime(tpep_pickup_datetime,'%Y-%m') <> '2025-02') AS out_of_file_month,\n    count(*) FILTER(WHERE tpep_dropoff_datetime <= tpep_pickup_datetime) AS nonpositive_duration,\n    count(*) FILTER(WHERE fare_amount < 0) AS negative_fare,\n    count(*) FILTER(WHERE trip_distance <= 0) AS nonpositive_distance,\n    count(*) FILTER(WHERE passenger_count IS NULL) AS missing_passenger_count,\n    count(*) FILTER(WHERE PULocationID IS NULL OR PULocationID NOT IN (SELECT LocationID FROM zones)) AS unmatched_pickup_zone,\n    count(*) FILTER(WHERE DOLocationID IS NULL OR DOLocationID NOT IN (SELECT LocationID FROM zones)) AS unmatched_dropoff_zone\n    FROM read_parquet('/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/dataset-discovery-20261114/nyc-yellow-q1-2025/yellow_tripdata_2025-02.parquet')",
+        "result": {
+          "rows": 3577543,
+          "min_pickup": "2025-01-31 22:22:53",
+          "max_pickup": "2025-03-01 00:06:32",
+          "null_pickup": 0,
+          "out_of_file_month": 31,
+          "nonpositive_duration": 5164,
+          "negative_fare": 182655,
+          "nonpositive_distance": 99771,
+          "missing_passenger_count": 806937,
+          "unmatched_pickup_zone": 0,
+          "unmatched_dropoff_zone": 0
+        }
+      },
+      {
+        "file": "yellow_tripdata_2025-03.parquet",
+        "query": "SELECT count(*) AS rows,\n    min(tpep_pickup_datetime)::VARCHAR AS min_pickup, max(tpep_pickup_datetime)::VARCHAR AS max_pickup,\n    count(*) FILTER(WHERE tpep_pickup_datetime IS NULL) AS null_pickup,\n    count(*) FILTER(WHERE strftime(tpep_pickup_datetime,'%Y-%m') <> '2025-03') AS out_of_file_month,\n    count(*) FILTER(WHERE tpep_dropoff_datetime <= tpep_pickup_datetime) AS nonpositive_duration,\n    count(*) FILTER(WHERE fare_amount < 0) AS negative_fare,\n    count(*) FILTER(WHERE trip_distance <= 0) AS nonpositive_distance,\n    count(*) FILTER(WHERE passenger_count IS NULL) AS missing_passenger_count,\n    count(*) FILTER(WHERE PULocationID IS NULL OR PULocationID NOT IN (SELECT LocationID FROM zones)) AS unmatched_pickup_zone,\n    count(*) FILTER(WHERE DOLocationID IS NULL OR DOLocationID NOT IN (SELECT LocationID FROM zones)) AS unmatched_dropoff_zone\n    FROM read_parquet('/Users/hudson/Documents/GitHub/Products/BackIntel/BackIntel/data/output/dataset-discovery-20261114/nyc-yellow-q1-2025/yellow_tripdata_2025-03.parquet')",
+        "result": {
+          "rows": 4145257,
+          "min_pickup": "2007-12-05 18:45:00",
+          "max_pickup": "2025-04-01 00:00:17",
+          "null_pickup": 0,
+          "out_of_file_month": 33,
+          "nonpositive_duration": 22280,
+          "negative_fare": 208724,
+          "nonpositive_distance": 103722,
+          "missing_passenger_count": 916663,
+          "unmatched_pickup_zone": 0,
+          "unmatched_dropoff_zone": 0
+        }
+      }
+    ],
+    "scope": "Source suitability only; not the business analysis, no cleaning performed."
+  },
+  "input_boundary": "Only the four raw data assets and ordinary schema/source documentation may enter the agent sandbox. Keep this selection manifest, suitability queries/results and any later independent verification outside agent inputs."
+}

@@ -1,5 +1,13 @@
 # Capability roadmap and next development increments
 
+Owner priority, 2026-11-14 UTC: freeze the reliability benchmark; shelve its generation-3
+rerun and withdraw the $7 request. The immediate next milestone is the [single real-data
+artifact demonstration](dataset-demonstration.md) on 11.2 million NYC yellow-taxi records.
+The first demonstration has run; five chart previews and three checked claims are
+[recorded](../results/taxi-demonstration-20261114/README.md), while INT-498 blocks the
+full HTML/XLSX delivery. Existing failures remain open; no release acceptance is claimed. The broader domain/scale
+sequence below remains future work rather than a prerequisite for this demonstration.
+
 BackIntel starts at **v0.0.1, experimental**. Version numbers below describe acceptance
 milestones, not released capability or delivery dates. The internal
 [Linear project](https://linear.app/intelip/project/backintel-0287c22fe5a7) owns priority and
@@ -25,7 +33,11 @@ targeted energy fix. A fresh eight-trial guidance comparison on 2026-11-13 passe
 versions, including the corrected grader. The candidate eliminated incorrect virtual-skill
 shell lookups in all four cases, with no measured task regression. Both arms refused missing
 costs without rendering a substitute report. These are small controlled trials; the broader
-92-response reliability comparison remains required. See
+92-response reliability comparison completed with two mandatory reserved regressions,
+so the measured candidate remains rejected and a revised qualification is required. See
+the [revised checkpoint](../results/reliability-revision-20261114.md) for the subsequent
+45/46 candidate result and remaining report-binding failure. Fresh generation-3
+qualification of the latest implementation remains pending. See
 [current capabilities and measured outcomes](../README.md#what-has-been-measured).
 
 ## Next achievable increments
