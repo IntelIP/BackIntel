@@ -337,6 +337,18 @@ def test_json_lines_report_checks_named_values_across_output_lines(store):
     )
 
 
+@pytest.mark.parametrize("value,sql_value", [(False, 0), (True, 1)])
+def test_sql_boolean_representation_remains_a_valid_report_binding(store, value, sql_value):
+    answer_schema(store, TrustedFixturePython()).model_validate(
+        response(
+            answer_type="report",
+            value=None,
+            rows=[{"metric": "flag", "value": value, "unit": "boolean"}],
+            evidence=[{"kind": "sql", "code": f"SELECT 'flag' AS metric, {sql_value} AS value"}],
+        )
+    )
+
+
 def test_failed_finalization_remains_an_execution_failure(store):
     model = ScriptedModel(
         responses=[

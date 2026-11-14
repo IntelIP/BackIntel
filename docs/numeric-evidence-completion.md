@@ -76,7 +76,8 @@ code imports oracle answers or the benchmark scorer.
 
 The existing finalization feedback asks the analyst to repair its executable output.
 Real installed-graph regression checks exercise this repair with unrelated local data.
-The current code passes 275 tests with 15 optional skips, plus Ruff/Vulture/secret checks.
+The current code passes 277 tests with 15 optional skips, plus Ruff/Vulture/secret checks.
+Code review also preserved SQLite's 0/1 representation for Boolean report values.
 The scalar-output and unavailable-metric guards remain in place. The frozen independent
 evaluator and tolerances are unchanged; output consistency is not full data lineage or
 an independent correctness proof.
