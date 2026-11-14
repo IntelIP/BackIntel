@@ -209,12 +209,14 @@ def test_designed_dashboard_real_browser_and_download(delivery, tmp_path):
     # A valid section and chart can share a title (h2 vs h3).
     presentation["sections"][0]["charts"][0]["title"] = presentation["sections"][0]["title"]
     presentation["sections"][0]["charts"][0]["reading_guide"] = "Each mark compares one retained group."
+    presentation["sections"][0]["charts"].extend(presentation["sections"].pop(1)["charts"])
+    presentation["sections"][0]["columns"] = 2
     (delivery / "presentation.json").write_text(json.dumps(presentation))
     # Poisoning the generated launcher must not execute on the host.
     (delivery / "app.py").write_text("raise RuntimeError('untrusted')")
     result = capture_dashboard(delivery, tmp_path / "screenshots")
     assert not result["failures"]
-    assert len(result["views"]) >= 2 * (len(data["charts"]) + 2)
+    assert len(result["views"]) >= 2 * (len(presentation["sections"]) + 2)
     assert "mobile: workbook download and source values" in result["checks"]
     assert all((tmp_path / "screenshots" / v["file"]).stat().st_size > 1000 for v in result["views"])
     from PIL import Image
@@ -314,3 +316,28 @@ def test_cancelled_capture_closes_owned_preview_server(delivery, monkeypatch):
 
     asyncio.run(run())
     assert processes and all(p.poll() is not None for p in processes)
+
+
+def test_capture_waits_for_a_later_chart_to_render():
+    pytest.importorskip("playwright")
+    from playwright.async_api import async_playwright
+
+    from backintel.presentation.capture import _wait_for_charts
+
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            try:
+                page = await browser.new_page()
+                await page.set_content(
+                    '<div class="chart"><svg class="main-svg"></svg></div><div class="chart" id="later"></div>'
+                )
+                await page.evaluate("""setTimeout(() => {
+                    document.getElementById('later').innerHTML = '<svg class="main-svg"></svg>';
+                }, 500)""")
+                await _wait_for_charts(page.locator(".chart"), 2)
+                assert await page.locator("#later .main-svg").count() == 1
+            finally:
+                await browser.close()
+
+    asyncio.run(run())

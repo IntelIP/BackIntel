@@ -46,6 +46,19 @@ TITLES = {
     "segments": "Airport mix",
     "quality": "Data coverage",
 }
+QUALITY_LABELS = {
+    "01 Source rows": "Source records",
+    "02 Q1 pickup": "Pickups within the quarter",
+    "03 Paid codes": "Eligible payment types",
+    "04 Positive charges": "Positive recorded fares and charges",
+    "05 Valid duration": "Valid trip durations",
+    "06 Eligible": "Eligible records",
+    "07 Tail sensitivity": "Records above the fare guardrail",
+    "08 Missing passengers": "Missing passenger counts, retained",
+    "09 Invalid distance": "Invalid distances, retained",
+    "10 Unmatched pickups": "Unmatched pickup zones",
+}
+TEXT_COLUMNS = {"Month", "Weekday", "Pickup_zone", "Fare_band", "Pickup_segment", "Population"}
 GLOSSARY = [
     ["Recorded trips", "Eligible reported trip records; not vehicles, passengers or unmet demand."],
     [
@@ -102,11 +115,20 @@ def validate_story(story: dict) -> None:
         for row in table["rows"]:
             if len(row) != len(table["columns"]):
                 raise ValueError(f"Invalid {name} row.")
-            if any(isinstance(value, (int, float)) and not math.isfinite(value) for value in row):
-                raise ValueError(f"Non-finite value in {name}.")
+            for column, value in zip(table["columns"], row, strict=True):
+                if column in TEXT_COLUMNS:
+                    if not isinstance(value, str) or not value.strip():
+                        raise ValueError(f"Invalid label in {name}.{column}.")
+                else:
+                    if type(value) not in (int, float):
+                        raise ValueError(f"Nonnumeric value in {name}.{column}.")
+                    if not math.isfinite(value):
+                        raise ValueError(f"Non-finite value in {name}.{column}.")
     monthly = frame(story, "monthly")
     if list(monthly.Month) != list(MONTHS) or (monthly.Trips_per_day <= 0).any():
         raise ValueError("This story requires the complete January–March 2025 monthly view.")
+    if monthly.Trips.sum() <= 0 or monthly.Gross_fare_USD.sum() <= 0:
+        raise ValueError("Quarterly trip and fare totals must be positive.")
     hours = frame(story, "weekly_hours")
     if set(zip(hours.Weekday, hours.Hour, strict=True)) != {
         (day, hour) for day in DAYS for hour in range(24)
@@ -114,8 +136,12 @@ def validate_story(story: dict) -> None:
         raise ValueError("Incomplete weekday/hour coverage.")
     if hours.duplicated(["Weekday", "Hour"]).any():
         raise ValueError("Repeated weekday/hour values.")
-    if list(frame(story, "fare_bands").Fare_band) != FARE_BANDS or len(frame(story, "quality")) != 10:
+    if list(frame(story, "fare_bands").Fare_band) != FARE_BANDS or list(
+        frame(story, "quality").Population
+    ) != list(QUALITY_LABELS.values()):
         raise ValueError("Incomplete fare or coverage table.")
+    if len(frame(story, "zones")) != 10:
+        raise ValueError("The pickup-zone ranking must contain exactly ten rows.")
     for name, key, expected in [
         ("zones", "Pickup_zone", {"JFK Airport", "LaGuardia Airport"}),
         ("segments", "Pickup_segment", set(AIRPORTS)),
@@ -143,25 +169,18 @@ def prepare_story(report: dict) -> dict:
         if name == "weekly_hours":
             hour = columns.index("Hour")
             for row in rows:
-                row[hour] = int(row[hour])
+                if isinstance(row[hour], str) and row[hour].isdecimal():
+                    row[hour] = int(row[hour])
         if name == "quality":
-            names = [
-                "Source records",
-                "Pickups within the quarter",
-                "Eligible payment types",
-                "Positive recorded fares and charges",
-                "Valid trip durations",
-                "Eligible records",
-                "Records above the fare guardrail",
-                "Missing passenger counts, retained",
-                "Invalid distances, retained",
-                "Unmatched pickup zones",
-            ]
-            for row, label in zip(rows, names, strict=True):
-                row[0] = label
+            population = columns.index("Population")
+            names = [row[population] for row in rows]
+            if len(names) != len(QUALITY_LABELS) or set(names) != set(QUALITY_LABELS):
+                raise ValueError("Unexpected or repeated coverage population labels.")
+            by_name = dict(zip(names, rows, strict=True))
+            rows = [by_name[name] for name in QUALITY_LABELS]
+            for row, label in zip(rows, QUALITY_LABELS.values(), strict=True):
+                row[population] = label
         tables[name] = {"columns": columns, "rows": rows}
-    if [row[0] for row in tables["monthly"]["rows"]] != list(MONTHS):
-        raise ValueError("This taxi story requires the complete January–March 2025 monthly view.")
     story = {
         "title": "Plan the next shift with evidence",
         "period": "January–March 2025",
@@ -267,7 +286,7 @@ def monthly_chart(story: dict):
             hovertemplate="%{x}<br>%{y:,.0f} trips per day<extra></extra>",
         )
     )
-    f.update_yaxes(range=[0, 145000], tickvals=[0, 50000, 100000], ticktext=["0", "50k", "100k"])
+    f.update_yaxes(range=[0, max(1, max(data.Trips_per_day) * 1.15)], tickformat="~s")
     f.update_xaxes(type="category", tickfont_size=15)
     return f
 
@@ -357,9 +376,9 @@ def zone_chart(story: dict):
         )
     )
     f.update_xaxes(
-        range=[0, 28],
-        tickvals=[0, 10, 20],
-        ticktext=["$0m", "$10m", "$20m"],
+        range=[0, max(0.001, max(data.Gross_fare_USD) / 1e6 * 1.15)],
+        tickprefix="$",
+        ticksuffix="m",
         showgrid=True,
         gridcolor="#E4E2DB",
     )
@@ -386,7 +405,7 @@ def fare_chart(story: dict):
         )
     )
     f.update_xaxes(
-        range=[0, 52], tickvals=[0, 20, 40], ticktext=["0%", "20%", "40%"], showgrid=True, gridcolor="#E4E2DB"
+        range=[0, max(1, max(data.Trip_share_pct) * 1.15)], ticksuffix="%", showgrid=True, gridcolor="#E4E2DB"
     )
     f.update_yaxes(autorange="reversed", showgrid=False)
     return f

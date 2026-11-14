@@ -227,7 +227,19 @@ def chart_figure(chart: dict, table: dict, design=None):
     xlabel = html.escape(label(chart["x"], table["units"].get(chart["x"], "")))
     if kind == "histogram":
         centers, counts, width = _histogram(chart, table)
-        f.add_trace(go.Bar(x=centers, y=counts, width=width, marker_color="#176581"))
+        unit = html.escape(table["units"].get(chart["x"], ""))
+        f.add_trace(
+            go.Bar(
+                x=centers,
+                y=counts,
+                width=width,
+                marker_color="#176581",
+                customdata=[[center - width / 2, center + width / 2] for center in centers],
+                hovertemplate="%{customdata[0]:,.6g} – %{customdata[1]:,.6g} "
+                + unit
+                + "<br>%{y} observations<extra></extra>",
+            )
+        )
         f.update_xaxes(title=xlabel)
         f.update_yaxes(title="Observations", rangemode="tozero")
     elif kind == "heatmap":

@@ -15,11 +15,15 @@ from backintel.presentation.taxi_story import (  # noqa: E402
     DAYS,
     FARE_BANDS,
     MONTHS,
+    QUALITY_LABELS,
     airport_chart,
     business_workbook,
+    fare_chart,
+    monthly_chart,
     prepare_story,
     summary,
     validate_story,
+    zone_chart,
 )
 
 
@@ -42,6 +46,7 @@ def report():
                 ["LaGuardia Airport", 6, 300, 2, 10],
                 ["JFK Airport", 9, 600, 3, 20],
                 ["=Untrusted label", 10, 10, 90, 90],
+                *[[f"Zone {i}", 1, 10, 0.1, 0.1] for i in range(7)],
             ],
         ),
         "fare_bands": (["Fare_band", "Trip_share_pct"], [[band, 20] for band in FARE_BANDS]),
@@ -53,7 +58,7 @@ def report():
                 for area in ["JFK", "LaGuardia"]
             ],
         ),
-        "quality": (["Population", "Records"], [["engineering-label", 1000 - i] for i in range(10)]),
+        "quality": (["Population", "Records"], [[name, 1000 - i] for i, name in enumerate(QUALITY_LABELS)]),
     }
     return {
         "run_id": "private-run-marker",
@@ -151,3 +156,83 @@ def test_airport_axis_contains_both_series_with_label_space(report, month):
     assert chart.layout.xaxis.ticksuffix == "%"
     if month is None:
         assert list(chart.data[1].x) == [20, 10]
+
+
+@pytest.mark.parametrize("count", [3, 9, 11])
+def test_zone_ranking_requires_exactly_ten_unique_areas(report, count):
+    table = next(t for t in report["tables"] if t["id"] == "zones")
+    table["rows"] = table["rows"][:count] + ([["Extra zone", 1, 1, 1, 1]] if count == 11 else [])
+    with pytest.raises(ValueError, match="exactly ten"):
+        prepare_story(report)
+
+
+@pytest.mark.parametrize(
+    "table,column,bad",
+    [
+        ("monthly", "Gross_fare_USD", "not a number"),
+        ("monthly", "Trips", True),
+        ("monthly", "Mean_fare_USD", None),
+        ("weekly_hours", "Trips_per_occurrence", "12"),
+        ("zones", "Gross_fare_USD", "12"),
+        ("fare_bands", "Trip_share_pct", "12"),
+        ("segments", "Fare_share_pct", "12"),
+        ("quality", "Records", "12"),
+    ],
+)
+def test_numeric_columns_reject_untyped_values_before_publication(report, table, column, bad):
+    source = next(t for t in report["tables"] if t["id"] == table)
+    source["rows"][0][source["columns"].index(column)] = bad
+    with pytest.raises(ValueError, match="Nonnumeric"):
+        prepare_story(report)
+
+
+def test_invalid_numeric_story_shows_readable_error(report, tmp_path, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    story = prepare_story(report)
+    story["tables"]["monthly"]["rows"][0][2] = "not a number"
+    path = tmp_path / "story.json"
+    path.write_text(json.dumps(story))
+    monkeypatch.setenv("BACKINTEL_STORY_DATA", str(path))
+    app = AppTest.from_file(str(Path(__file__).parents[1] / "dashboards/taxi/streamlit_app.py")).run()
+    assert not app.exception and app.error
+    assert not app.get("plotly_chart")
+
+
+@pytest.mark.parametrize("column", ["Trips", "Gross_fare_USD"])
+def test_zero_quarter_totals_are_rejected_before_percentage_division(report, column):
+    table = next(t for t in report["tables"] if t["id"] == "monthly")
+    for row in table["rows"]:
+        row[table["columns"].index(column)] = 0
+    with pytest.raises(ValueError, match="totals must be positive"):
+        prepare_story(report)
+
+
+def test_quality_labels_preserve_source_counts_across_row_and_column_order(report):
+    table = next(t for t in report["tables"] if t["id"] == "quality")
+    table["columns"] = ["Records", "Population"]
+    table["rows"] = [[row[1], row[0]] for row in reversed(table["rows"])]
+    quality = prepare_story(report)["tables"]["quality"]
+    assert quality["rows"] == [[1000 - i, name] for i, name in enumerate(QUALITY_LABELS.values())]
+
+
+@pytest.mark.parametrize("bad", ["unknown", "duplicate"])
+def test_unknown_or_duplicate_quality_labels_are_rejected(report, bad):
+    table = next(t for t in report["tables"] if t["id"] == "quality")
+    table["rows"][0][0] = "Unrecognized population" if bad == "unknown" else table["rows"][1][0]
+    with pytest.raises(ValueError, match="coverage population"):
+        prepare_story(report)
+
+
+def test_taxi_axes_fit_retained_values_above_old_ceilings(report):
+    story = prepare_story(report)
+    story["tables"]["zones"]["rows"][0][2] = 45_000_000
+    story["tables"]["monthly"]["rows"][0][3] = 200_000
+    story["tables"]["fare_bands"]["rows"][0][1] = 70
+    for chart, axis, values in [
+        (zone_chart(story), "xaxis", "x"),
+        (monthly_chart(story), "yaxis", "y"),
+        (fare_chart(story), "xaxis", "x"),
+    ]:
+        assert chart.layout[axis].range[0] == 0
+        assert chart.layout[axis].range[1] > max(chart.data[0][values])

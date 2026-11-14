@@ -279,3 +279,16 @@ main()
     assert processes and all(p.poll() is not None for p in processes)
     assert not target.exists()
     assert not list(tmp_path.glob(".dashboard-*"))
+
+
+def test_histogram_hover_shows_bin_bounds_and_counts():
+    pytest.importorskip("plotly")
+    from backintel.presentation.dashboard import chart_figure
+
+    table = {"columns": ["Fare"], "rows": [[0], [10], [20], [30]], "units": {"Fare": "USD"}}
+    figure = chart_figure({"kind": "histogram", "x": "Fare", "bins": 3}, table)
+    trace = figure.data[0]
+    assert list(map(list, trace.customdata)) == [[0, 10], [10, 20], [20, 30]]
+    assert list(trace.y) == [1, 1, 2]
+    assert "%{customdata[0]" in trace.hovertemplate and "%{customdata[1]" in trace.hovertemplate
+    assert "USD" in trace.hovertemplate and "%{y} observations" in trace.hovertemplate

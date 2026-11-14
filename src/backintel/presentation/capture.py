@@ -75,13 +75,21 @@ def capture_dashboard(directory: Path, output: Path) -> dict:
     return asyncio.run(capture_dashboard_async(directory, output))
 
 
+async def _wait_for_charts(charts, expected: int):
+    from playwright.async_api import expect
+
+    await expect(charts).to_have_count(expected, timeout=15000)
+    for index in range(expected):
+        await charts.nth(index).locator(".main-svg").first.wait_for(timeout=15000)
+
+
 async def capture_dashboard_async(directory: Path, output: Path) -> dict:
     """Capture every reader view at two widths and test the delivered interactions.
 
     Browser/setup failures raise; they never become a passing visual assessment.
     No model-generated Python, JavaScript, CSS or remote URL is executed.
     """
-    from playwright.async_api import async_playwright, expect
+    from playwright.async_api import async_playwright
 
     from backintel.presentation.design import validate_plan
 
@@ -161,9 +169,7 @@ async def capture_dashboard_async(directory: Path, output: Path) -> dict:
                         charts = page.get_by_role("tabpanel", name=name).locator(
                             '[data-testid="stPlotlyChart"]:visible'
                         )
-                    await expect(charts).to_have_count(expected, timeout=15000)
-                    if expected:
-                        await charts.first.locator(".main-svg").first.wait_for(timeout=15000)
+                    await _wait_for_charts(charts, expected)
                     overflow = await page.evaluate("document.documentElement.scrollWidth > innerWidth + 2")
                     if overflow:
                         evidence["failures"].append(f"{size}/{name}: horizontal page overflow")
