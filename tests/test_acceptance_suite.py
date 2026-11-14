@@ -3,6 +3,8 @@
 import json
 import sqlite3
 
+import pytest
+
 from backintel.bench.acceptance import build_acceptance, verify_acceptance_data
 from backintel.settings import Settings
 from backintel.stores import open_store
@@ -95,3 +97,58 @@ def test_changed_fixture_is_detected_before_it_can_be_a_comparable_run(tmp_path)
     with sqlite3.connect(path) as con:
         con.execute("UPDATE sales_lines SET amount_minor=0")
     assert not verify_acceptance_data(suite, settings)
+
+
+def test_refreshed_reserved_worlds_preserve_old_evidence_and_have_independent_checks(tmp_path):
+    settings, original = build(tmp_path, "acceptance")
+    original_manifest = original.manifest_path.read_bytes()
+    refreshed = build_acceptance(
+        settings, "acceptance", output=tmp_path / "fresh-hidden", reserved_generation=2
+    )
+    assert len(refreshed.scenarios) == 17
+    assert original.manifest_path.read_bytes() == original_manifest
+    assert {s.store for s in original.scenarios}.isdisjoint(s.store for s in refreshed.scenarios)
+    assert original.data_hash != refreshed.data_hash
+    assert original.reference_hash != refreshed.reference_hash
+    assert all(s.id.startswith("acceptance-v1-reserved-2-acceptance-") for s in refreshed.scenarios)
+    old_profit = next(s for s in original.scenarios if s.id.endswith("-profit-complete"))
+    new_profit = next(s for s in refreshed.scenarios if s.id.endswith("-profit-complete"))
+    assert old_profit.expected != new_profit.expected
+    manifest = json.loads(refreshed.manifest_path.read_text())
+    assert len(manifest["reference_checks"]) == sum(s.answerable for s in refreshed.scenarios)
+    assert all(check["matches"] for check in manifest["reference_checks"])
+    assert verify_acceptance_data(original, settings) and verify_acceptance_data(refreshed, settings)
+    rebuilt = build_acceptance(
+        settings, "acceptance", output=tmp_path / "fresh-hidden", reserved_generation=2
+    )
+    assert refreshed.data_hash == rebuilt.data_hash
+    assert refreshed.reference_hash == rebuilt.reference_hash
+
+
+def test_third_reserved_generation_retains_both_consumed_generations(tmp_path):
+    settings, first = build(tmp_path, "acceptance")
+    second = build_acceptance(settings, "acceptance", output=tmp_path / "second", reserved_generation=2)
+    original_files = {p: p.read_bytes() for p in (first.manifest_path, second.manifest_path)}
+    third = build_acceptance(settings, "acceptance", output=tmp_path / "third", reserved_generation=3)
+    assert len(third.scenarios) == 17
+    assert all(p.read_bytes() == data for p, data in original_files.items())
+    previous_stores = {s.store for suite in (first, second) for s in suite.scenarios}
+    assert previous_stores.isdisjoint(s.store for s in third.scenarios)
+    assert third.reference_hash not in {first.reference_hash, second.reference_hash}
+    manifest = json.loads(third.manifest_path.read_text())
+    assert len(manifest["reference_checks"]) == 13
+    assert all(c["matches"] for c in manifest["reference_checks"])
+    assert all(verify_acceptance_data(suite, settings) for suite in (first, second, third))
+
+
+@pytest.mark.parametrize("split,generation", [("development", 2), ("acceptance", 4)])
+def test_reserved_refresh_cannot_silently_replace_development_or_choose_arbitrary_worlds(
+    tmp_path, split, generation
+):
+    with pytest.raises(ValueError, match="Reserved generation"):
+        build_acceptance(
+            Settings.from_env({"BACKINTEL_DATA_DIR": str(tmp_path)}),
+            split,
+            output=tmp_path / "hidden",
+            reserved_generation=generation,
+        )

@@ -138,6 +138,217 @@ def test_native_structured_output_retries_failed_evidence(store):
     assert len(model.bindings) == 2
 
 
+def test_numeric_unit_conversion_is_repaired_through_real_finalization(store):
+    # Different local data/amounts from the live benchmark; no evaluator truth is used.
+    bad = response(value=0.1, unit="EUR", method="Convert minor to major units.")
+    repaired = response(
+        value=0.1,
+        unit="EUR",
+        evidence=[{"kind": "sql", "code": "SELECT SUM(amount) / 100.0 FROM sales"}],
+    )
+    model = ScriptedModel(
+        responses=[
+            tool_call("VerifiedAnalystAnswer", bad, 0),
+            tool_call("VerifiedAnalystAnswer", repaired, 1),
+        ]
+    )
+    result = build_agent(model, store, TrustedFixturePython()).invoke(
+        {"messages": [HumanMessage(content="Report the total in major currency units.")]}
+    )
+    assert result["structured_response"].value == 0.1
+    assert len(model.bindings) == 2
+    assert any(isinstance(m, ToolMessage) and "unit conversion" in m.content for m in result["messages"])
+
+
+@pytest.mark.parametrize(
+    "kind,code", [("sql", "SELECT SUM(amount) * 100 FROM sales"), ("python", "print(1000)")]
+)
+def test_numeric_output_must_match_the_answer_not_only_execute(store, kind, code):
+    with pytest.raises(ValidationError, match="reported numeric value"):
+        answer_schema(store, TrustedFixturePython()).model_validate(
+            response(evidence=[{"kind": kind, "code": code}])
+        )
+
+
+def test_numeric_claim_in_note_or_program_source_is_not_executed_output(store):
+    with pytest.raises(ValidationError, match="reported numeric value"):
+        answer_schema(store, TrustedFixturePython()).model_validate(
+            response(evidence=[{"kind": "python", "code": "total = 10\nprint('finished')", "note": "10"}])
+        )
+
+
+@pytest.mark.parametrize(
+    "kind,code,value",
+    [
+        ("sql", "SELECT SUM(amount) / 3 FROM sales", 3.33),
+        ("python", "print('1e1')", 10),
+        ("python", "print('10,000.00')", 10000),
+    ],
+)
+def test_numeric_output_accepts_display_rounding_and_numeric_notation(store, kind, code, value):
+    answer_schema(store, TrustedFixturePython()).model_validate(
+        response(value=value, evidence=[{"kind": kind, "code": code}])
+    )
+
+
+def test_unavailable_report_metric_requires_declined_completion(store):
+    partial = response(
+        answer_type="report",
+        value=None,
+        rows=[
+            {"metric": "observed_total", "value": 10, "unit": "units"},
+            {"metric": "current_median", "value": None, "unit": "days"},
+        ],
+    )
+    assert AnalystAnswer.model_validate(partial).rows  # Historical failures remain gradable.
+    declined = {
+        "status": "cannot_answer",
+        "method": "Checked the assigned observations.",
+        "reason": "No current-period observations exist to calculate the required median.",
+    }
+    model = ScriptedModel(
+        responses=[
+            tool_call("VerifiedAnalystAnswer", partial, 0),
+            tool_call("VerifiedAnalystAnswer", declined, 1),
+        ]
+    )
+    result = build_agent(model, store, TrustedFixturePython()).invoke(
+        {"messages": [HumanMessage(content="Report observed totals and the current median.")]}
+    )
+    assert result["structured_response"].status == "cannot_answer"
+    assert len(model.bindings) == 2
+    assert any(isinstance(m, ToolMessage) and "unavailable metric" in m.content for m in result["messages"])
+
+
+def test_report_label_must_be_its_metric_value_in_real_finalization(store):
+    bad = response(
+        answer_type="report",
+        value=None,
+        rows=[{"metric": "status", "value": "STABLE", "unit": "label"}],
+        evidence=[{"kind": "sql", "code": "SELECT 'status' AS metric, 0 AS value, 'STABLE' AS unit"}],
+    )
+    good = {
+        **bad,
+        "evidence": [
+            {"kind": "sql", "code": "SELECT 'status' AS metric, 'STABLE' AS value, 'label' AS unit"}
+        ],
+    }
+    model = ScriptedModel(
+        responses=[tool_call("VerifiedAnalystAnswer", bad, 0), tool_call("VerifiedAnalystAnswer", good, 1)]
+    )
+    result = build_agent(model, store, TrustedFixturePython()).invoke(
+        {"messages": [HumanMessage(content="Report the observed status with executable evidence.")]}
+    )
+    assert result["structured_response"].rows[0]["value"] == "STABLE"
+    assert len(model.bindings) == 2
+    assert any(
+        isinstance(m, ToolMessage) and "contradicts reported metric" in m.content for m in result["messages"]
+    )
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "SELECT 'total' AS metric, 5 AS value UNION ALL SELECT 'other', 10",
+        "SELECT 5 AS total, 10 AS other",
+    ],
+)
+def test_another_metric_or_query_cannot_rescue_a_contradictory_report_binding(store, code):
+    report = response(
+        answer_type="report",
+        value=None,
+        rows=[{"metric": "total", "value": 10, "unit": "units"}],
+        evidence=[{"kind": "sql", "code": code}, {"kind": "sql", "code": "SELECT 10 AS total"}],
+    )
+    with pytest.raises(ValidationError, match="contradicts reported metric"):
+        answer_schema(store, TrustedFixturePython()).model_validate(report)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "SELECT 'total' AS metric, SUM(amount) AS value FROM sales",
+        "SELECT SUM(amount) AS total FROM sales",
+        "SELECT amount AS total FROM sales",
+    ],
+)
+def test_explicit_sql_binding_check_preserves_valid_and_unbound_population_outputs(store, code):
+    answer_schema(store, TrustedFixturePython()).model_validate(
+        response(
+            answer_type="report",
+            value=None,
+            rows=[{"metric": "total", "value": 10, "unit": "units"}],
+            evidence=[{"kind": "sql", "code": code}],
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"metric": "status", "value": 0, "unit": "STABLE"},
+        {"status": 0, "unit": "STABLE"},
+    ],
+)
+def test_structured_python_cannot_put_report_labels_in_the_unit_field(store, document):
+    program = "print(" + repr(json.dumps(document)) + ")"
+    with pytest.raises(ValidationError, match="contradicts reported metric"):
+        answer_schema(store, TrustedFixturePython()).model_validate(
+            response(
+                answer_type="report",
+                value=None,
+                rows=[{"metric": "status", "value": "STABLE", "unit": "label"}],
+                evidence=[{"kind": "python", "code": program}],
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"status": "STABLE"},
+        [{"metric": "status", "value": "STABLE", "unit": "label"}],
+    ],
+)
+def test_structured_python_preserves_valid_named_report_values(store, document):
+    answer_schema(store, TrustedFixturePython()).model_validate(
+        response(
+            answer_type="report",
+            value=None,
+            rows=[{"metric": "status", "value": "STABLE", "unit": "label"}],
+            evidence=[{"kind": "python", "code": "print(" + repr(json.dumps(document)) + ")"}],
+        )
+    )
+
+
+def test_json_lines_report_checks_named_values_across_output_lines(store):
+    lines = [
+        json.dumps({"metric": "status", "value": "STABLE"}),
+        json.dumps({"metric": "count", "value": 10}),
+    ]
+    code = "\n".join("print(" + repr(line) + ")" for line in lines)
+    answer_schema(store, TrustedFixturePython()).model_validate(
+        response(
+            answer_type="report",
+            value=None,
+            rows=[{"metric": "status", "value": "STABLE", "unit": "label"}],
+            evidence=[{"kind": "python", "code": code}],
+        )
+    )
+
+
+@pytest.mark.parametrize("value,sql_value", [(False, 0), (True, 1)])
+def test_sql_boolean_representation_remains_a_valid_report_binding(store, value, sql_value):
+    answer_schema(store, TrustedFixturePython()).model_validate(
+        response(
+            answer_type="report",
+            value=None,
+            rows=[{"metric": "flag", "value": value, "unit": "boolean"}],
+            evidence=[{"kind": "sql", "code": f"SELECT 'flag' AS metric, {sql_value} AS value"}],
+        )
+    )
+
+
 def test_failed_finalization_remains_an_execution_failure(store):
     model = ScriptedModel(
         responses=[
