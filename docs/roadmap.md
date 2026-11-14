@@ -3,7 +3,9 @@
 Owner priority, 2026-11-14 UTC: freeze the reliability benchmark; shelve its generation-3
 rerun and withdraw the $7 request. The immediate next milestone is the [single real-data
 artifact demonstration](dataset-demonstration.md) on 11.2 million NYC yellow-taxi records.
-Existing failures remain open; no release acceptance is claimed. The broader domain/scale
+The first demonstration has run; five chart previews and three checked claims are
+[recorded](../results/taxi-demonstration-20261114/README.md), while INT-498 blocks the
+full HTML/XLSX delivery. Existing failures remain open; no release acceptance is claimed. The broader domain/scale
 sequence below remains future work rather than a prerequisite for this demonstration.
 
 BackIntel starts at **v0.0.1, experimental**. Version numbers below describe acceptance

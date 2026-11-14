@@ -16,7 +16,8 @@ not a product version. Code is available under the [MIT license](LICENSE).
 [Roadmap](docs/roadmap.md) · [Contributing](#contributing)
 
 The reliability benchmark is [frozen](docs/reliability-campaign.md); historical failures
-remain recorded. The next milestone is a [real-data analysis demonstration](docs/dataset-demonstration.md).
+remain recorded. The [taxi demonstration results and chart previews](results/taxi-demonstration-20261114/README.md)
+show measured analysis and an unresolved artifact-transfer failure.
 
 ## Capabilities today
 

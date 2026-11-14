@@ -1,5 +1,11 @@
 # One real-data business-analysis demonstration
 
+Execution checkpoint: the [2026-11-14 demonstration](../results/taxi-demonstration-20261114/README.md)
+ran one first pass and one repair. Three numerical claims matched independent SQL, and
+five chart previews are retained. The final HTML/XLSX transfer failed with unexpected
+end of data; INT-498 blocks usable delivery. No third model attempt is planned. The
+selection and pre-execution contract below remain the recorded context.
+
 ## Owner decision — 2026-11-14 UTC
 
 Freeze the reliability benchmark and select one useful real dataset. The prior
