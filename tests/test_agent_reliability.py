@@ -191,6 +191,35 @@ def test_numeric_output_accepts_display_rounding_and_numeric_notation(store, kin
     )
 
 
+def test_unavailable_report_metric_requires_declined_completion(store):
+    partial = response(
+        answer_type="report",
+        value=None,
+        rows=[
+            {"metric": "observed_total", "value": 10, "unit": "units"},
+            {"metric": "current_median", "value": None, "unit": "days"},
+        ],
+    )
+    assert AnalystAnswer.model_validate(partial).rows  # Historical failures remain gradable.
+    declined = {
+        "status": "cannot_answer",
+        "method": "Checked the assigned observations.",
+        "reason": "No current-period observations exist to calculate the required median.",
+    }
+    model = ScriptedModel(
+        responses=[
+            tool_call("VerifiedAnalystAnswer", partial, 0),
+            tool_call("VerifiedAnalystAnswer", declined, 1),
+        ]
+    )
+    result = build_agent(model, store, TrustedFixturePython()).invoke(
+        {"messages": [HumanMessage(content="Report observed totals and the current median.")]}
+    )
+    assert result["structured_response"].status == "cannot_answer"
+    assert len(model.bindings) == 2
+    assert any(isinstance(m, ToolMessage) and "unavailable metric" in m.content for m in result["messages"])
+
+
 def test_failed_finalization_remains_an_execution_failure(store):
     model = ScriptedModel(
         responses=[

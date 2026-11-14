@@ -113,6 +113,12 @@ def validate_answer_shape(answer: AnalystAnswer) -> None:
             metric = row.get("metric")
             if not isinstance(metric, str) or not metric.strip() or "value" not in row or "unit" not in row:
                 raise ValueError("Each report row requires a nonempty metric identifier, value, and unit.")
+            if row["value"] is None:
+                raise ValueError(
+                    "An answered report cannot contain an unavailable metric value. If a required "
+                    "metric cannot be calculated, return status='cannot_answer' and explain the "
+                    "missing information instead of returning a partial answered report."
+                )
             names.append(" ".join(metric.split()).casefold())
         if not names or len(names) != len(set(names)):
             raise ValueError("Report metric identifiers must be unique: return exactly one row per metric.")

@@ -21,10 +21,18 @@ uses no question-specific expected value, oracle, grading reference or hidden da
 Independent correctness, report, refusal and evidence scoring remain unchanged. Numeric
 presence is not proof of correctness or full data lineage.
 
-Offline verification passed 262 tests with 15 optional skips, including a real installed
+The same reserved batch exposed an answered report with unavailable required metrics:
+its current-period mean and change were null even though the method explained that the
+comparison could not be calculated. Runtime report finalization now rejects null metric
+values and asks the analyst to decline with the missing-information reason. It does not
+infer answerability from hidden references or fabricate a complete report. Historical
+records remain parseable by the permissive persisted contract.
+
+Offline verification passed 263 tests with 15 optional skips, including a real installed
 graph that rejects an omitted conversion and then accepts corrected SQL. Additional
 tests cover SQL and Python mismatches, printed versus unprinted values, display rounding
-and notation. Ruff, Vulture, diff and Gitleaks checks passed. This is implementation
+and notation, plus partial-report rejection followed by a proper refusal. Ruff, Vulture,
+diff and Gitleaks checks passed. This is implementation
 evidence, not live qualification of the revised candidate.
 
 The consumed acceptance-v1 reserved worlds cannot qualify a revision as unseen. The
@@ -43,6 +51,8 @@ Models, scoring rules and tolerances remain fixed. The proposed additional alloc
 is $2.15, subject to the cumulative allowance: the existing $5 authorization does not
 cover the full proposed envelope. No additional spending is approved by this document.
 
-Local freeze: `data/output/reliability-native-refresh-20261114/proposal.json` in the
+Local freeze: `data/output/reliability-native-refresh-20261114-r2/proposal.json` in the
 canonical operator checkout. It retains source/manifest/policy/data/reference hashes and
-the proposed caps. No live revised-candidate result or v0.0.1 release is claimed.
+the proposed caps. It supersedes the first zero-call preparation, which preceded the
+second observed failure; both remain retained. No live revised-candidate result or
+v0.0.1 release is claimed.
