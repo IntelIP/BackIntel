@@ -13,7 +13,8 @@ not a product version. Code is available under the [MIT license](LICENSE).
 
 [Get started](#get-started) · [Capabilities](#capabilities-today) ·
 [Architecture](#how-it-works) · [Evaluation](#what-has-been-measured) ·
-[Roadmap](docs/roadmap.md) · [Contributing](#contributing)
+[Roadmap](docs/roadmap.md) · [Engine release gates](docs/engine-evaluations.md) ·
+[Contributing](#contributing)
 
 ## Capabilities today
 
@@ -302,26 +303,35 @@ Method-judge scores have not been calibrated against human labels.
 
 ## Roadmap
 
-These are acceptance milestones, not shipped versions or promised dates. Some later-stage
-components already exist; a milestone closes only when its evaluation and delivery criteria pass.
+The product direction is a persistent business and operational analyst: understand approved
+data and SOPs, investigate opportunities, support manager decisions, and follow through on
+outcomes. Dashboards communicate that work. These are capability targets, not shipped
+versions or promised dates.
 
 | Target | Capability to establish |
 | --- | --- |
-| **v0.0.1** | Reproducible foundation, reliable completion/refusal, executable evidence and a frozen baseline/candidate comparison |
+| **v0.0.1** | Reconcile frozen analytical evidence and supported scope; preserve incomplete acceptance |
 | **v0.0.2** | Drop-in analysis across three unfamiliar domains, with one entire domain reserved from tuning |
 | **v0.0.3** | Real large-data analysis at staged sizes up to at least 10 GiB on a qualified host |
 | **v0.0.4** | Consistent, verified report/chart/workbook delivery across the acceptance suite |
-| **v0.0.5** | Reusable business metrics and decision-report packs |
-| **v0.1.0** | One controlled customer pilot with an explicit data and workload contract |
-| **v0.2.0** | Durable scheduled jobs, cancellation, bounded retries and recovery |
-| **v0.3.0** | Qualified operational connectors, change detection and deduplicated alerts |
-| **v0.4.0** | Evaluated document context and statistical/forecasting workflows |
-| **v0.5.0** | Managed background-analysis beta with user controls, history and spending limits |
-| **v0.9.0 → v1.0.0** | Operational hardening, reversible releases and a supported, bounded service |
+| **v0.0.5** | Mission/metric definitions, applicable SOPs, attributed memory and contextual report packs |
+| **v0.1.0** | One chronological shadow workflow with an opportunity, manager decision and follow-up |
+| **v0.2.0** | Durable jobs, bounded investigations, qualified worker and recovery; ≥72 real operating hours |
+| **v0.3.0** | Qualified connectors, useful signals and an authorized attention/delivery policy |
+| **v0.4.0** | Outcome accounting and independently evaluated improvement proposals |
+| **v0.5.0** | Manager workspace and funded execution; ≥3 approved goals over ≥7 real days |
+| **v0.6.0** | Workspace isolation, credential lifecycle, retention and recovery |
+| **v0.7.0** | Measured capacity and cost per useful operating cycle |
+| **v0.8.0** | A second workflow through a reusable source/metric/SOP domain pack |
+| **v0.9.0 → v1.0.0** | Reversible release and ≥30 real days meeting predeclared operating and business objectives |
 
-The [detailed roadmap](docs/roadmap.md) gives the next implementable tasks, dependencies and
-completion criteria. Linear remains the internal delivery tracker; the public plan is readable
-without access to it. No production hosting or continuous background operation is available today.
+The [detailed roadmap](docs/roadmap.md) defines user stories, responsible roles and delivery
+sequence. [Evaluation gates](docs/engine-evaluations.md) separate analytical correctness,
+operating reliability and business value. The historical benchmark stays frozen; unrelated
+domain/scale qualification does not block a bounded small-data pilot. Forecasting and
+fine-tuning remain optional, separately qualified capabilities.
+
+Linear owns live delivery status; the public plan is readable without access to it. No production hosting or continuous background service is available today.
 
 ## Contributing
 
