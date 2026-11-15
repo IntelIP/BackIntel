@@ -3,6 +3,8 @@
 import json
 import os
 import subprocess
+import sys
+import tarfile
 import time
 import uuid
 from pathlib import Path
@@ -28,6 +30,77 @@ def test_reject_invalid_resource_and_write_contracts():
         sandbox.write_file("/workspace/../etc/host", "no")
     with pytest.raises(ValueError, match="256 KiB"):
         sandbox.write_file("/workspace/program.py", "x" * (256 * 1024 + 1))
+
+
+@pytest.mark.parametrize("operation", ["read", "export"])
+def test_binary_transfer_outgrows_exec_output_cap(tmp_path, operation):
+    """Model SmolVM's bounded --stream path, including binary bytes and pipe backpressure."""
+    payload = bytes(range(256)) * 512
+    source = tmp_path / "payload.png"
+    source.write_bytes(payload)
+    archive = tmp_path / "payload.tar"
+    with tarfile.open(archive, "w") as stream:
+        stream.add(source, arcname="payload.png")
+    engine = tmp_path / "smolvm"
+    engine.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\nfrom pathlib import Path\n"
+        f"data=Path({str(archive)!r}).read_bytes()\n"
+        "if '--stream' in sys.argv:\n"
+        " sys.stdout.buffer.write(data[:65536]); sys.exit(1)\n"
+        "assert '-i' in sys.argv and '-t' not in sys.argv\n"
+        "assert sys.stdin.buffer.read() == b''\n"
+        "sys.stdout.buffer.write(data)\n"
+    )
+    engine.chmod(0o700)
+    sandbox = AnalysisSandbox()
+    sandbox.engine, sandbox.started_at = str(engine), time.monotonic()
+    if operation == "read":
+        assert sandbox.read_bytes("/artifacts/payload.png") == payload
+    else:
+        output = tmp_path / "delivered"
+        assert sandbox.export_artifacts(output) == ["payload.png"]
+        assert (output / "payload.png").read_bytes() == payload
+
+
+@smolvm
+def test_real_large_binary_read_and_aggregate_export(tmp_path):
+    import hashlib
+
+    profile = ResourceProfile(memory_mib=768, cpus=1, workspace_mib=128, temporary_mib=128, artifacts_mib=64)
+    with AnalysisSandbox(profile=profile) as sandbox:
+        result = sandbox.run_python(
+            "from pathlib import Path; import hashlib,json\n"
+            "data=bytes(range(256))*102400\n"
+            "Path('/artifacts/large.png').write_bytes(data)\n"
+            "print(hashlib.sha256(data).hexdigest())"
+        )
+        assert result.exit_code == 0, result.stderr
+        expected = result.stdout.strip()
+        data = sandbox.read_bytes("/artifacts/large.png", max_bytes=32 * 1024**2)
+        assert len(data) == 25 * 1024**2 and hashlib.sha256(data).hexdigest() == expected
+        delivered = tmp_path / "single"
+        assert sandbox.export_artifacts(delivered) == ["large.png"]
+        assert hashlib.sha256((delivered / "large.png").read_bytes()).hexdigest() == expected
+        result = sandbox.run_python(
+            "from pathlib import Path\n"
+            "Path('/artifacts/large.png').unlink()\n"
+            "for i in range(3): Path(f'/artifacts/report-{i}.html').write_bytes(bytes([i])*8*1024**2)"
+        )
+        assert result.exit_code == 0, result.stderr
+        delivered = tmp_path / "aggregate"
+        assert set(sandbox.export_artifacts(delivered)) == {f"report-{i}.html" for i in range(3)}
+        for i in range(3):
+            assert (delivered / f"report-{i}.html").read_bytes() == bytes([i]) * 8 * 1024**2
+        result = sandbox.run_python(
+            "from pathlib import Path\n"
+            "for path in Path('/artifacts').iterdir(): path.unlink()\n"
+            "with open('/artifacts/oversized.html','wb') as output: output.truncate(65*1024**2)"
+        )
+        assert result.exit_code == 0, result.stderr
+        with pytest.raises(ValueError, match="exceeds run limits"):
+            sandbox.export_artifacts(tmp_path / "oversized")
+        assert not (tmp_path / "oversized").exists()
 
 
 @smolvm
