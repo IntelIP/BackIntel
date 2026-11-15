@@ -145,3 +145,26 @@ def test_host_python_backend_is_rejected_before_code_execution(tmp_path):
     with pytest.raises(ValueError, match="SmolVM"):
         PythonSandbox("subprocess").run(f"open({str(marker)!r}, 'w').write('escaped')", env={}, mounts={})
     assert not marker.exists()
+
+
+def test_langsmith_experiments_share_a_stable_versioned_prefix(monkeypatch):
+    harness = SimpleNamespace(
+        model_id="openai/gpt-test",
+        store=SimpleNamespace(kind="sqlite"),
+        run_metadata={"dataset": "backintel_acceptance_v1_development", "git_sha": "abc"},
+    )
+    monkeypatch.setattr(run, "backintel_version", lambda: "0.0.1")
+    prefix = run.experiment_prefix(harness, {3, 1})
+    assert prefix == run.experiment_prefix(harness, {1, 3})  # no time or random part
+    assert prefix == "backintel_acceptance_v1_development-sqlite-gpt-test-L13-v0.0.1"
+    assert run.experiment_name(harness, {1, 3}).startswith(prefix + "-")
+    first = run.experiment_metadata(harness, prefix)
+    second = run.experiment_metadata(harness, prefix)
+    assert first["run_id"] != second["run_id"]
+    assert {k: first[k] for k in ("product", "version", "environment", "experiment_prefix", "git_sha")} == {
+        "product": "backintel",
+        "version": "0.0.1",
+        "environment": "dev",
+        "experiment_prefix": prefix,
+        "git_sha": "abc",
+    }

@@ -153,6 +153,19 @@ reported analyst charges; historical judge charges are not included. Missing cos
 zero-cost claims. Source and reference hashes identify new working-tree runs; historical
 `git_sha` values identify the old base commit, not a committed v2 implementation.
 
+### Tracing standard
+
+| Item | Value |
+| --- | --- |
+| Tracing project | `backintel-v2-dev` (Doppler `backintel/dev` `LANGSMITH_PROJECT`) for analyst runs outside evaluations; no staging or production deployment exists yet |
+| Experiments | One per `run_langsmith` call, attached to its dataset (shown under Datasets & Experiments, not the tracing project list). Prefix: `<dataset>-<store>-<model>-L<levels>-v<backintel version>`; LangSmith appends a unique suffix, so repeated runs of one configuration list together |
+| Required experiment metadata | `product` (`backintel`), `version` (package version), `environment` (`dev`), `experiment_prefix`, `run_id`, `started_at`, plus the harness identity: `dataset`, `store`, `model`, `git_sha`, `source_version`, `scorer_version`, `reference_version`, `judge_version` |
+
+**Result → trace.** `run_langsmith` returns and prints `project_url` (the experiment), and every
+`results/raw/<experiment>.jsonl` record carries `langsmith_run_id` for its scenario's root run.
+Experiments made before November 15, 2026 carry a time and random id in the prefix; they
+remain as history.
+
 ## Sources and selections checked 2026-11-09
 
 This build preserves the approved OpenRouter/OpenAI analyst and Anthropic judge. New
