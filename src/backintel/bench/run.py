@@ -403,11 +403,42 @@ def write_records(path: Path, records: list[dict]) -> Path:
     return path
 
 
-def experiment_name(harness: Harness, levels: set[int] | None) -> str:
+def backintel_version() -> str:
+    try:
+        return importlib.metadata.version("backintel")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
+def experiment_prefix(harness: Harness, levels: set[int] | None) -> str:
+    """Stable, versioned LangSmith experiment prefix shared by every run of the same configuration.
+
+    LangSmith appends its own unique suffix to each experiment, so repeated runs list together
+    under one readable name; the run's time and id live in experiment metadata instead.
+    """
     model = harness.model_id.split("/")[-1]
     level_tag = "L" + "".join(str(level) for level in sorted(levels)) if levels else "Lall"
+    dataset = harness.run_metadata["dataset"]
+    return f"{dataset}-{harness.store.kind}-{model}-{level_tag}-v{backintel_version()}"
+
+
+def experiment_name(harness: Harness, levels: set[int] | None) -> str:
+    """Unique local run name; local result files are never appended to."""
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    return f"{harness.run_metadata['dataset']}-{harness.store.kind}-{model}-{level_tag}-{stamp}-{uuid4().hex}"
+    return f"{experiment_prefix(harness, levels)}-{stamp}-{uuid4().hex}"
+
+
+def experiment_metadata(harness: Harness, prefix: str) -> dict:
+    """Standard tracing metadata plus the run identity that used to be in the experiment name."""
+    return {
+        **harness.run_metadata,
+        "product": "backintel",
+        "version": backintel_version(),
+        "environment": "dev",
+        "experiment_prefix": prefix,
+        "run_id": uuid4().hex,
+        "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
 
 
 # ---------------------------------------------------------------------- local run
@@ -523,7 +554,7 @@ def run_langsmith(
         for ex in client.list_examples(dataset_name=dataset_name(dataset))
         if ex.metadata and ex.metadata.get("scenario_id") in wanted
     ]
-    name = experiment_name(harness, {s.level for s in scenarios})
+    prefix = experiment_prefix(harness, {s.level for s in scenarios})
 
     def target(inputs: dict) -> dict:
         return harness.answer(inputs["question"], harness.scenarios[inputs["scenario_id"]])
@@ -552,8 +583,8 @@ def run_langsmith(
         target,
         data=examples,
         evaluators=[make_evaluator("__all__")],
-        experiment_prefix=name,
-        metadata=harness.run_metadata,
+        experiment_prefix=prefix,
+        metadata=experiment_metadata(harness, prefix),
         max_concurrency=max_concurrency,
         blocking=False,
         description="BackIntel v2 analyst benchmark: deterministic correctness, evidence re-execution, "
