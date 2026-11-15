@@ -12,8 +12,12 @@ acceptance remains open. Durable background scheduling and hosted delivery are r
 The historical branch name (`codex/backintel-v2`) identifies this rebuild, not product stability;
 the earlier implementation remains in Git history and is not imported.
 
-The build order is deliberate (owner decision, 2026-11-09): benchmark first, agent second,
-infrastructure last. The agent's value is measured, not asserted.
+The original build order (owner decision, 2026-11-09) was benchmark first, agent second,
+infrastructure last. The benchmark is now frozen by owner direction. The 2026-11-14
+[product roadmap](docs/roadmap.md) and [engine evaluation gates](docs/engine-evaluations.md)
+govern the next operating-workflow sequence. Preserve unfinished acceptance and fix or
+exclude failures material to the chosen workflow; do not restart unrelated campaigns.
+The agent's value is measured, not asserted.
 
 ## Architecture
 
@@ -96,6 +100,7 @@ infrastructure last. The agent's value is measured, not asserted.
 
 ## Deferrals
 
-Production hosting, web UI, live scheduling, customer integrations, Infrastructure Engine
-enrollment and scale factors above 1. The public-benchmark comparison in INT-399 is separate
+Production hosting, a live manager workspace, scheduling, customer integrations,
+Infrastructure Engine enrollment and scale factors above 1. The
+public-benchmark comparison in INT-399 is separate
 from this execution goal; these results do not establish external leaderboard performance.
