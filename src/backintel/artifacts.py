@@ -39,29 +39,84 @@ _CSP = (
     "img-src 'self' data:; font-src 'none'; connect-src 'none'; object-src 'none'; "
     "base-uri 'none'; form-action 'none'; frame-src 'none'"
 )
+_INK = "#163b42"
+_ACCENT = "#216c72"
+_GRID = "#e4e9e7"
+_HEAT_COLORS = ["#f0f5f2", "#b5d6ce", "#589b99", "#216c72", "#143c45"]
 _CSS = """
-:root{color-scheme:light;font-family:Arial,Helvetica,sans-serif;color:#182d3e;background:#f7f8fa}
-*{box-sizing:border-box}body{margin:0}main{max-width:1080px;margin:auto;padding:48px 32px 64px}
-header{border-bottom:2px solid #1f6185;padding-bottom:24px;margin-bottom:32px}
-.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#46637a}
-h1{font-size:38px;line-height:1.15;max-width:850px;margin:14px 0 18px}h2{font-size:23px;margin:32px 0 14px}
-h3{font-size:18px;margin:0 0 12px}p,li{font-size:16px;line-height:1.6}p{max-width:85ch}
-a{color:#145e89;text-underline-offset:3px}.meta,.note{font-size:13px;line-height:1.6;color:#4c6171}
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px;margin:28px 0}
-.metric{border-top:1px solid #b8cbd8;padding-top:12px}
-.metric strong{font-size:29px;display:block;margin:8px 0}
-.metric span{display:block;font-size:14px}.unit{font-size:14px!important;font-weight:400}
-figure{margin:28px 0;background:white;padding:22px 20px}figure img{max-width:100%;height:auto;display:block}
-figcaption{font-size:13px;line-height:1.5;color:#4c6171;margin-top:12px}.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #dce3e9}
-th{background:#eaf0f4;font-weight:600}.number{text-align:right;font-variant-numeric:tabular-nums}
-details{margin:16px 0}summary{cursor:pointer}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.5;background:#edf1f4;padding:16px}
-.downloads{display:flex;gap:18px;flex-wrap:wrap}.interactive{min-height:400px;width:100%}
-footer{border-top:1px solid #b8cbd8;margin-top:36px;padding-top:14px}
-@media(max-width:600px){main{padding:24px 16px}h1{font-size:29px}figure{padding:12px 4px}th,td{padding:8px}}
-@media print{body{background:white}main{padding:0}figure,.metric{break-inside:avoid}.downloads{display:none}}
+:root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+color:#193940;background:#f7f8f5;font-synthesis:none}
+*{box-sizing:border-box}html{scroll-padding-top:24px}body{margin:0}
+main{max-width:1120px;margin:auto;padding:52px 52px 64px;min-width:0}
+a{color:#21656b;text-underline-offset:4px;text-decoration-thickness:1px}
+a:hover{color:#102f35}a:focus-visible,summary:focus-visible,[tabindex]:focus-visible{
+outline:3px solid #b16b22;outline-offset:5px;border-radius:2px}
+.skip-link{position:absolute;left:24px;top:-60px;background:white;padding:12px;z-index:10}
+.skip-link:focus{top:12px}header{padding-bottom:28px;border-bottom:1px solid #a8b9b7}
+.eyebrow{font-size:11px;font-weight:650;letter-spacing:.14em;text-transform:uppercase;color:#416567}
+.masthead{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:48px}
+.masthead .brand{font-weight:750;font-size:17px;letter-spacing:-.03em;color:#163b42}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:clamp(34px,4.2vw,52px);
+line-height:1.12;letter-spacing:-.025em;max-width:940px;margin:12px 0 24px;text-wrap:balance}
+.scope{font-family:Georgia,"Times New Roman",serif;font-size:24px;margin:-12px 0 24px;color:#52696c}
+h2{font-size:22px;font-weight:600;letter-spacing:-.025em;margin:0 0 22px;line-height:1.3}
+h3{font-size:17px;font-weight:600;margin:0 0 12px;line-height:1.4}
+p,li{font-size:16px;line-height:1.7;text-wrap:pretty}p,li{max-width:56ch}
+.summary{font-size:18px;line-height:1.7;color:#38545a;margin:0;max-width:56ch}
+.meta,.note{font-size:13px;line-height:1.65;color:#52696c;overflow-wrap:anywhere}
+.section-nav{display:flex;flex-wrap:wrap;gap:10px 24px;padding:20px 0;font-size:13px;
+border-bottom:1px solid #dce3df}.section-nav a{text-decoration:none}
+section{margin-top:42px}section>p.eyebrow{margin:0 0 10px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));
+gap:24px;margin:28px 0 12px}.metric{min-width:0;border-bottom:1px solid #d3ded8;padding:0 0 20px}
+.metric-label{display:block;font-size:13px;color:#52696c;font-weight:600}
+.metric strong{display:block;font-size:clamp(36px,5vw,48px);letter-spacing:-.045em;
+font-weight:500;line-height:1.2;margin:10px 0;font-variant-numeric:tabular-nums}
+.metric .unit{font-size:18px;letter-spacing:0;font-weight:400;color:#52696c}
+.metric details{border:0;margin:14px 0 0;padding:0}.metric summary{font-size:13px;color:#52696c}
+.metric details p{font-size:13px;margin-bottom:0}.findings{padding-left:24px;margin:0}
+.findings li{padding:0 0 18px 10px;max-width:56ch}.findings li::marker{color:#216c72;font-weight:600}
+figure{margin:0 0 32px;background:#fff;padding:26px 28px 20px;border:1px solid #dce3df}
+figure .eyebrow{margin:0 0 12px}.chart-image{display:block;width:100%;height:auto}
+.chart-viewport{overflow:auto;max-width:100%}
+.chart-hint{display:none}
+figcaption{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px 20px;
+font-size:12px;line-height:1.65;color:#52696c;padding-top:16px;border-top:1px solid #e4e9e7}
+figcaption a{display:inline-block}.chart-links{display:flex;flex-wrap:wrap;gap:16px}
+.limitations{border-left:3px solid #ba9864;padding:2px 0 2px 24px}
+.limitations h2{font-size:19px;margin-bottom:14px}.limitations ul{padding-left:18px;margin:0}
+.limitations li{font-size:14px;color:#435c5f;margin:0 0 12px}
+.table-wrap{overflow:auto;max-width:100%;margin:16px 0;overscroll-behavior-x:contain}
+table{width:100%;border-collapse:collapse;font-size:13px;line-height:1.6;background:white}
+th,td{padding:12px 14px;text-align:left;border-bottom:1px solid #dde5e1;vertical-align:top}
+th{background:#edf2ee;font-weight:600;color:#274b50}td{max-width:400px}
+.number{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cell-value{cursor:help}details{border-bottom:1px solid #dce3df;padding:16px 0;margin:0}
+summary{cursor:pointer;font-size:15px;line-height:1.6;font-weight:500;overflow-wrap:anywhere}
+summary::marker{color:#53777a}details[open]>summary{margin-bottom:12px}
+.table-count{font-size:12px;font-weight:400;color:#52696c;margin-left:8px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6;
+background:#edf2ee;padding:18px;color:#25474c}
+.downloads{display:flex;gap:12px 24px;flex-wrap:wrap;margin:22px 0;font-size:13px}
+.source{padding:12px 0;border-bottom:1px solid #e2e8e3}.source p{margin:6px 0}
+.snapshot{font-family:ui-monospace,monospace;font-size:12px;overflow-wrap:anywhere}
+.interactive{min-height:400px;width:100%;background:white;margin:28px 0}
+footer{border-top:1px solid #a8b9b7;margin-top:42px;padding-top:16px}
+footer p{font-size:12px!important}section[id],details[id]{scroll-margin-top:24px}
+@media(max-width:600px){main{padding:24px 20px 40px}.masthead{margin-bottom:34px;gap:12px}
+.masthead .eyebrow{font-size:11px}h1{font-size:34px;letter-spacing:-.02em}.summary{font-size:16px}
+.section-nav{gap:12px 20px}section{margin-top:32px}.metrics{margin-top:24px;gap:16px}
+figure{padding:16px 8px 14px;margin-left:-8px;margin-right:-8px}
+figure .eyebrow,figcaption{margin-left:8px;margin-right:8px}figcaption{font-size:12px}
+th,td{padding:10px}.findings li{padding-left:3px}.limitations{padding-left:17px}
+.interactive{min-height:400px}.downloads{gap:14px 20px}
+.chart-image{min-width:800px}.chart-hint{display:block;font-size:12px;margin:0 8px 12px}}
+@media print{@page{margin:15mm}body{background:white}main{max-width:none;padding:0}
+h1{font-size:32px}.masthead{margin-bottom:24px}.section-nav,.downloads,.skip-link{display:none}
+figure,.metric,.source{break-inside:avoid}section{margin-top:28px}h2,h3{break-after:avoid}
+a{color:inherit}.chart-links,.chart-hint{display:none}.chart-image{min-width:0}.chart-viewport{overflow:visible}
+details::details-content{content-visibility:visible}
+.table-wrap{overflow:visible}table{font-size:10px}th,td{padding:6px}.limitations{border-color:#777}}
 """
 
 
@@ -258,6 +313,43 @@ def _display(value: Any) -> str:
     return _escape(value)
 
 
+def _metric_display(metric: dict) -> str:
+    """Round only the visual headline; exact values remain in tables and downloads."""
+    value = metric["value"]
+    if not _finite_number(value):
+        return _escape(value)
+    if metric["unit"] in {"%", "USD", "EUR", "GBP"}:
+        return f"{value:,.2f}"
+    return f"{value:,.5g}" if isinstance(value, float) else f"{value:,}"
+
+
+def _axis_label(name: str) -> str:
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", name).replace("_", " ")
+
+
+def _heatmap_ticks(labels: list) -> tuple[list[str], str]:
+    """Shorten same-day timestamp labels, preserving the date and timezone in the axis."""
+    try:
+        dates = [datetime.fromisoformat(str(value).replace("Z", "+00:00")) for value in labels]
+    except ValueError:
+        return [str(value) for value in labels], ""
+    if len({(value.date(), value.utcoffset()) for value in dates}) != 1:
+        return [str(value) for value in labels], ""
+    # Do not discard seconds if any source timestamp needs that precision.
+    pattern = "%H:%M:%S" if any(value.second or value.microsecond for value in dates) else "%H:%M"
+    if any(value.microsecond for value in dates):
+        pattern += ".%f"
+    timezone = " UTC" if dates[0].utcoffset() == UTC.utcoffset(None) else dates[0].strftime(" %z")
+    return [value.strftime(pattern) for value in dates], f" · {dates[0]:%d %b %Y}{timezone}"
+
+
+def _heatmap_limits(unit: str, values: list[list]) -> dict:
+    # A 60%-covered window must not visually imply 100% coverage through autoscaling.
+    if unit == "%" and all(0 <= value <= 100 for row in values for value in row):
+        return {"vmin": 0, "vmax": 100}
+    return {}
+
+
 def _csv_cell(value: Any) -> Any:
     # Excel/LibreOffice may execute formula-like text even when CSV quotes it.
     if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
@@ -271,7 +363,8 @@ def _page(title: str, body: str, script: str = "") -> str:
         f'<meta http-equiv="Content-Security-Policy" content="{_escape(_CSP)}">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{_escape(title)}</title><style>{_CSS}</style></head>"
-        f"<body><main>{body}</main>{script}</body></html>"
+        f'<body><a class="skip-link" href="#content">Skip to report</a>'
+        f'<main id="content">{body}</main>{script}</body></html>'
     )
 
 
@@ -284,7 +377,8 @@ def _table_html(table: dict) -> str:
         )
         rows.append(f"<tr>{cells}</tr>")
     return (
-        f'<div class="table-wrap"><table><thead><tr>{headings}</tr></thead>'
+        f'<div class="table-wrap" role="region" tabindex="0" aria-label="{_escape(table["title"])}">'
+        f"<table><thead><tr>{headings}</tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 
@@ -331,9 +425,16 @@ def _static_chart(chart: dict, table: dict, directory: Path) -> None:
             "text.parse_math": False,
             "axes.spines.top": False,
             "axes.spines.right": False,
-            "axes.labelcolor": "#334e62",
-            "xtick.color": "#334e62",
-            "ytick.color": "#334e62",
+            "axes.labelcolor": _INK,
+            "axes.edgecolor": "#ccd8d3",
+            "axes.labelpad": 12,
+            "axes.titlecolor": _INK,
+            "xtick.major.size": 0,
+            "ytick.major.size": 0,
+            "xtick.major.pad": 10,
+            "ytick.major.pad": 10,
+            "xtick.color": "#4b6568",
+            "ytick.color": "#4b6568",
         }
     ):
         height = max(4.4, len(xs) * 0.32 + 1.4) if chart["kind"] == "bar" else 4.8
@@ -348,35 +449,54 @@ def _static_chart(chart: dict, table: dict, directory: Path) -> None:
         unit = table["units"][measure]
         if chart["kind"] == "bar":
             labels = ["\n".join(textwrap.wrap(str(x), 34)) for x in xs]
-            ax.barh(labels, ys, color="#246a91", height=0.65)
+            bars = ax.barh(labels, ys, color=_ACCENT, height=0.55)
+            if len(xs) <= 20:
+                ax.bar_label(
+                    bars, labels=[f"{value:,.5g}" for value in ys], padding=8, fontsize=11, color=_INK
+                )
+                ax.margins(x=0.16)
             ax.invert_yaxis()
-            ax.set_xlabel(f"{chart['y']} ({unit})")
+            ax.set_xlabel(f"{_axis_label(chart['y'])} ({unit})")
             ax.xaxis.set_major_formatter(StrMethodFormatter("{x:,.6g}"))
-            ax.axvline(0, linewidth=0.8, color="#334e62")
-            ax.grid(axis="x", color="#dce4e9", linewidth=0.6)
+            ax.axvline(0, linewidth=0.8, color="#ccd8d3")
+            ax.grid(axis="x", color=_GRID, linewidth=0.6)
         elif chart["kind"] == "histogram":
             centers, counts, width = _histogram(chart, table)
-            ax.bar(centers, counts, width=width * 0.98, color="#246a91")
-            ax.set_xlabel(f"{chart['x']} ({unit})")
+            ax.bar(centers, counts, width=width * 0.98, color=_ACCENT)
+            ax.set_xlabel(f"{_axis_label(chart['x'])} ({unit})")
             ax.set_ylabel("Observations")
-            ax.grid(axis="y", color="#dce4e9", linewidth=0.6)
+            ax.grid(axis="y", color=_GRID, linewidth=0.6)
         elif chart["kind"] == "heatmap":
             x_labels, y_labels, values = _heatmap(chart, table)
             fig.set_size_inches(max(8, len(x_labels) * 0.6 + 3), max(4.8, len(y_labels) * 0.35 + 2))
-            im = ax.imshow(values, cmap="Blues", aspect="auto")
-            ax.set_xticks(range(len(x_labels)), [str(x) for x in x_labels], rotation=30, ha="right")
+            from matplotlib.colors import LinearSegmentedColormap
+
+            palette = LinearSegmentedColormap.from_list("backintel", _HEAT_COLORS)
+            limits = _heatmap_limits(unit, values)
+            im = ax.imshow(values, cmap=palette, aspect="auto", **limits)
+            ticks, context = _heatmap_ticks(x_labels)
+            ax.set_xticks(
+                range(len(x_labels)),
+                ticks,
+                rotation=0 if context else 30,
+                ha="center" if context else "right",
+            )
+            ax.set_xticks([i - 0.5 for i in range(len(x_labels) + 1)], minor=True)
+            ax.set_yticks([i - 0.5 for i in range(len(y_labels) + 1)], minor=True)
+            ax.grid(which="minor", color="white", linewidth=2)
+            ax.tick_params(which="minor", bottom=False, left=False)
             ax.set_yticks(range(len(y_labels)), [str(y) for y in y_labels])
-            ax.set_xlabel(chart["x"])
-            ax.set_ylabel(chart["y"])
-            fig.colorbar(im, ax=ax, label=f"{chart['z']} ({unit})", shrink=0.85)
+            ax.set_xlabel(_axis_label(chart["x"]) + context)
+            ax.set_ylabel(_axis_label(chart["y"]))
+            fig.colorbar(im, ax=ax, label=f"{_axis_label(chart['z'])} ({unit})", shrink=0.85, pad=0.04)
             if len(x_labels) * len(y_labels) <= 100:
-                midpoint = (min(map(min, values)) + max(map(max, values))) / 2
+                midpoint = im.norm.vmin + (im.norm.vmax - im.norm.vmin) * 0.55
                 for row, row_values in enumerate(values):
                     for column, value in enumerate(row_values):
                         ax.text(
                             column,
                             row,
-                            f"{value:,.3g}",
+                            f"{value:,.3g}" + ("%" if unit == "%" else ""),
                             ha="center",
                             va="center",
                             color="white" if value > midpoint else "#182d3e",
@@ -384,22 +504,27 @@ def _static_chart(chart: dict, table: dict, directory: Path) -> None:
                         )
         else:
             if chart["kind"] == "scatter":
-                ax.scatter(xs, ys, color="#246a91", s=28, alpha=0.8)
+                ax.scatter(xs, ys, color=_ACCENT, s=28, alpha=0.8)
             else:
-                ax.plot(_line_x(xs), ys, color="#246a91", linewidth=2, marker="o", markersize=4)
+                ax.plot(_line_x(xs), ys, color=_ACCENT, linewidth=2, marker="o", markersize=4)
                 if isinstance(xs[0], str):
                     import matplotlib.dates as mdates
+                    from matplotlib.ticker import FixedLocator
 
-                    locator = mdates.AutoDateLocator(minticks=3, maxticks=8)
+                    locator = (
+                        FixedLocator(mdates.date2num(_line_x(xs)))
+                        if len(xs) <= 8
+                        else mdates.AutoDateLocator(minticks=3, maxticks=8)
+                    )
                     ax.xaxis.set_major_locator(locator)
                     ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
             x_unit = table["units"].get(chart["x"])
-            ax.set_xlabel(chart["x"] + (f" ({x_unit})" if x_unit else ""))
-            ax.set_ylabel(f"{chart['y']} ({unit})")
+            ax.set_xlabel(_axis_label(chart["x"]) + (f" ({x_unit})" if x_unit else ""))
+            ax.set_ylabel(f"{_axis_label(chart['y'])} ({unit})")
             ax.yaxis.set_major_formatter(StrMethodFormatter("{x:,.6g}"))
-            ax.grid(axis="y", color="#dce4e9", linewidth=0.6)
+            ax.grid(axis="y", color=_GRID, linewidth=0.6)
         ax.set_axisbelow(True)
-        ax.set_title(textwrap.fill(chart["title"], 75), loc="left", pad=18, fontweight="bold", fontsize=14)
+        ax.set_title(textwrap.fill(chart["title"], 75), loc="left", pad=24, fontweight="medium", fontsize=16)
         try:
             for extension in ("png", "svg"):
                 fig.savefig(directory / f"{chart['id']}.{extension}", dpi=160, bbox_inches="tight")
@@ -427,7 +552,10 @@ def _interactive(chart: dict, table: dict) -> str:
             y=xs,
             x=ys,
             orientation="h",
-            marker_color="#246a91",
+            text=[f"{value:,.5g}" for value in ys] if len(xs) <= 20 else None,
+            textposition="outside",
+            cliponaxis=False,
+            marker_color=_ACCENT,
             hovertemplate="%{y}: %{x:,.6g} " + unit + "<extra></extra>",
         )
     elif chart["kind"] == "histogram":
@@ -436,7 +564,7 @@ def _interactive(chart: dict, table: dict) -> str:
             x=centers,
             y=counts,
             width=width * 0.98,
-            marker_color="#246a91",
+            marker_color=_ACCENT,
             customdata=[[x - width / 2, x + width / 2] for x in centers],
             hovertemplate="%{customdata[0]:,.6g} – %{customdata[1]:,.6g} "
             + unit
@@ -448,7 +576,14 @@ def _interactive(chart: dict, table: dict) -> str:
             x=[_escape(x) for x in x_labels],
             y=[_escape(y) for y in y_labels],
             z=values,
-            colorscale="Blues",
+            colorscale=_HEAT_COLORS,
+            zmin=_heatmap_limits(table["units"][measure], values).get("vmin"),
+            zmax=_heatmap_limits(table["units"][measure], values).get("vmax"),
+            texttemplate="%{z:.3g}" + ("%" if unit == "%" else "")
+            if len(x_labels) * len(y_labels) <= 100
+            else None,
+            xgap=2,
+            ygap=2,
             colorbar={"title": unit},
             hovertemplate="%{x} · %{y}<br>%{z:,.6g} " + unit + "<extra></extra>",
         )
@@ -457,31 +592,44 @@ def _interactive(chart: dict, table: dict) -> str:
             x=xs,
             y=ys,
             mode="markers" if chart["kind"] == "scatter" else "lines+markers",
-            marker_color="#246a91",
-            line_color="#246a91",
+            marker_color=_ACCENT,
+            line_color=_ACCENT,
             hovertemplate="%{x}: %{y:,.6g} " + unit + "<extra></extra>",
         )
     fig = go.Figure(trace)
     fig.update_layout(
         template="plotly_white",
-        font={"family": "Arial", "size": 14, "color": "#334e62"},
-        margin={"l": 80, "r": 24, "t": 24, "b": 60},
+        font={"family": "Arial, sans-serif", "size": 14, "color": _INK},
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        margin={"l": 64, "r": 48, "t": 32, "b": 64},
         showlegend=False,
         height=max(420, len(xs) * 29 + 100) if chart["kind"] == "bar" else 480,
     )
     if chart["kind"] == "bar":
         fig.update_yaxes(autorange="reversed", automargin=True)
-        fig.update_xaxes(title_text=f"{_escape(chart['y'])} ({unit})", rangemode="tozero")
+        fig.update_xaxes(title_text=f"{_escape(_axis_label(chart['y']))} ({unit})", rangemode="tozero")
     elif chart["kind"] == "histogram":
-        fig.update_xaxes(title_text=f"{_escape(chart['x'])} ({unit})")
+        fig.update_xaxes(title_text=f"{_escape(_axis_label(chart['x']))} ({unit})")
         fig.update_yaxes(title_text="Observations", rangemode="tozero")
     elif chart["kind"] == "heatmap":
-        fig.update_xaxes(title_text=_escape(chart["x"]), automargin=True)
-        fig.update_yaxes(title_text=_escape(chart["y"]), autorange="reversed", automargin=True)
+        ticks, context = _heatmap_ticks(x_labels)
+        fig.update_xaxes(
+            title_text=_escape(_axis_label(chart["x"]) + context),
+            automargin=True,
+            tickmode="array",
+            tickvals=[_escape(x) for x in x_labels],
+            ticktext=[_escape(tick) for tick in ticks],
+        )
+        fig.update_yaxes(title_text=_escape(_axis_label(chart["y"])), autorange="reversed", automargin=True)
     else:
         x_unit = table["units"].get(chart["x"])
-        fig.update_xaxes(title_text=_escape(chart["x"] + (f" ({x_unit})" if x_unit else "")), automargin=True)
-        fig.update_yaxes(title_text=f"{_escape(chart['y'])} ({unit})", automargin=True)
+        fig.update_xaxes(
+            title_text=_escape(_axis_label(chart["x"]) + (f" ({x_unit})" if x_unit else "")), automargin=True
+        )
+        fig.update_yaxes(title_text=f"{_escape(_axis_label(chart['y']))} ({unit})", automargin=True)
+    fig.update_xaxes(gridcolor=_GRID, zerolinecolor="#ccd8d3")
+    fig.update_yaxes(gridcolor=_GRID, zerolinecolor="#ccd8d3")
     # Inline data cannot close a script tag; only the installed Plotly library is executable code.
     payload = fig.to_json().replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     config = json.dumps(
@@ -545,66 +693,112 @@ def _workbook(report: dict, path: Path) -> None:
                 if isinstance(value, str):
                     cell.data_type = "s"  # Never allow generated/source text to become a formula.
                 cell.alignment = Alignment(vertical="top", wrap_text=True)
+                cell.font = Font(name="Calibri", size=11, color="193940")
+                if row_index > 1 and row_index % 2 == 0:
+                    cell.fill = PatternFill("solid", fgColor="F0F5F2")
                 if row_index == 1:
                     cell.font = Font(name="Calibri", bold=True, color="FFFFFF")
-                    cell.fill = PatternFill("solid", fgColor="245B7B")
+                    cell.fill = PatternFill("solid", fgColor="163B42")
                 elif _finite_number(value):
                     cell.number_format = "#,##0.######"
             sheet.row_dimensions[row_index].height = 28 if row_index == 1 else None
         for index, column in enumerate(columns, 1):
             sheet.column_dimensions[get_column_letter(index)].width = min(60, max(18, len(column) + 5))
+        sheet.sheet_view.showGridLines = False
+        sheet.sheet_properties.pageSetUpPr.fitToPage = True
+        sheet.page_setup.orientation = "landscape"
+        sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
+        sheet.page_setup.fitToWidth = 1
+        sheet.page_setup.fitToHeight = 0
+        sheet.print_title_rows = "1:1"
         sheet.freeze_panes = "A2"
         sheet.auto_filter.ref = sheet.dimensions
     workbook.save(path)
 
 
+def _report_title(title: str) -> str:
+    """Visually separate an explicit scope delimiter without rewriting source content."""
+    heading, separator, scope = title.partition(" | ")
+    return f"<h1>{_escape(heading)}</h1>" + (f'<p class="scope">{_escape(scope)}</p>' if separator else "")
+
+
 def _report_html(report: dict) -> str:
+    navigation = [("overview", "Overview")]
+    if report["findings"]:
+        navigation.append(("findings", "Findings"))
+    if report["charts"]:
+        navigation.append(("charts", "Charts"))
+    navigation += [("tables", "Tables"), ("sources", "Sources")]
     body = [
-        f'<header><p class="eyebrow">BackIntel · analytical report</p><h1>{_escape(report["title"])}</h1>',
-        f'<p>{_escape(report["summary"])}</p><p class="meta">Run {_escape(report["run_id"])}</p></header>',
-        '<nav class="downloads" aria-label="Downloads"><a href="supporting.xlsx">Supporting workbook</a>'
-        '<a href="report.json">Structured analysis</a><a href="manifest.json">Artifact manifest</a></nav>',
+        '<header id="overview"><div class="masthead"><span class="brand">BackIntel</span>'
+        '<span class="eyebrow">Analytical report</span></div>',
+        _report_title(report["title"]) + f'<p class="summary">{_escape(report["summary"])}</p></header>',
+        '<nav class="section-nav" aria-label="Report sections">'
+        + "".join(f'<a href="#{target}">{label}</a>' for target, label in navigation)
+        + "</nav>",
     ]
     if report["metrics"]:
         body.append('<section class="metrics" aria-label="Key metrics">')
         for m in report["metrics"]:
             body.append(
-                f'<div class="metric"><span>{_escape(m["label"])}</span><strong>{_display(m["value"])} '
-                f'<span class="unit">{_escape(m["unit"])}</span></strong><p class="note">'
-                f"{_escape(m['definition'])}</p></div>"
+                f'<div class="metric"><span class="metric-label">{_escape(m["label"])}</span>'
+                f'<strong title="Exact value: {_escape(m["value"])}">{_metric_display(m)} '
+                f'<span class="unit">{_escape(m["unit"])}</span></strong>'
+                "<details><summary>Definition &amp; exact value</summary>"
+                f'<p>{_escape(m["definition"])}</p><p class="note">Exact value: {_escape(m["value"])} '
+                f'{_escape(m["unit"])}. <a href="#table-{m["table"]}">View supporting table</a>.</p>'
+                "</details></div>"
             )
         body.append("</section>")
     if report["findings"]:
         body.append(
-            "<h2>Findings</h2><ul>" + "".join(f"<li>{_escape(f)}</li>" for f in report["findings"]) + "</ul>"
+            '<section id="findings">'
+            '<h2>Key findings</h2><ol class="findings">'
+            + "".join(f"<li>{_escape(f)}</li>" for f in report["findings"])
+            + "</ol></section>"
         )
-    for chart in report["charts"]:
+    if report["charts"]:
+        body.append('<section id="charts"><h2>Visual evidence</h2>')
+    for index, chart in enumerate(report["charts"], 1):
         body.append(
-            f'<figure><img src="charts/{chart["id"]}.png" alt="{_escape(chart["title"])}">'
-            f"<figcaption>Table {_escape(chart['table'])} · "
-            f'<a href="charts/{chart["id"]}.html">Explore interactive chart</a> · '
-            f'<a href="charts/{chart["id"]}.svg">Download SVG</a></figcaption></figure>'
+            f'<figure><p class="eyebrow">Figure {index:02d}</p>'
+            '<p class="chart-hint note">Swipe or scroll to inspect the full chart.</p>'
+            f'<div class="chart-viewport" tabindex="0" role="region" aria-label="{_escape(chart["title"])}">'
+            f'<img class="chart-image" src="charts/{chart["id"]}.png" alt="{_escape(chart["title"])}. '
+            f'Exact values available in supporting table {chart["table"]}."></div>'
+            f'<figcaption><a href="#table-{chart["table"]}">Source table: {_escape(chart["table"])}</a>'
+            f'<span class="chart-links"><a href="charts/{chart["id"]}.html">Explore chart</a>'
+            f'<a href="charts/{chart["id"]}.svg">SVG</a>'
+            f'<a href="charts/{chart["id"]}.png">PNG</a></span></figcaption></figure>'
         )
+    if report["charts"]:
+        body.append("</section>")
     if report["caveats"]:
         body.append(
-            "<h2>Limits of this analysis</h2><ul>"
+            '<section class="limitations"><h2>Read with these limits</h2><ul>'
             + "".join(f"<li>{_escape(c)}</li>" for c in report["caveats"])
-            + "</ul>"
+            + "</ul></section>"
         )
-    body.append("<h2>Supporting tables</h2>")
+    body.append(
+        '<section id="tables"><h2>Supporting tables</h2>'
+        '<nav class="downloads" aria-label="Downloads"><a href="supporting.xlsx">Download workbook</a>'
+        '<a href="report.json">Analysis JSON</a><a href="manifest.json">File manifest</a></nav>'
+    )
     for table in report["tables"]:
         units = "; ".join(f"{c}: {u}" for c, u in table["units"].items())
         body.append(
-            f"<details><summary>{_escape(table['title'])} · {len(table['rows']):,} rows</summary>"
+            f'<details id="table-{table["id"]}"><summary>{_escape(table["title"])} '
+            f'<span class="table-count">{len(table["rows"]):,} rows</span></summary>'
             f'<p class="note">{_escape(units)}. Evidence: {_escape(", ".join(table["evidence_ids"]))}. '
             f'<a href="tables/{table["id"]}.csv">Download CSV</a>. First 100 rows shown.</p>'
             f"{_table_html(table)}</details>"
         )
-    body.append("<h2>Sources and reproducibility</h2>")
+    body.append('</section><section id="sources"><h2>Sources &amp; reproducibility</h2>')
     for source in report["sources"]:
         body.append(
-            f'<p class="note"><strong>{_escape(source["id"])}</strong>: {_escape(source["description"])}'
-            f"<br>Snapshot: {_escape(source['snapshot'])}</p>"
+            f'<div class="source"><p class="note"><strong>{_escape(source["id"])}</strong> · '
+            f'{_escape(source["description"])}</p><p class="snapshot">'
+            f"Snapshot: {_escape(source['snapshot'])}</p></div>"
         )
     for evidence in report["evidence"]:
         body.append(
@@ -612,12 +806,18 @@ def _report_html(report: dict) -> str:
             f"<pre>{_escape(evidence['code'])}</pre></details>"
         )
     body.append(
-        '<footer><p class="note">Figures, metrics and workbook share the supplied analytical tables. '
+        f'</section><footer><p class="meta">Run {_escape(report["run_id"])}</p>'
+        '<p class="note">Figures, metrics and workbook share the supplied analytical tables. '
+        "Headline values are rounded for readability; exact values are retained in the tables and downloads. "
         "Bundle checks establish consistency and file integrity, not independent correctness "
         "of the source analysis. Formula-like text is escaped in CSV; original text is retained "
         "in JSON and as text cells in Excel.</p></footer>"
     )
-    return _page(report["title"], "".join(body))
+    # Native details retain full keyboard access. Following a table link also opens that table.
+    script = """<script>function revealTable(){const id=location.hash.slice(1);
+const target=document.getElementById(id);if(target&&target.tagName==='DETAILS')target.open=true;}
+addEventListener('hashchange',revealTable);revealTable();</script>"""
+    return _page(report["title"], "".join(body), script)
 
 
 def render_report(spec: dict, output_dir: str | Path, *, max_bytes: int = DEFAULT_MAX_BYTES) -> dict:
